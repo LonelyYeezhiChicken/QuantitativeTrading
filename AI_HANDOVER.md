@@ -1,4 +1,4 @@
-# 🤖 系統工程架構與協作交接手冊 (Engineering Handover & Architecture Specification)
+# 系統工程架構與協作交接手冊 (Engineering Handover & Architecture Specification)
 
 > **致接手工程師、量化研究員與 AI 代理人 (AI Coding Agents)**：  
 > 本手冊為本專案的權威技術規格書。詳細說明系統的整體設計哲學、分層領域模組契約、環境設定規範、雙軌交易機制與測試準則。在進行任何架構擴充或程式碼異動前，請務必詳閱本手冊。

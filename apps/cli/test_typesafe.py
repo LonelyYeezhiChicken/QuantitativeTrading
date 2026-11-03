@@ -34,21 +34,21 @@ def main():
     # 2. Simulate 3 Market States (Bullish breakout, Bearish reversal, Sideways)
     test_scenarios = [
         {
-            "name": "🔥 強烈多頭突破 (Bullish Breakout)",
+            "name": "[Scenario A] 強烈多頭突破 (Bullish Breakout)",
             "row": pd.Series({
                 "ret_1": 0.008, "ret_3": 0.015, "rsi_14": 62.0, "natr_14": 0.018,
                 "ema_ratio_21": 0.012, "ema_ratio_200": 0.035, "volume_ratio_24": 2.4, "bb_percent": 0.85
             })
         },
         {
-            "name": "❄️ 超賣反彈契機 (Oversold Dip)",
+            "name": "[Scenario B] 超賣反彈契機 (Oversold Dip)",
             "row": pd.Series({
                 "ret_1": -0.012, "ret_3": -0.025, "rsi_14": 28.5, "natr_14": 0.022,
                 "ema_ratio_21": -0.015, "ema_ratio_200": 0.010, "volume_ratio_24": 1.8, "bb_percent": 0.12
             })
         },
         {
-            "name": "💤 弱勢盤整觀望 (Choppy Neutral)",
+            "name": "[Scenario C] 弱勢盤整觀望 (Choppy Neutral)",
             "row": pd.Series({
                 "ret_1": 0.0005, "ret_3": -0.001, "rsi_14": 49.0, "natr_14": 0.010,
                 "ema_ratio_21": 0.001, "ema_ratio_200": -0.005, "volume_ratio_24": 0.8, "bb_percent": 0.48

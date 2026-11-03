@@ -1,0 +1,52 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up uv (Fast Python Package Installer)
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install Project Dependencies
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install -r requirements.txt
+          uv pip install -e .
+
+      - name: Syntax and Bytecode Compilation Verification
+        run: |
+          .venv/bin/python -m compileall packages apps tests
+
+      - name: Run Full Unit & BDD Test Suite (28 Tests)
+        run: |
+          .venv/bin/python -m pytest tests/ -v
+
+      - name: Run Rolling Compound Backtest Verification
+        run: |
+          .venv/bin/python apps/cli/run_rolling_backtest.py --year 2025 --capital 100

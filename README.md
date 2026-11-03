@@ -1,17 +1,18 @@
-# 📈 加密貨幣 AI 多因子量化交易平台 (Crypto AI Quant Trading Platform)
+# 加密貨幣 AI 多因子量化交易平台 (Crypto AI Quant Trading Platform)
 
 [![Python Version](https://img.shields.io/badge/python-3.14%2B-blue.svg)](https://www.python.org/)
 [![Architecture](https://img.shields.io/badge/architecture-Modular%20Multi--Package-blueviolet.svg)]()
 [![BDD Tests](https://img.shields.io/badge/BDD%20Tests-28%20Passed%20(100%25)-brightgreen.svg)]()
 [![Data Leakage](https://img.shields.io/badge/Data%20Leakage-Zero%20Lookahead%20Bias-success.svg)]()
 [![Trading Modes](https://img.shields.io/badge/execution-Spot%20%7C%20Swap%20(Futures)-orange.svg)]()
+[![CI Workflow](https://github.com/LonelyYeezhiChicken/QuantitativeTrading/actions/workflows/ci.yml/badge.svg)](https://github.com/LonelyYeezhiChicken/QuantitativeTrading/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 本專案是一個具備企業級架構水準的獨立開源加密貨幣量化研究與交易執行平台。系統遵循 **領域驅動多套件架構 (Domain-Driven Multi-Package Architecture)** 與 **行為驅動開發 (BDD - Behavior-Driven Development)** 標準，全面整合多因子特徵工程、LightGBM 機器學習預測、TypeSafe AI (Jev) 短線機率校準決策、年度滾動複利回測評估，以及現貨 (SPOT) 與永續合約 (SWAP) 雙軌經紀商網關（原生支援 BingX OpenAPI 與 Pionex）。
 
 ---
 
-## ⚠️ 學術研究與金融風險免責聲明 (Academic Disclaimer & Risk Disclosure)
+## 學術研究與金融風險免責聲明 (Academic Disclaimer & Risk Disclosure)
 
 > [!IMPORTANT]
 > **本專案僅供學術研究、演算法驗證、程式教學與模擬交易用途（Academic and Research Purposes Only）。**
@@ -23,20 +24,22 @@
 
 ---
 
-## 🏛️ 系統架構一覽 (System Architecture)
+## 系統架構一覽 (System Architecture)
 
 系統採用高度解耦的模組化分層設計，各領域套件職責邊界清晰，具備高可維護性與水平擴展能力：
 
 ```text
 QuantitativeTrading/
+├── .github/
+│   └── workflows/ci.yml         # GitHub Actions 持續整合自動化測試流程
 ├── pyproject.toml               # 現代化套件管理規範與 [project.scripts] 命令註冊
 ├── justfile                     # 統一任務排程管理器 (Task Runner)
 ├── .env.example                 # 環境變數安全範本檔 (複製為 .env 使用)
 ├── .gitignore                   # 安全過濾規則 (嚴格杜絕 .env 與私鑰提交)
-├── AI_HANDOVER.md               # 🤖 協作者與 AI 代理人工程交接手冊
+├── AI_HANDOVER.md               # 協作者與 AI 代理人工程交接手冊
 ├── start_dashboard.bat          # 雙擊一鍵啟動視覺化控制台 (Windows 環境)
 │
-├── packages/                    # 📦 領域核心套件庫 (Core Domain Packages)
+├── packages/                    # 領域核心套件庫 (Core Domain Packages)
 │   ├── core/                    # 風險控制核心 (ATR 停損停利、凱利資金管理模型)
 │   ├── data/                    # 行情採集與儲存 (CCXT 連線、Parquet 列式資料清洗)
 │   ├── features/                # 78+ Alpha 技術因子、無前視偏差 (Leakage-Free) 特徵流水線
@@ -44,27 +47,27 @@ QuantitativeTrading/
 │   ├── backtest/                # 摩擦成本撮合引擎、績效指標統計與年度滾動複利回測模組
 │   └── execution/               # 經紀商網關層 (BaseBrokerGateway, BingX, Pionex, PaperBroker)
 │
-├── apps/                        # 🚀 應用層 (Application Endpoints)
+├── apps/                        # 應用層 (Application Endpoints)
 │   ├── dashboard/               # Streamlit 金融互動視覺化儀表板 (Plotly K 線與權益曲線)
 │   └── cli/                     # 純數字免指令終端控制台與各模組獨立診斷工具
 │
-└── tests/                       # 🧪 行為驅動測試矩陣 (BDD & Unit Tests)
+└── tests/                       # 行為驅動測試矩陣 (BDD & Unit Tests)
     ├── bdd/                     # Gherkin 規格書與 Given-When-Then 步驟 (28 項全數通過)
     └── ...                      # 前視偏差防護、雙網域容災、保證金計算等單元測試
 ```
 
 ---
 
-## 💎 平台核心特性 (Key Features)
+## 平台核心特性 (Key Features)
 
 ### 1. 現貨 (SPOT) 與 永續合約 (SWAP) 雙軌執行網關
 - **現貨市場 (`MarketType.SPOT`)**：全額資金撮合，實體代幣持有增減，無槓桿、無強平機制。
 - **永續合約 (`MarketType.SWAP`)**：
   - 支援雙向開倉：多頭 (`LONG`) 與空頭 (`SHORT`)。
-  - 自訂槓桿倍數 (`1x ~ 100x`)，依據保證金公式 `(Size × Price) / Leverage` 精確扣除。
+  - 自訂槓桿倍數 (`1x ~ 100x`)，依據保證金公式 `(Size * Price) / Leverage` 精確扣除。
   - 動態持倉追蹤與預估強平價 (`liquidationPrice`) 嚴密風控。
 
-### 2. BingX (盈幣) 官方 OpenAPI 深度對接
+### 2. BingX 官方 OpenAPI 深度對接
 - **雙網域自動容災 (Failover)**：優先連線 `open-api.bingx.com`，網路異常或逾時自動無縫容災切換至備援網域 `open-api.bingx.pro`。
 - **標準 HMAC-SHA256 簽署機制**：毫秒級時間戳校準、ASCII 字典升冪排序、參數注入檢驗，附帶 `X-SOURCE-KEY: BX-AI-SKILL` 標頭。
 - **端點涵蓋**：即時報價、五檔深度盤口、多週期 K 線、現貨錢包餘額、合約保證金權益與活躍持倉查詢。
@@ -85,9 +88,9 @@ QuantitativeTrading/
 
 ---
 
-## ⚡ 統一任務調度 (`just`)
+## 統一任務調度 (Task Runner)
 
-專案整合現代化任務排程工具 `just`，透過簡潔指令調度所有量化流水線：
+專案整合任務排程工具 `just`，透過簡潔指令調度所有量化流水線：
 
 | 指令 | 說明 |
 | :--- | :--- |
@@ -101,14 +104,14 @@ QuantitativeTrading/
 | **`just backtest`** | 執行 LightGBM 模型特徵工程、訓練與摩擦成本回測 |
 | **`just paper`** | 執行本地模擬盤撮合推演 (Paper Trading) |
 | **`just download`** | 下載或更新主流加密貨幣歷史 K 線數據 |
-| **`just sync`** | 初始化或同步 Python 3.14 虛擬環境 (`.venv`) |
+| **`just sync`** | 初始化或同步 Python 虛擬環境 (`.venv`) |
 
 ---
 
-## 🚀 快速上手 (Quick Start)
+## 快速上手 (Quick Start)
 
 ### 1. 系統依賴
-- Python 3.14+ (推薦) 或 3.12+
+- Python 3.12+ (支援 Python 3.14)
 - [uv](https://github.com/astral-sh/uv) (極速 Python 套件管理器)
 - [just](https://github.com/casey/just) (指令任務調度器)
 
@@ -139,15 +142,15 @@ just gui
 
 ---
 
-## 🤝 協作與工程交接 (Engineering Handover)
+## 協作與工程交接 (Engineering Handover)
 
 本專案提供專為工程師與 AI 代理人撰寫的技術交接手冊：
-👉 **[AI_HANDOVER.md](file:///C:/code/AIDev/QuantitativeTrading/AI_HANDOVER.md)**
+[AI_HANDOVER.md](file:///C:/code/AIDev/QuantitativeTrading/AI_HANDOVER.md)
 
 涵蓋模組契約、資料流管線、BDD 規範實踐及資安準則。
 
 ---
 
-## 📄 授權協議 (License)
+## 授權協議 (License)
 
 本專案採用 [MIT License](LICENSE) 開源授權協議。

@@ -31,13 +31,12 @@ from apps.dashboard.ui.components import (
 def main():
     # ----------------- Page Configuration -----------------
     st.set_page_config(
-        page_title="AI 量化交易控制台 (Monorepo)",
-        page_icon="📈",
+        page_title="AI 量化交易控制台",
         layout="wide",
         initial_sidebar_state="expanded",
     )
 
-    st.title("🤖 加密貨幣 AI 多因子量化控制台")
+    st.title("加密貨幣 AI 多因子量化控制台")
     st.caption("企業級模組化量化架構 | 支援任意模型插拔回測與 100U 滾倉複利分析")
 
     # ----------------- Shared State / Instances -----------------
@@ -45,7 +44,7 @@ def main():
     broker = PaperBroker()
 
     # ----------------- Sidebar Configuration -----------------
-    st.sidebar.header("⚙️ 交易對與週期設定")
+    st.sidebar.header("交易對與週期設定")
     symbol = st.sidebar.selectbox(
         "交易對 (Symbol)",
         ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"],
@@ -58,7 +57,7 @@ def main():
     )
 
     st.sidebar.divider()
-    st.sidebar.subheader("📌 快速狀態")
+    st.sidebar.subheader("緩存狀態")
     cached_data = dm.load_raw_data(symbol, timeframe)
     if cached_data is not None and not cached_data.empty:
         st.sidebar.success(f"已緩存 {len(cached_data):,} 筆 K 線")
@@ -69,10 +68,10 @@ def main():
 
     # ----------------- Main Tabs -----------------
     tab_data, tab_model, tab_rolling, tab_paper = st.tabs([
-        "📊 數據中心 (Data Hub)",
-        "🤖 策略與模型回測 (Models & Backtest)",
-        "💰 年度 100U 滾倉分析 (Rolling Compounding)",
-        "💼 模擬盤即時監控 (Paper Trading)",
+        "數據中心 (Data Hub)",
+        "策略與模型回測 (Models & Backtest)",
+        "年度 100U 滾倉分析 (Rolling Compounding)",
+        "模擬盤即時監控 (Paper Trading)",
     ])
 
     # ================= TAB 1: DATA HUB =================
@@ -85,7 +84,7 @@ def main():
         with col2:
             st.write("")
             st.write("")
-            download_btn = st.button("🚀 一鍵下載 / 更新行情", use_container_width=True)
+            download_btn = st.button("下載 / 更新行情", use_container_width=True)
 
         if download_btn:
             with st.spinner(f"正在透過 CCXT 連線幣安下載 {symbol} ({timeframe}) 數據..."):
@@ -126,7 +125,7 @@ def main():
         col_m1, col_m2 = st.columns([2, 1])
         with col_m1:
             model_choice = st.selectbox(
-                "🧠 選擇交易模型 (Trading Model)",
+                "選擇交易模型 (Trading Model)",
                 [
                     "LightGBM 多因子 AI 模型 (機器學習預測)",
                     "雙均線趨勢追蹤 (Dual EMA 21/50 傳統指標)",
@@ -143,7 +142,7 @@ def main():
         with col_p3:
             fee_rate = st.selectbox("手續費率 (Taker Fee)", [0.0002, 0.0005, 0.001], index=1, format_func=lambda x: f"{x*100:.2f}%")
 
-        train_btn = st.button("⚡ 開始模型回測", type="primary", use_container_width=True)
+        train_btn = st.button("開始模型回測", type="primary", use_container_width=True)
 
         if train_btn:
             if cached_data is None or len(cached_data) < 100:
@@ -181,7 +180,7 @@ def main():
             res = st.session_state["eval_res"]
 
             st.divider()
-            st.write(f"### 🏆 {res.model_name} 績效報告 (已扣除真實手續費與滑價)")
+            st.write(f"### {res.model_name} 績效報告 (已扣除真實手續費與滑價)")
             
             m1, m2, m3, m4, m5 = st.columns(5)
             m1.metric("策略總回報", f"{res.total_return_pct:+.2f}%")
@@ -194,7 +193,7 @@ def main():
 
     # ================= TAB 3: ROLLING COMPOUNDING =================
     with tab_rolling:
-        st.subheader("💰 年度 100U 滾倉複利分析 (Compounding Evaluator)")
+        st.subheader("年度 100U 滾倉複利分析 (Compounding Evaluator)")
         st.write("以 100 USDT 起始本金，模擬全年全複利滾動，驗證在牛熊不同市況下的實質獲利。")
 
         rc1, rc2, rc3 = st.columns(3)
@@ -205,7 +204,7 @@ def main():
         with rc3:
             rolling_model = st.selectbox("評估模型", ["LightGBM 多因子 AI", "雙均線趨勢追蹤 (Dual EMA)"], index=0)
 
-        if st.button("🚀 執行年度滾倉回測", use_container_width=True):
+        if st.button("執行年度滾倉回測", use_container_width=True):
             with st.spinner(f"正在載入 {rolling_year} 全年 K 線並推演滾倉利潤..."):
                 selected_model = LGBMAgent(num_boost_round=150) if "LightGBM" in rolling_model else DualEMACrossoverModel(21, 50)
                 evaluator = RollingBacktestEvaluator(initial_capital=rolling_capital)
@@ -229,7 +228,7 @@ def main():
             c_c.metric("淨獲利", f"${r.net_profit:+,.2f}", delta=f"{r.total_return_pct:+.2f}%")
             c_d.metric("BTC死抱 (HODL)", f"${r.benchmark_final_equity:,.2f}", delta=f"{r.benchmark_return_pct:+.2f}%")
 
-            st.write("#### 📅 每月滾動資金成長明細表")
+            st.write("#### 每月滾動資金成長明細表")
             st.dataframe(r.monthly_breakdown, use_container_width=True)
             st.plotly_chart(create_equity_curve_chart(r.results_df, initial_capital=r.initial_capital), use_container_width=True)
 
@@ -250,12 +249,12 @@ def main():
         col_act1, col_act2 = st.columns([1, 1])
 
         with col_act1:
-            st.write("#### 🕹️ 模擬盤控制動作")
+            st.write("#### 模擬盤控制動作")
             trade_size = st.number_input("單筆委託金額 (USDT)", min_value=10.0, max_value=50000.0, value=2500.0, step=500.0)
             
             c_buy, c_sell = st.columns(2)
             with c_buy:
-                if st.button("🟢 手動市價買入 (Buy)", use_container_width=True):
+                if st.button("手動市價買入 (Buy)", use_container_width=True):
                     order = broker.buy(symbol, current_price, usdt_amount=trade_size)
                     if order:
                         st.success(f"買入成功！價格: ${order['price']:,.2f}")
@@ -263,7 +262,7 @@ def main():
                     else:
                         st.error("現金不足，無法買入！")
             with c_sell:
-                if st.button("🔴 手動市價全平 (Close All)", use_container_width=True):
+                if st.button("手動市價全平 (Close All)", use_container_width=True):
                     order = broker.sell(symbol, current_price, pct_position=1.0)
                     if order:
                         st.success(f"平倉成功！實現盈虧: ${order['realized_pnl']:+,.2f}")
@@ -272,9 +271,9 @@ def main():
                         st.warning("無持倉可平！")
 
         with col_act2:
-            st.write("#### 🔄 模擬步進推演")
+            st.write("#### 模擬步進推演")
             st.write("依據 AI 模型信號，自動執行未來 24 根 K 棒的模擬交易撮合。")
-            if st.button("⏩ 執行 24 根 K 棒 AI 模擬推演", use_container_width=True):
+            if st.button("執行 24 根 K 棒 AI 模擬推演", use_container_width=True):
                 if cached_data is not None and len(cached_data) > 50:
                     with st.spinner("AI 正在模擬撮合中..."):
                         pipeline = FeaturePipeline(target_horizon=3)
@@ -295,7 +294,7 @@ def main():
                         st.success("24 根 K 棒模擬推演完成！")
                         st.rerun()
 
-        st.write("#### 📦 目前持倉明細")
+        st.write("#### 目前持倉明細")
         if broker.positions:
             pos_data = []
             for sym, pos in broker.positions.items():
@@ -317,7 +316,7 @@ def main():
         else:
             st.info("目前為空倉（100% 現金儲備）")
 
-        st.write("#### 📜 歷史成交流水記錄")
+        st.write("#### 歷史成交流水記錄")
         if broker.trade_history:
             history_df = pd.DataFrame(broker.trade_history)
             st.dataframe(history_df.tail(15), use_container_width=True)
