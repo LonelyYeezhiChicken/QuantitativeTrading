@@ -1,0 +1,399 @@
+"""BingX Broker Gateway: High-level exchange gateway conforming to BaseBrokerGateway."""
+
+import os
+import uuid
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
+from packages.execution.base import BaseBrokerGateway, MarketType
+from packages.execution.bingx_client import BingXClient
+
+load_dotenv()
+
+
+class BingXGateway(BaseBrokerGateway):
+    """High-level BingX execution gateway with Dry-Run safety mechanisms.
+
+    Conforms to BaseBrokerGateway. Supports both SPOT and SWAP (Perpetual Futures)
+    markets with seamless safety verification and dry-run execution.
+    """
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        api_secret: Optional[str] = None,
+        base_urls: Optional[List[str]] = None,
+        dry_run: bool = True,  # Default to True for maximum safety
+        default_market_type: str = MarketType.SPOT.value,
+    ):
+        self.api_key = api_key or os.getenv("BINGX_API_KEY", "")
+        self.api_secret = api_secret or os.getenv("BINGX_API_SECRET", "")
+        self._dry_run = dry_run
+        self._default_market_type = default_market_type.upper()
+
+        self.client = BingXClient(
+            api_key=self.api_key,
+            api_secret=self.api_secret,
+            base_urls=base_urls,
+        )
+
+        # In-memory simulated SPOT state
+        self._simulated_cash = 10000.0
+        self._simulated_positions: Dict[str, float] = {}
+        self._simulated_orders: List[Dict[str, Any]] = []
+
+        # In-memory simulated SWAP (Futures) state
+        self._simulated_swap_margin = 10000.0  # USDT margin balance
+        self._simulated_swap_positions: Dict[str, Dict[str, Any]] = {}
+        self._leverage_map: Dict[str, int] = {}
+
+    @property
+    def exchange_name(self) -> str:
+        return "BingX"
+
+    @property
+    def is_dry_run(self) -> bool:
+        return self._dry_run
+
+    @property
+    def default_market_type(self) -> str:
+        return self._default_market_type
+
+    @staticmethod
+    def to_bingx_symbol(symbol: str) -> str:
+        """Convert standard 'BTC/USDT' or 'BTC_USDT' to BingX 'BTC-USDT' format."""
+        return symbol.replace("/", "-").replace("_", "-").replace(":", "-").upper()
+
+    @staticmethod
+    def from_bingx_symbol(symbol: str) -> str:
+        """Convert BingX 'BTC-USDT' to standard 'BTC/USDT'."""
+        return symbol.replace("-", "/").upper()
+
+    def fetch_ticker(self, symbol: str, market_type: Optional[str] = None) -> Dict[str, float]:
+        """Fetch current ticker price from BingX (supports SPOT and SWAP)."""
+        m_type = (market_type or self.default_market_type).upper()
+        bx_symbol = self.to_bingx_symbol(symbol)
+        price = 0.0
+        bid = 0.0
+        ask = 0.0
+        ts = int(datetime.now(timezone.utc).timestamp() * 1000)
+
+        if m_type == MarketType.SWAP.value:
+            # Query Swap Ticker
+            try:
+                resp = self.client.fetch_swap_ticker(symbol=bx_symbol)
+                data = resp.get("data")
+                if isinstance(data, dict):
+                    price = float(data.get("lastPrice", 0.0))
+                    bid = float(data.get("bidPrice", price))
+                    ask = float(data.get("askPrice", price))
+                    ts = int(data.get("time", ts))
+                elif isinstance(data, list) and len(data) > 0:
+                    first = data[0]
+                    price = float(first.get("lastPrice", 0.0))
+                    bid = float(first.get("bidPrice", price))
+                    ask = float(first.get("askPrice", price))
+                    ts = int(first.get("time", ts))
+            except Exception:
+                pass
+
+            if price > 0:
+                return {"price": price, "bid": bid, "ask": ask, "timestamp": ts}
+
+        # SPOT (or fallback) Ticker
+        # 1. Fetch latest price
+        try:
+            price_resp = self.client.fetch_ticker_price(symbol=bx_symbol)
+            data = price_resp.get("data")
+            if isinstance(data, list) and len(data) > 0:
+                first = data[0]
+                if isinstance(first, dict):
+                    if "price" in first:
+                        price = float(first["price"])
+                    elif "trades" in first and isinstance(first["trades"], list) and len(first["trades"]) > 0:
+                        price = float(first["trades"][0].get("price", 0.0))
+            elif isinstance(data, dict):
+                price = float(data.get("price", 0.0))
+        except Exception:
+            pass
+
+        # 2. Fetch order book best bid/ask
+        try:
+            book_resp = self.client.fetch_book_ticker(symbol=bx_symbol)
+            bdata = book_resp.get("data")
+            first_b = bdata[0] if isinstance(bdata, list) and len(bdata) > 0 else (bdata if isinstance(bdata, dict) else {})
+            if isinstance(first_b, dict):
+                bid = float(first_b.get("bidPrice", price))
+                ask = float(first_b.get("askPrice", price))
+                if price == 0.0:
+                    price = (bid + ask) / 2.0 if (bid > 0 and ask > 0) else (bid or ask)
+                ts = int(first_b.get("time", ts))
+        except Exception:
+            bid = price
+            ask = price
+
+        return {
+            "price": price,
+            "bid": bid,
+            "ask": ask,
+            "timestamp": ts,
+        }
+
+    def get_balance(self, asset: str = "USDT", market_type: Optional[str] = None) -> float:
+        """Get available balance for SPOT asset or SWAP margin."""
+        m_type = (market_type or self.default_market_type).upper()
+        asset_clean = asset.upper()
+
+        if m_type == MarketType.SWAP.value:
+            if self.is_dry_run or not self.api_key:
+                return self._simulated_swap_margin
+
+            # Live Swap Balance
+            try:
+                resp = self.client.get_swap_balance()
+                data = resp.get("data", {})
+                if isinstance(data, dict):
+                    balance_info = data.get("balance", data)
+                    return float(balance_info.get("availableMargin", balance_info.get("balance", 0.0)))
+            except Exception:
+                pass
+            return 0.0
+
+        # SPOT Balance
+        if self.is_dry_run or not self.api_key:
+            if asset_clean == "USDT":
+                return self._simulated_cash
+            return self._simulated_positions.get(asset_clean, 0.0)
+
+        resp = self.client.get_account_balance()
+        data = resp.get("data", {})
+        balances = data.get("balances", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+
+        for item in balances:
+            coin = item.get("asset") or item.get("coin", "")
+            if str(coin).upper() == asset_clean:
+                return float(item.get("free", 0.0))
+
+        return 0.0
+
+    def set_leverage(self, symbol: str, leverage: int) -> bool:
+        """Set leverage for perpetual swap contract."""
+        bx_symbol = self.to_bingx_symbol(symbol)
+        self._leverage_map[bx_symbol] = leverage
+
+        if not self.is_dry_run and self.api_key:
+            try:
+                resp = self.client.set_swap_leverage(symbol=bx_symbol, leverage=leverage)
+                return resp.get("code") == 0
+            except Exception:
+                return False
+        return True
+
+    def get_positions(self, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Retrieve open perpetual swap contract positions."""
+        bx_symbol = self.to_bingx_symbol(symbol) if symbol else None
+
+        if self.is_dry_run:
+            if bx_symbol:
+                return [p for p in self._simulated_swap_positions.values() if p.get("symbol") == bx_symbol]
+            return list(self._simulated_swap_positions.values())
+
+        if self.api_key:
+            try:
+                resp = self.client.get_swap_positions(symbol=bx_symbol)
+                data = resp.get("data", [])
+                return data if isinstance(data, list) else []
+            except Exception:
+                return []
+        return []
+
+    def create_order(
+        self,
+        symbol: str,
+        side: str,                            # 'BUY' or 'SELL'
+        order_type: str,                      # 'LIMIT' or 'MARKET'
+        size: float,                          # Base asset quantity (e.g. BTC amount)
+        price: Optional[float] = None,
+        client_order_id: Optional[str] = None,
+        market_type: Optional[str] = None,     # 'SPOT' or 'SWAP'
+        position_side: str = "LONG",          # 'LONG' or 'SHORT' (for SWAP)
+        leverage: Optional[int] = None,       # Leverage multiplier (for SWAP)
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Submit an order to BingX (supports SPOT and SWAP, simulated if dry_run=True)."""
+        m_type = (market_type or self.default_market_type).upper()
+        bx_symbol = self.to_bingx_symbol(symbol)
+        side_clean = side.upper()
+        type_clean = order_type.upper()
+        pos_side = position_side.upper()
+
+        actual_leverage = leverage or self._leverage_map.get(bx_symbol, 1)
+
+        # ----------------- 1. SWAP (Perpetual Futures) Execution -----------------
+        if m_type == MarketType.SWAP.value:
+            if self.is_dry_run:
+                ticker = self.fetch_ticker(symbol, market_type=MarketType.SWAP.value)
+                fill_price = price if (type_clean == "LIMIT" and price is not None) else (ticker["price"] or 50000.0)
+                notional = size * fill_price
+                margin_required = notional / actual_leverage
+                order_id = f"BINGX_SWAP_DRY_RUN_{uuid.uuid4().hex[:10].upper()}"
+
+                if self._simulated_swap_margin < margin_required:
+                    return {
+                        "result": False,
+                        "code": 400,
+                        "msg": f"Insufficient swap margin: required {margin_required:.2f} USDT, have {self._simulated_swap_margin:.2f} USDT",
+                    }
+
+                # Deduct initial margin
+                self._simulated_swap_margin -= margin_required
+
+                # Calculate estimated liquidation price (approximate 90% margin threshold)
+                if pos_side == "LONG":
+                    liq_price = fill_price * (1.0 - (1.0 / actual_leverage) * 0.9)
+                else:  # SHORT
+                    liq_price = fill_price * (1.0 + (1.0 / actual_leverage) * 0.9)
+
+                pos_key = f"{bx_symbol}_{pos_side}"
+                existing_pos = self._simulated_swap_positions.get(pos_key, {
+                    "symbol": bx_symbol,
+                    "positionSide": pos_side,
+                    "positionAmt": 0.0,
+                    "entryPrice": fill_price,
+                    "leverage": actual_leverage,
+                    "initialMargin": 0.0,
+                    "liquidationPrice": liq_price,
+                    "unrealizedProfit": 0.0,
+                })
+
+                total_amt = existing_pos["positionAmt"] + size
+                existing_pos["positionAmt"] = total_amt
+                existing_pos["initialMargin"] += margin_required
+                existing_pos["entryPrice"] = fill_price
+                existing_pos["leverage"] = actual_leverage
+                existing_pos["liquidationPrice"] = liq_price
+
+                self._simulated_swap_positions[pos_key] = existing_pos
+
+                order_record = {
+                    "orderId": order_id,
+                    "clientOrderId": client_order_id or f"dry_swap_{uuid.uuid4().hex[:8]}",
+                    "symbol": bx_symbol,
+                    "side": side_clean,
+                    "positionSide": pos_side,
+                    "type": type_clean,
+                    "price": fill_price,
+                    "origQty": size,
+                    "executedQty": size,
+                    "leverage": actual_leverage,
+                    "marginRequired": margin_required,
+                    "status": "FILLED",
+                    "time": int(datetime.now(timezone.utc).timestamp() * 1000),
+                    "is_dry_run": True,
+                    "market_type": MarketType.SWAP.value,
+                }
+                self._simulated_orders.append(order_record)
+                return {"result": True, "code": 0, "data": order_record}
+
+            # Live Swap Execution via BingX REST API
+            return self.client.create_swap_order(
+                symbol=bx_symbol,
+                side=side_clean,
+                position_side=pos_side,
+                order_type=type_clean,
+                quantity=size,
+                price=price,
+                client_order_id=client_order_id,
+            )
+
+        # ----------------- 2. SPOT Execution -----------------
+        if self.is_dry_run:
+            ticker = self.fetch_ticker(symbol, market_type=MarketType.SPOT.value)
+            fill_price = price if (type_clean == "LIMIT" and price is not None) else (ticker["price"] or 50000.0)
+            cost = size * fill_price
+            order_id = f"BINGX_DRY_RUN_{uuid.uuid4().hex[:12].upper()}"
+
+            base_asset = symbol.split("/")[0].split("-")[0].upper()
+            if side_clean == "BUY":
+                if self._simulated_cash >= cost:
+                    self._simulated_cash -= cost
+                    self._simulated_positions[base_asset] = self._simulated_positions.get(base_asset, 0.0) + size
+                else:
+                    return {
+                        "result": False,
+                        "code": 400,
+                        "msg": f"Insufficient dry-run funds: required {cost:.2f} USDT, have {self._simulated_cash:.2f} USDT",
+                    }
+            elif side_clean == "SELL":
+                current_qty = self._simulated_positions.get(base_asset, 0.0)
+                if current_qty >= size:
+                    self._simulated_positions[base_asset] -= size
+                    self._simulated_cash += cost
+                else:
+                    return {
+                        "result": False,
+                        "code": 400,
+                        "msg": f"Insufficient dry-run position: required {size} {base_asset}, have {current_qty}",
+                    }
+
+            order_record = {
+                "orderId": order_id,
+                "clientOrderID": client_order_id or f"dry_{uuid.uuid4().hex[:8]}",
+                "symbol": bx_symbol,
+                "side": side_clean,
+                "type": type_clean,
+                "price": fill_price,
+                "origQty": size,
+                "executedQty": size,
+                "cummulativeQuoteQty": cost,
+                "status": "FILLED",
+                "time": int(datetime.now(timezone.utc).timestamp() * 1000),
+                "is_dry_run": True,
+                "market_type": MarketType.SPOT.value,
+            }
+            self._simulated_orders.append(order_record)
+            return {"result": True, "code": 0, "data": order_record}
+
+        # Live SPOT Execution
+        return self.client.create_order(
+            symbol=bx_symbol,
+            side=side_clean,
+            order_type=type_clean,
+            quantity=size,
+            price=price,
+            client_order_id=client_order_id,
+        )
+
+    def cancel_order(self, symbol: str, order_id: str, market_type: Optional[str] = None) -> bool:
+        """Cancel an open order."""
+        m_type = (market_type or self.default_market_type).upper()
+        if self.is_dry_run:
+            for o in self._simulated_orders:
+                if str(o.get("orderId")) == str(order_id):
+                    o["status"] = "CANCELED"
+                    return True
+            return False
+
+        bx_symbol = self.to_bingx_symbol(symbol)
+        if m_type == MarketType.SWAP.value:
+            resp = self.client.cancel_swap_order(symbol=bx_symbol, order_id=order_id)
+            return resp.get("code") == 0
+
+        resp = self.client.cancel_order(symbol=bx_symbol, order_id=order_id)
+        return resp.get("code") == 0
+
+    def get_open_orders(self, symbol: str, market_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Retrieve open orders."""
+        bx_symbol = self.to_bingx_symbol(symbol)
+
+        if self.is_dry_run:
+            return [
+                o for o in self._simulated_orders
+                if o.get("symbol") == bx_symbol and o.get("status") in ["NEW", "PENDING", "PARTIALLY_FILLED"]
+            ]
+
+        resp = self.client.get_open_orders(symbol=bx_symbol)
+        data = resp.get("data", [])
+        if isinstance(data, dict):
+            return data.get("orders", [])
+        return data if isinstance(data, list) else []

@@ -1,0 +1,103 @@
+"""Backtesting Engine: Vectorized & Event-Aware Simulator with Fees & Slippage."""
+
+from typing import Dict, Tuple
+import numpy as np
+import pandas as pd
+from packages.backtest.metrics import calculate_performance_metrics
+
+class BacktestEngine:
+    """Simulates trading strategy performance accounting for realistic friction costs."""
+
+    def __init__(
+        self,
+        initial_capital: float = 10000.0,
+        fee_rate: float = 0.0005,
+        slippage: float = 0.0002,
+        confidence_threshold: float = 0.003,
+        allow_short: bool = False,
+        atr_stop_multiplier: float = 2.0,
+    ):
+        self.initial_capital = initial_capital
+        self.fee_rate = fee_rate
+        self.slippage = slippage
+        self.confidence_threshold = confidence_threshold
+        self.allow_short = allow_short
+        self.atr_stop_multiplier = atr_stop_multiplier
+
+    def run(
+        self,
+        df: pd.DataFrame,
+        predicted_returns: np.ndarray,
+    ) -> Tuple[pd.DataFrame, Dict[str, float]]:
+        """Run backtest simulation."""
+        data = df.copy().reset_index(drop=True)
+        data["pred_ret"] = predicted_returns
+        
+        n = len(data)
+        close_prices = data["close"].values
+        pred_rets = data["pred_ret"].values
+        natr = data["natr_14"].values if "natr_14" in data.columns else np.full(n, 0.015)
+
+        raw_signals = np.zeros(n)
+        for i in range(n):
+            if pred_rets[i] > self.confidence_threshold:
+                raw_signals[i] = 1.0
+            elif self.allow_short and pred_rets[i] < -self.confidence_threshold:
+                raw_signals[i] = -1.0
+            else:
+                raw_signals[i] = 0.0
+
+        positions = np.zeros(n)
+        equity = np.zeros(n)
+        strategy_returns = np.zeros(n)
+
+        current_pos = 0.0
+        current_equity = self.initial_capital
+        entry_price = 0.0
+        stop_price = 0.0
+
+        for t in range(n):
+            current_price = close_prices[t]
+            
+            if current_pos > 0 and current_price < stop_price:
+                exit_cost = current_equity * (self.fee_rate + self.slippage)
+                current_equity -= exit_cost
+                current_pos = 0.0
+                entry_price = 0.0
+
+            target_pos = raw_signals[t - 1] if t > 0 else 0.0
+
+            turnover = abs(target_pos - current_pos)
+            if turnover > 0:
+                cost = current_equity * turnover * (self.fee_rate + self.slippage)
+                current_equity -= cost
+                current_pos = target_pos
+                if current_pos > 0:
+                    entry_price = current_price
+                    stop_price = current_price * (1.0 - (natr[t] * self.atr_stop_multiplier))
+
+            if current_pos > 0 and current_price > entry_price:
+                new_stop = current_price * (1.0 - (natr[t] * self.atr_stop_multiplier))
+                if new_stop > stop_price:
+                    stop_price = new_stop
+
+            asset_ret = (close_prices[t] / close_prices[t - 1]) - 1.0 if t > 0 else 0.0
+            period_ret = current_pos * asset_ret
+            current_equity *= (1.0 + period_ret)
+
+            positions[t] = current_pos
+            equity[t] = current_equity
+            strategy_returns[t] = period_ret
+
+        data["signal"] = raw_signals
+        data["position"] = positions
+        data["equity"] = equity
+        data["strategy_return"] = strategy_returns
+        data["benchmark_equity"] = self.initial_capital * (data["close"] / data["close"].iloc[0])
+
+        metrics = calculate_performance_metrics(
+            equity_curve=data["equity"],
+            strategy_returns=data["strategy_return"],
+        )
+
+        return data, metrics

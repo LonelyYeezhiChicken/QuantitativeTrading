@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "skills": {
+    "bingx-agent": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/agent/SKILL.md",
+      "computedHash": "590ff1ebc1abdd9c2530e331ed8245732297d5e290156eb559f7117aa9e852ab"
+    },
+    "bingx-announcement": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/announcement/SKILL.md",
+      "computedHash": "70ff257396089608d73a2928acfa30d614e1c03d1407b1fe8d83b0cd1ca94867"
+    },
+    "bingx-coinm-market": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/cswap-market/SKILL.md",
+      "computedHash": "338ed6a62c8ad5dd95f98aadb29d3510d0feb064933af74d27aa85a2e2991b58"
+    },
+    "bingx-coinm-trade": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/cswap-trade/SKILL.md",
+      "computedHash": "a3c5bee7fb0a157af1791524bfe011c6a0df12fb297332b8fad813bab22859eb"
+    },
+    "bingx-coinm-ws-account": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/cswap-ws-account/SKILL.md",
+      "computedHash": "62b34edea86027e45f4ed7d17ef92c830752fa62899650ddead2e298f93b6103"
+    },
+    "bingx-coinm-ws-market": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/cswap-ws-market/SKILL.md",
+      "computedHash": "2c0d6854412f351587893c96c8c340faf56801a8de21d2b076603298b748043b"
+    },
+    "bingx-copytrade-spot": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/copytrade-spot/SKILL.md",
+      "computedHash": "39232af692012279a244d9afef002877b9f5639b288e75cc00f999a0281af711"
+    },
+    "bingx-copytrade-swap": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/copytrade-swap/SKILL.md",
+      "computedHash": "918c9eb3c22e78fc5c1b1cbe5f3052d9b23c02586c4dd39e545df703b4c004e7"
+    },
+    "bingx-dynamic-sl-tp": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/bingx-dynamic-sl-tp/SKILL.md",
+      "computedHash": "29260f97ac2ac1a8d5d69ea4b9e922a096c7e58e60cc27de46130fe3f36d9979"
+    },
+    "bingx-fund-account": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/fund-account/SKILL.md",
+      "computedHash": "5b541b5aa3758fdc37f364eda716238f82623749e46aaf2496a3bf71c91ec92b"
+    },
+    "bingx-maker-entry": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/bingx-maker-entry/SKILL.md",
+      "computedHash": "6b7ef49d7b911079c723461e9f4ea2918dab78942422066959d47e93da6c23fa"
+    },
+    "bingx-rsi-bottom-hunter": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/bingx-rsi-bottom-hunter/SKILL.md",
+      "computedHash": "da4c8094fab984c5ea9c41053e20dbf26b58a7c45e0d9e74e7c9f1ef60fb6449"
+    },
+    "bingx-sentiment-dashboard": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/bingx-sentiment-dashboard/SKILL.md",
+      "computedHash": "7e6a7c57fdda1537acba6ca2feb85cf048babff0d6ca2e83a17d53869ef881f2"
+    },
+    "bingx-spot-account": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/spot-account/SKILL.md",
+      "computedHash": "f1c51cef55b80a12553f8a9eaa2362e1770032003a7b0c04bb766899a2f84ab0"
+    },
+    "bingx-spot-market": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/spot-market/SKILL.md",
+      "computedHash": "4b7dac1c031d97b681550db9c9426fe1f6826467b3d4f4c2486223739539ba37"
+    },
+    "bingx-spot-trade": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/spot-trade/SKILL.md",
+      "computedHash": "7fe627593104673819960b1a6e77c0c87ce2f9e74a8521e9c2b1644fd77dfa68"
+    },
+    "bingx-spot-wallet": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/spot-wallet/SKILL.md",
+      "computedHash": "9227541c1ea0c3fe00210c0ac1bca13695390f810ae7d84a54360cac634c99b1"
+    },
+    "bingx-spot-ws-account": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/spot-ws-account/SKILL.md",
+      "computedHash": "c7522b09dc1651d111b3ec4b31bafa1859e0486572b20930695bf81dc172fe08"
+    },
+    "bingx-spot-ws-market": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/spot-ws-market/SKILL.md",
+      "computedHash": "a987d8ea32e74fb273169eae74c5d3d97b822b8879e5dbc9b3d5106b5fb1bc12"
+    },
+    "bingx-standard-trade": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/standard-trade/SKILL.md",
+      "computedHash": "b933203ae9dc8b3b93d53efcffe4813ed272acb2d0ddf3a2d449f50f001f107f"
+    },
+    "bingx-sub-account": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/sub-account/SKILL.md",
+      "computedHash": "b4653f8d9a577a35f973c4c6a796a88ce2952afa16c34e23436a8d5d413a3ac5"
+    },
+    "bingx-swap-account": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/swap-account/SKILL.md",
+      "computedHash": "01cda8c8b606460f0ef4d45445a90e0203d93f0b03083c405deaddf9bf45f05e"
+    },
+    "bingx-swap-market": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/swap-market/SKILL.md",
+      "computedHash": "6c36412e77ae2191ff6c6954b3a1e65077fd0f518325f345c817c614bf9023b7"
+    },
+    "bingx-swap-trade": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/swap-trade/SKILL.md",
+      "computedHash": "e7e7f6a7eb3dee88a84451668811394a00ecc8e79971debb6eb0fb640d84a932"
+    },
+    "bingx-swap-ws-account": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/swap-ws-account/SKILL.md",
+      "computedHash": "ff68c1e21c72408b111a233f0414b99583b6f82cecaa1f27d9271446cc128f92"
+    },
+    "bingx-swap-ws-market": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/swap-ws-market/SKILL.md",
+      "computedHash": "7125da574e7d5fa9f50ecb546246d1f41f282877b1dce0be7bfa9a607f2eed16"
+    },
+    "bingx-technical-analysis": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/bingx-technical-analysis/SKILL.md",
+      "computedHash": "dbe7bc12ed1674967c165cf1a7a3282af1c18f26770afd9a02ec0296e759a2dd"
+    },
+    "bingx-trade-review": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/bingx-trade-review/SKILL.md",
+      "computedHash": "60127e603444bc96f36cf143e77667550083b8f89a9f7a437dd864969775d730"
+    },
+    "bingx-trading-plan": {
+      "source": "BingX-API/api-ai-skills",
+      "sourceType": "github",
+      "skillPath": "skills/bingx-trading-plan/SKILL.md",
+      "computedHash": "b9d69c1551683501824fa26fcf25ebb28d081aa16370a8fd22797b357510dc39"
+    }
+  }
+}

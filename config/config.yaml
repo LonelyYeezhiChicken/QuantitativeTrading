@@ -1,0 +1,64 @@
+# AI Quantitative Trading System Configuration (Crypto)
+
+system:
+  project_name: "CryptoAIQuant"
+  version: "0.1.0"
+  random_seed: 42
+
+exchange:
+  name: "binance"
+  paper_trading: true       # 模擬交易模式 (True: 模擬盤 / False: 實盤)
+  testnet: true             # 是否連接交易所 Testnet
+  symbols:
+    - "BTC/USDT"
+    - "ETH/USDT"
+    - "SOL/USDT"
+  timeframe: "1h"           # 預設主力預測週期 (15m 或 1h)
+  rate_limit: true
+
+data:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  start_date: "2023-01-01 00:00:00"
+  cache_format: "parquet"   # 高效壓縮列式存儲
+
+features:
+  lookback_periods: [7, 14, 21, 50, 200]
+  rsi_periods: [14, 28]
+  atr_period: 14
+  bollinger_period: 20
+  bollinger_std: 2.0
+  target_horizon: 3         # 預測未來 N 根 K 棒的收益率
+  label_threshold: 0.005    # 收益率超過 0.5% 視為顯著漲跌 (三分類用)
+
+model:
+  type: "lightgbm"
+  task: "regression"        # regression (收益率) 或 classification (方向)
+  params:
+    objective: "regression"
+    metric: "rmse"
+    boosting_type: "gbdt"
+    n_estimators: 300
+    learning_rate: 0.03
+    num_leaves: 31
+    max_depth: 6
+    subsample: 0.8
+    colsample_bytree: 0.8
+    random_state: 42
+    verbose: -1
+  cross_validation:
+    n_splits: 5
+    purge_pct: 0.02         # 2% 的 purge 緩衝區消除重疊洩漏
+    embargo_pct: 0.01       # 1% 的 embargo 延遲消除自相關洩漏
+
+backtest:
+  initial_capital: 10000.0  # 初始資金 (USDT)
+  maker_fee: 0.0002         # 萬分之 2 (掛單)
+  taker_fee: 0.0005         # 萬分之 5 (吃單)
+  slippage: 0.0002          # 預設滑價萬分之 2
+  confidence_threshold: 0.003 # 預測收益率大於 0.3% 才進場
+  
+risk:
+  max_position_size: 0.25   # 單一標的最大佔比 (25%)
+  atr_multiplier_stop: 2.0  # ATR 移動停損乘數
+  daily_max_drawdown_limit: 0.03 # 當日虧損超過 3% 啟動冷靜期

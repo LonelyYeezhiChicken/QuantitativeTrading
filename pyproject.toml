@@ -1,0 +1,47 @@
+[project]
+name = "crypto-ai-quant"
+version = "2.0.0"
+description = "Crypto AI Quantitative Trading Monorepo"
+authors = [
+    { name = "Quant Trading Community" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ccxt>=4.0.0",
+    "pandas>=2.0.0",
+    "pyarrow>=14.0.0",
+    "lightgbm>=4.0.0",
+    "scipy>=1.10.0",
+    "pyyaml>=6.0.0",
+    "requests>=2.28.0",
+    "duckdb>=0.9.0",
+    "tqdm>=4.65.0",
+    "streamlit>=1.30.0",
+    "plotly>=5.18.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "ruff>=0.8.0",
+]
+
+[project.scripts]
+quant-gui = "apps.dashboard.app:main"
+quant-menu = "apps.cli.interactive_menu:main"
+quant-download = "apps.cli.download_data:main"
+quant-backtest = "apps.cli.train_and_backtest:main"
+quant-paper = "apps.cli.paper_trade:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["packages*", "apps*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
