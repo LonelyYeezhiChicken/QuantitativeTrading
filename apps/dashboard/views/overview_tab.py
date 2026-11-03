@@ -1,5 +1,6 @@
 """Overview Tab View (Mission Control): Executive KPIs, Market Pulse, Dual Bots, and Live Journal."""
 
+import json
 from pathlib import Path
 import streamlit as st
 import pandas as pd
@@ -12,6 +13,123 @@ from apps.dashboard.ui.responsive import render_market_pulse_card, render_gold_m
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 
 
+def discover_active_bot_instances(btc_p: float) -> list[dict]:
+    """Scan data/ directory dynamically for all active bot state files (SPOT, SWAP 3x, 10x, 50x, etc.)."""
+    instances = []
+    data_dir = ROOT_DIR / "data"
+    if not data_dir.exists():
+        return instances
+
+    # 1. Spot bots
+    for f in sorted(data_dir.glob("bingx_paper_*.json")):
+        try:
+            with open(f, "r", encoding="utf-8") as fp:
+                st_data = json.load(fp)
+            pos = st_data.get("position", {})
+            side = pos.get("side", "NONE")
+            qty = pos.get("amount_btc", 0.0)
+            cost = pos.get("entry_price", btc_p)
+            cash = st_data.get("cash_usdt", 0.0)
+            init_cap = st_data.get("initial_capital", 100.0)
+            mkt_val = qty * btc_p
+            upnl = (btc_p - cost) * qty if side == "LONG" else 0.0
+            equity = cash + mkt_val
+            instances.append({
+                "id": f.stem,
+                "file": f,
+                "title": "現貨交易守護 (SPOT 1x)",
+                "short_title": "SPOT 1x",
+                "market_type": "SPOT",
+                "leverage": 1,
+                "border_color": "#58a6ff",
+                "title_color": "#58a6ff",
+                "side": side,
+                "qty": qty,
+                "cost": cost,
+                "mkt_val": mkt_val,
+                "upnl": upnl,
+                "upnl_pct": (upnl / 50.0 * 100.0) if side != "NONE" else 0.0,
+                "avail": cash,
+                "equity": equity,
+                "init_cap": init_cap,
+                "liq_price": 0.0,
+                "risk_desc": "移動停利 (回撤 0.4%) | 硬停損 (-1.5%)",
+                "stop_flag": ROOT_DIR / "data" / "bot_stop.flag",
+                "stop_btn_label": "安全停止現貨進程",
+            })
+        except Exception:
+            pass
+
+    # 2. Swap bots (bingx_swap_*.json)
+    for f in sorted(data_dir.glob("bingx_swap_*.json")):
+        try:
+            with open(f, "r", encoding="utf-8") as fp:
+                st_data = json.load(fp)
+            pos = st_data.get("position", {})
+            side = pos.get("side", "NONE")
+            qty = pos.get("amount_btc", 0.0)
+            cost = pos.get("entry_price", btc_p)
+            margin = pos.get("margin_used", 50.0)
+            avail = st_data.get("available_margin", 50.0)
+            init_cap = st_data.get("initial_capital", 100.0)
+            lev = pos.get("leverage", st_data.get("leverage", 3))
+            liq_p = pos.get("liquidation_price", 0.0)
+
+            if side == "LONG":
+                upnl = (btc_p - cost) * qty
+            elif side == "SHORT":
+                upnl = (cost - btc_p) * qty
+            else:
+                upnl = 0.0
+            equity = avail + margin + upnl
+            upnl_pct = (upnl / margin * 100.0) if (margin > 0 and side != "NONE") else 0.0
+
+            # Styling and labeling based on leverage
+            if lev <= 3:
+                b_color = "#a371f7"  # Purple
+                t_label = f"永續合約守護 (SWAP {lev}x)"
+                risk_info = f"動態追蹤停利 (回撤 1.0%) | 原生硬止損 (-{4.0 if lev<=3 else 15.0}% 雲端守護)"
+            elif lev <= 10:
+                b_color = "#f0883e"  # Orange
+                t_label = f"高槓桿合約 (SWAP {lev}x)"
+                risk_info = "價格停損 (-1.5%) | 目標停利 (+20.0% ROE) | 雲端原生硬停損"
+            else:
+                b_color = "#f85149"  # Crimson / Red
+                t_label = f"超高槓桿合約 (SWAP {lev}x)"
+                risk_info = f"自適應超微停損 (-{round(15.0/lev, 2)}%) | 移動鎖利 | 雲端原生硬停損"
+
+            stem_name = f.stem.replace("bingx_", "")
+            stop_flag_name = "swap_stop.flag" if stem_name == "swap_100u" else f"{stem_name}_stop.flag"
+
+            instances.append({
+                "id": f.stem,
+                "file": f,
+                "title": t_label,
+                "short_title": f"SWAP {lev}x",
+                "market_type": "SWAP",
+                "leverage": lev,
+                "border_color": b_color,
+                "title_color": b_color,
+                "side": side,
+                "qty": qty,
+                "cost": cost,
+                "mkt_val": qty * btc_p,
+                "upnl": upnl,
+                "upnl_pct": upnl_pct,
+                "avail": avail,
+                "equity": equity,
+                "init_cap": init_cap,
+                "liq_price": liq_p,
+                "risk_desc": risk_info,
+                "stop_flag": ROOT_DIR / "data" / stop_flag_name,
+                "stop_btn_label": f"安全停止 {lev}x 進程",
+            })
+        except Exception:
+            pass
+
+    return instances
+
+
 def render_overview_tab(
     gw: BingXGateway,
     jm: TradeJournalManager,
@@ -19,8 +137,7 @@ def render_overview_tab(
     load_bot_states_fn,
     get_unified_journal_entries_fn,
 ):
-    """Render the main executive overview tab."""
-    spot_state, swap_state = load_bot_states_fn()
+    """Render the main executive overview tab with fully dynamic multi-bot discovery."""
     journal_stats = jm.get_summary_stats()
 
     # Fetch real-time market tickers via Gateway
@@ -32,67 +149,19 @@ def render_overview_tab(
     btc_p = t_btc.get("price", 77400.0)
     xaut_p = t_xaut.get("price", 3935.0)
 
-    # Spot bot live metrics calculation
-    spot_pos = spot_state.get("position", {})
-    spot_side = spot_pos.get("side", "NONE")
-    spot_qty = spot_pos.get("amount_btc", 0.0)
-    spot_cost = spot_pos.get("entry_price", btc_p)
-    spot_cash = spot_state.get("cash_usdt", 50.0)
-    spot_mkt_val = spot_qty * btc_p
-    spot_upnl = (btc_p - spot_cost) * spot_qty if spot_side == "LONG" else 0.0
-    spot_equity = spot_cash + spot_mkt_val
-
-    # Swap bot live metrics calculation
-    swap_pos = swap_state.get("position", {})
-    swap_side = swap_pos.get("side", "NONE")
-    swap_qty = swap_pos.get("amount_btc", 0.0)
-    swap_cost = swap_pos.get("entry_price", btc_p)
-    swap_margin = swap_pos.get("margin_used", 50.0)
-    swap_avail = swap_state.get("available_margin", 50.0)
-    if swap_side == "LONG":
-        swap_upnl = (btc_p - swap_cost) * swap_qty
-    elif swap_side == "SHORT":
-        swap_upnl = (swap_cost - btc_p) * swap_qty
-    else:
-        swap_upnl = 0.0
-    swap_equity = swap_avail + swap_margin + swap_upnl
-
-    # Check for High-Leverage 10x swap bot state
-    swap_10x_file = ROOT_DIR / "data" / "bingx_swap_10x_100u.json"
-    swap_10x_state = {}
-    has_10x_bot = False
-    s10_upnl, s10_equity = 0.0, 0.0
-    if swap_10x_file.exists():
-        try:
-            import json
-            with open(swap_10x_file, "r", encoding="utf-8") as f:
-                swap_10x_state = json.load(f)
-            has_10x_bot = True
-            s10_pos = swap_10x_state.get("position", {})
-            s10_side = s10_pos.get("side", "NONE")
-            s10_qty = s10_pos.get("amount_btc", 0.0)
-            s10_cost = s10_pos.get("entry_price", btc_p)
-            s10_margin = s10_pos.get("margin_used", 50.0)
-            s10_avail = swap_10x_state.get("available_margin", 50.0)
-            if s10_side == "LONG":
-                s10_upnl = (btc_p - s10_cost) * s10_qty
-            elif s10_side == "SHORT":
-                s10_upnl = (s10_cost - btc_p) * s10_qty
-            else:
-                s10_upnl = 0.0
-            s10_equity = s10_avail + s10_margin + s10_upnl
-        except Exception:
-            has_10x_bot = False
+    # Dynamically scan and discover all active bots in data/
+    active_bots = discover_active_bot_instances(btc_p)
 
     # Compile unified journal entries directly from authoritative TradeJournalManager
-    entries, total_realized_pnl, total_portfolio_upnl = get_unified_journal_entries_fn(jm, btc_p)
+    entries, total_realized_pnl, _ = get_unified_journal_entries_fn(jm, btc_p)
 
-    # Portfolio Valuation Calculation: Initial (200U or 300U) + Realized PnL + Floating Unrealized PnL
-    capital_base = 300.0 if has_10x_bot else 200.0
+    # Dynamic Portfolio Valuation Calculation
+    capital_base = sum(b["init_cap"] for b in active_bots) if active_bots else 200.0
+    total_portfolio_upnl = sum(b["upnl"] for b in active_bots)
     total_portfolio_equity = capital_base + total_realized_pnl + total_portfolio_upnl
     total_net_pnl = total_realized_pnl + total_portfolio_upnl
-    total_pnl_pct = (total_net_pnl / capital_base) * 100.0
-    open_trades_count = len([e for e in entries if e.get("status") == "OPEN"])
+    total_pnl_pct = (total_net_pnl / capital_base) * 100.0 if capital_base > 0 else 0.0
+    open_trades_count = len([b for b in active_bots if b.get("side") != "NONE"])
     closed_trades_count = len([e for e in entries if e.get("status") == "CLOSED"])
 
     # ---- Section 0: Autopilot Safety & Manual Arming Hub ----
@@ -154,7 +223,7 @@ def render_overview_tab(
         <div class="stat-card">
             <div class="stat-title">總帳戶資產淨值</div>
             <div class="stat-value text-cyan">${total_portfolio_equity:,.2f} USDT</div>
-            <div class="stat-sub">配置本金: $200.00 (總淨盈虧: {('+' if total_net_pnl>=0 else '')}${total_net_pnl:,.2f} U)</div>
+            <div class="stat-sub">配置本金: ${capital_base:,.2f} (總淨盈虧: {('+' if total_net_pnl>=0 else '')}${total_net_pnl:,.2f} U)</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -165,7 +234,7 @@ def render_overview_tab(
         <div class="stat-card">
             <div class="stat-title">當前未平倉浮動盈虧</div>
             <div class="stat-value {pnl_cls}">{sign}${total_portfolio_upnl:,.2f} USDT</div>
-            <div class="stat-sub">持倉中: {open_trades_count} 筆 | 浮動回報: <span class="{pnl_cls}">{sign}{((total_portfolio_upnl/200.0)*100):.2f}%</span></div>
+            <div class="stat-sub">持倉中: {open_trades_count} 筆 | 浮動回報: <span class="{pnl_cls}">{sign}{((total_portfolio_upnl/capital_base)*100 if capital_base>0 else 0):.2f}%</span></div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -181,13 +250,14 @@ def render_overview_tab(
         """, unsafe_allow_html=True)
 
     with kpi_col4:
-        auto_cls = "text-green" if (autopilot.status == AutopilotState.ARMED or open_trades_count > 0) else "text-amber"
-        auto_lbl = "雙守護運行中" if open_trades_count > 0 else ("已啟動守護 (ARMED)" if autopilot.status == AutopilotState.ARMED else "待機安全模式 (STANDBY)")
+        auto_cls = "text-green" if (autopilot.status == AutopilotState.ARMED or len(active_bots) > 0) else "text-amber"
+        auto_lbl = f"{len(active_bots)} 守護運行中" if len(active_bots) > 0 else ("已啟動守護 (ARMED)" if autopilot.status == AutopilotState.ARMED else "待機安全模式 (STANDBY)")
+        bots_summary_str = " | ".join(f"{b['short_title']}" for b in active_bots) if active_bots else "無活躍進程"
         st.markdown(f"""
         <div class="stat-card">
             <div class="stat-title">自動操盤中樞狀態</div>
             <div class="stat-value {auto_cls}">{auto_lbl}</div>
-            <div class="stat-sub">SPOT 100U: 運行中 | SWAP 3x: 運行中</div>
+            <div class="stat-sub">{bots_summary_str}</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -243,65 +313,34 @@ def render_overview_tab(
     # Macro Gold Ratio
     render_gold_macro_card(btc_price=btc_p, xaut_price=xaut_p)
 
-    # ---- Section 3: Dual or Triple Bot Live Monitor ----
+    # ---- Section 3: Dynamic Multi-Bot Live Monitor ----
     st.markdown("#### 量化守護進程倉位與風控")
-    if has_10x_bot:
-        bot_c1, bot_c2, bot_c3 = st.columns(3)
+    if active_bots:
+        cols_per_row = min(len(active_bots), 4)
+        for i in range(0, len(active_bots), cols_per_row):
+            row_bots = active_bots[i:i + cols_per_row]
+            cols = st.columns(len(row_bots))
+            for col, b in zip(cols, row_bots):
+                with col:
+                    liq_str = f"${b['liq_price']:,.2f}" if b['liq_price'] > 0 else "現貨無強平"
+                    pnl_color = "text-green" if b['upnl'] >= 0 else "text-red"
+                    st.markdown(f"""
+                    <div class="stat-card" style="border-left: 4px solid {b['border_color']};">
+                        <div class="stat-title" style="color: {b['title_color']}; font-weight: bold;">{b['title']}</div>
+                        <div style="font-size: 15px; margin-bottom: 8px;">
+                            持倉狀態: <b>{b['side']}</b> ({b['qty']:.6f} BTC, {b['leverage']}x 槓桿)<br>
+                            進場均價: <b>${b['cost']:,.2f}</b> | 強平價: <b>{liq_str}</b><br>
+                            未實現盈虧: <span class="{pnl_color}"><b>${b['upnl']:+,.2f} U ({b['upnl_pct']:+.2f}%)</b></span><br>
+                            可用資金: <b>${b['avail']:.2f} U</b> | 單元權益: <b>${b['equity']:.2f} USDT</b>
+                        </div>
+                        <div class="stat-sub">風控規則: {b['risk_desc']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    if st.button(b["stop_btn_label"], key=f"btn_stop_{b['id']}", use_container_width=True):
+                        b["stop_flag"].touch()
+                        st.success(f"已寫入停止標誌 ({b['stop_flag'].name})")
     else:
-        bot_c1, bot_c2 = st.columns(2)
-
-    with bot_c1:
-        st.markdown(f"""
-        <div class="stat-card" style="border-left: 4px solid #58a6ff;">
-            <div class="stat-title text-cyan">現貨交易守護 (SPOT 100U)</div>
-            <div style="font-size: 15px; margin-bottom: 8px;">
-                持倉狀態: <b>{spot_pos.get('side', 'NONE')}</b> ({spot_qty:.6f} BTC)<br>
-                進場均價: <b>${spot_cost:,.2f}</b> | 市值: <b>${spot_mkt_val:,.2f} U</b><br>
-                未實現盈虧: <span class="{'text-green' if spot_upnl>=0 else 'text-red'}"><b>${spot_upnl:+,.2f} U ({((spot_upnl/50)*100):+.2f}%)</b></span><br>
-                可用現金: <b>${spot_cash:.2f} USDT</b> | 單元淨值: <b>${spot_equity:.2f} USDT</b>
-            </div>
-            <div class="stat-sub">風控規則: 移動停利 (回撤 0.4%) | 硬停損 (-1.5%)</div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("安全停止現貨進程", key="btn_stop_spot", use_container_width=True):
-            (ROOT_DIR / "data" / "bot_stop.flag").touch()
-            st.success("已寫入現貨停止標誌 (bot_stop.flag)")
-
-    with bot_c2:
-        st.markdown(f"""
-        <div class="stat-card" style="border-left: 4px solid #a371f7;">
-            <div class="stat-title" style="color: #a371f7;">永續合約守護 (SWAP 100U, 3x)</div>
-            <div style="font-size: 15px; margin-bottom: 8px;">
-                持倉方向: <b>{swap_side}</b> ({swap_qty:.6f} BTC, 3x 槓桿)<br>
-                進場均價: <b>${swap_cost:,.2f}</b> | 強平價: <b>${swap_pos.get('liquidation_price', 0):,.2f}</b><br>
-                未實現盈虧: <span class="{'text-green' if swap_upnl>=0 else 'text-red'}"><b>${swap_upnl:+,.2f} U ({((swap_upnl/swap_margin*100) if swap_margin>0 else 0):+.2f}%)</b></span><br>
-                可用保證金: <b>${swap_avail:.2f} U</b> | 單元權益: <b>${swap_equity:.2f} USDT</b>
-            </div>
-            <div class="stat-sub">風控規則: 動態追蹤停利 (回撤 1.0%) | 原生硬止損 (-4.0% 雲端守護)</div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("安全停止合約進程", key="btn_stop_swap", use_container_width=True):
-            (ROOT_DIR / "data" / "swap_stop.flag").touch()
-            st.success("已寫入合約停止標誌 (swap_stop.flag)")
-
-    if has_10x_bot:
-        with bot_c3:
-            s10_side = s10_pos.get("side", "NONE")
-            st.markdown(f"""
-            <div class="stat-card" style="border-left: 4px solid #f0883e;">
-                <div class="stat-title" style="color: #f0883e;">高槓桿合約 (SWAP 100U, 10x)</div>
-                <div style="font-size: 15px; margin-bottom: 8px;">
-                    持倉方向: <b>{s10_side}</b> ({s10_qty:.6f} BTC, 10x 槓桿)<br>
-                    進場均價: <b>${s10_cost:,.2f}</b> | 強平價: <b>${s10_pos.get('liquidation_price', 0):,.2f}</b><br>
-                    未實現盈虧: <span class="{'text-green' if s10_upnl>=0 else 'text-red'}"><b>${s10_upnl:+,.2f} U ({((s10_upnl/s10_margin*100) if s10_margin>0 else 0):+.2f}%)</b></span><br>
-                    可用保證金: <b>${s10_avail:.2f} U</b> | 單元權益: <b>${s10_equity:.2f} USDT</b>
-                </div>
-                <div class="stat-sub">風控規則: 價格停損 (-1.5%) | 目標停利 (+20.0% ROE) | 雲端原生硬停損</div>
-            </div>
-            """, unsafe_allow_html=True)
-            if st.button("安全停止 10x 進程", key="btn_stop_swap_10x", use_container_width=True):
-                (ROOT_DIR / "data" / "swap_10x_100u_stop.flag").touch()
-                st.success("已寫入 10x 合約停止標誌 (swap_10x_100u_stop.flag)")
+        st.info("目前無任何活躍的守護進程，請透過 CLI 或自動操盤中樞啟動。")
 
     # ---- Section 4: Latest Trade Reflection ----
     st.markdown("#### 最新精簡覆盤 (為什麼進場 / 決策是什麼 / 出場與結果)")

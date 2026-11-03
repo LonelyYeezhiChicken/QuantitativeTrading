@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-03 17:42:55 UTC",
-  "total_entries": 2,
+  "updated_at": "2026-11-03 17:55:24 UTC",
+  "total_entries": 4,
   "entries": [
     {
       "journal_id": "SPOT_20261103_124013_LONG",
@@ -93,11 +93,113 @@
         "lowest_price": 77198.05,
         "mfe_pct": 1.5872215868338695,
         "mae_pct": -0.7073487506542233,
-        "duration_seconds": 13314,
-        "updates_count": 158
+        "duration_seconds": 12231,
+        "updates_count": 140
       },
       "review": {
         "thesis": "RSI 處於 55.9 動能健康區間，且市價 ($77,380.50) 穩定收在 EMA21 ($77,177.00) 之上 (乖離率 +0.26%)，顯示多頭動能延續。\n【系統觸發信號】：短線強勢動量確認 (RSI=55.9, 站穩EMA21) (合約 100U 既有部位)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,140.00) 預留正常價格呼吸空間。",
+        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
+        "strategy_evaluation": "部位建倉符合量化規則，等待市場驗證假說",
+        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_20261103_172455_LONG",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "LONG",
+      "status": "OPEN",
+      "entry_time": "2026-11-03 17:24:55 UTC",
+      "exit_time": "",
+      "entry_price": 77665.7,
+      "exit_price": 0.0,
+      "amount_btc": 0.006437848368069817,
+      "margin_used": 50.0,
+      "leverage": 10,
+      "notional_value": 500.0,
+      "pnl_usdt": 0.0,
+      "pnl_pct": 0.0,
+      "realized_r_multiple": 0.0,
+      "liquidation_price": 70675.787,
+      "snapshot": {
+        "price": 77665.7,
+        "rsi": 68.48579900507279,
+        "ema21": 77310.80956691966,
+        "atr": 1164.9855,
+        "bid": 77664.5,
+        "ask": 77664.6,
+        "bias_pct": 0.45904374183683044
+      },
+      "risk_plan": {
+        "stop_loss_price": 76500.7145,
+        "stop_loss_pct": 15.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 5.0,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 7.5
+      },
+      "trajectory": {
+        "highest_price": 77716.9,
+        "lowest_price": 77608.1,
+        "mfe_pct": 0.6592356728903117,
+        "mae_pct": -0.7416401320015307,
+        "duration_seconds": 1443,
+        "updates_count": 25
+      },
+      "review": {
+        "thesis": "價格呈現順勢多頭排列，技術面維持支撐，配合策略信號觸發進場。\n【系統觸發信號】：雙均線多頭排列強勢動能突破 (RSI=68.5, 站上EMA21/EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,164.99) 預留正常價格呼吸空間。",
+        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
+        "strategy_evaluation": "部位建倉符合量化規則，等待市場驗證假說",
+        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_20261103_174924_LONG",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "LONG",
+      "status": "OPEN",
+      "entry_time": "2026-11-03 17:49:24 UTC",
+      "exit_time": "",
+      "entry_price": 77687.0,
+      "exit_price": 0.0,
+      "amount_btc": 0.03218041628586507,
+      "margin_used": 50.0,
+      "leverage": 50,
+      "notional_value": 2500.0,
+      "pnl_usdt": 0.0,
+      "pnl_pct": 0.0,
+      "realized_r_multiple": 0.0,
+      "liquidation_price": 76288.634,
+      "snapshot": {
+        "price": 77687.0,
+        "rsi": 69.25219425405294,
+        "ema21": 77312.8622941924,
+        "atr": 1165.305,
+        "bid": 77687.0,
+        "ask": 77687.1,
+        "bias_pct": 0.4839268586175573
+      },
+      "risk_plan": {
+        "stop_loss_price": 77453.939,
+        "stop_loss_pct": 15.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 5.0,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 7.5
+      },
+      "trajectory": {
+        "highest_price": 77694.5,
+        "lowest_price": 77652.3,
+        "mfe_pct": 0.48270624428797615,
+        "mae_pct": -2.233320890238849,
+        "duration_seconds": 360,
+        "updates_count": 7
+      },
+      "review": {
+        "thesis": "價格呈現順勢多頭排列，技術面維持支撐，配合策略信號觸發進場。\n【系統觸發信號】：雙均線多頭排列強勢動能突破 (RSI=69.3, 站上EMA21/EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,165.31) 預留正常價格呼吸空間。",
         "exit_reason": "持倉中，持續依據風控計畫動態監控中",
         "strategy_evaluation": "部位建倉符合量化規則，等待市場驗證假說",
         "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
