@@ -46,4 +46,6 @@ Thumbs.db
 logs/
 data/paper_account_state.json
 data/bingx_paper_100u.json
+data/bingx_swap_100u.json
 data/bot_stop.flag
+data/swap_stop.flag

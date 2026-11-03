@@ -31,17 +31,29 @@ backtest *args:
 rolling *args:
     .venv\Scripts\python.exe apps/cli/run_rolling_backtest.py {{args}}
 
-# 啟動 AGY 過夜自動操盤守護進程 (按 Ctrl+C 即可退出)
+# 【現貨 100U】啟動過夜自動操盤守護進程 (按 Ctrl+C 即可退出)
 bot *args:
     .venv\Scripts\python.exe apps/cli/overnight_trading_bot.py {{args}}
 
-# 停止過夜操盤守護進程 (優雅結算並輸出戰報)
+# 【現貨 100U】停止現貨操盤守護進程 (優雅結算並輸出戰報)
 bot-stop:
-    powershell.exe -Command "New-Item -Path data/bot_stop.flag -ItemType File -Force | Out-Null; Write-Host '[信號已送出] 已寫入停止信號，守護進程將於下一次心跳結算退出。'"
+    powershell.exe -Command "New-Item -Path data/bot_stop.flag -ItemType File -Force | Out-Null; Write-Host '[現貨信號已送出] 已寫入停止信號，現貨守護進程將於下一次心跳結算退出。'"
 
-# 即時查看過夜操盤日誌 (最近 25 行)
+# 【現貨 100U】即時查看現貨操盤日誌 (最近 25 行)
 bot-log:
-    powershell.exe -Command "if (Test-Path logs/overnight_bot.log) { Get-Content logs/overnight_bot.log -Tail 25 } else { Write-Host '目前尚未產生操盤日誌。' }"
+    powershell.exe -Command "if (Test-Path logs/overnight_bot.log) { Get-Content logs/overnight_bot.log -Tail 25 } else { Write-Host '目前尚未產生現貨操盤日誌。' }"
+
+# 【合約 100U】啟動永續合約過夜自動操盤守護進程 (按 Ctrl+C 即可退出)
+swap-bot *args:
+    .venv\Scripts\python.exe apps/cli/overnight_swap_bot.py {{args}}
+
+# 【合約 100U】停止合約操盤守護進程 (優雅結算並輸出戰報)
+swap-stop:
+    powershell.exe -Command "New-Item -Path data/swap_stop.flag -ItemType File -Force | Out-Null; Write-Host '[合約信號已送出] 已寫入停止信號，合約守護進程將於下一次心跳結算退出。'"
+
+# 【合約 100U】即時查看合約操盤日誌 (最近 25 行)
+swap-log:
+    powershell.exe -Command "if (Test-Path logs/overnight_swap_bot.log) { Get-Content logs/overnight_swap_bot.log -Tail 25 } else { Write-Host '目前尚未產生合約操盤日誌。' }"
 
 # 100U BTC 即時持倉狀態與戰果分析
 btc *args:
