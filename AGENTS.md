@@ -122,6 +122,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 | `tests/bdd/autopilot_manual_arm_and_ai_decision.feature` | `test_autopilot_scenarios.py` | 預設待機防呆 (STANDBY)、手動啟動 (ARM)、Ollama 二選一風控、極簡三問覆盤與磁碟端到端持久化 |
 | `tests/bdd/trade_journal.feature` | `test_journal_scenarios.py` | 權威交易日誌生命週期 (開倉快照、軌跡監控、平倉歸因、Markdown 與 INDEX.md 生成) |
 | `tests/bdd/native_stop_loss_and_disconnect_resilience.feature` | `test_native_stop_loss_scenarios.py` | 原生硬停損條件單原子性附加、本機斷網雙網域切換容災、連線恢復狀態自動對齊、平倉撤單 |
+| `tests/bdd/autonomous_coin_and_leverage_orchestration.feature` | `test_autonomous_orchestration_scenarios.py` | 極簡全自動操盤（指定幣種與槓桿自動選拔現貨/合約多體制策略、自適應 ATR 停損與全自動循環生命週期） |
 
 > [!IMPORTANT]
 > **日誌單一真實來源 (Single Source of Truth) 與真實 BDD 驗證準則**：
@@ -132,7 +133,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 ```bash
 just test
 ```
-**當前基準**：全套 54 項單元與 BDD 測試 **100% PASS**。
+**當前基準**：全套 59 項單元與 BDD 測試 **100% PASS**。
 
 ---
 
@@ -142,11 +143,16 @@ just test
 # 1. 虛擬環境建立與同步
 just sync
 
-# 2. 執行全套自動化測試 (54 項規格 100% PASS)
+# 2. 執行全套自動化測試 (59 項規格 100% PASS)
 just test
 
-# 3. 啟動量化操盤中樞 (預設 STANDBY 待機模式)
+# 3. 啟動全自動量化操盤中樞 (指定幣種與槓桿，其餘策略風控全自動，預設 BTC 3x 100U)
 just start
+# 亦可自由指定任意標的與槓桿倍數 (例如 10 倍槓桿比特幣，或 5 倍槓桿以太幣)
+just start --symbol BTC/USDT --leverage 10
+just start --symbol ETH/USDT --leverage 5
+# 槓桿設 1 則全自動切換為現貨吸籌動量模式
+just start --symbol SOL/USDT --leverage 1
 
 # 4. 手動解除武裝 (切換為待機模式)
 just standby

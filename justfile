@@ -27,17 +27,17 @@ download *args:
 backtest *args:
     .venv\Scripts\python.exe apps/cli/train_and_backtest.py {{args}}
 
-# 啟動自動化量化操盤中樞 (手動武裝開始操盤)
+# 啟動全自動量化操盤中樞 (指定幣種與槓桿，其餘全自動，預設武裝開跑)
 start *args:
-    .venv\Scripts\python.exe apps/cli/autopilot.py --arm {{args}}
+    .venv\Scripts\python.exe -u apps/cli/autopilot.py --arm --run-loop {{args}}
 
 # 切換操盤中樞為待機狀態 (停止開新倉)
-standby:
-    .venv\Scripts\python.exe apps/cli/autopilot.py --disarm
+standby *args:
+    .venv\Scripts\python.exe apps/cli/autopilot.py --disarm {{args}}
 
 # 即時查看操盤中樞狀態與最新精簡交易日誌
-status:
-    .venv\Scripts\python.exe apps/cli/autopilot.py --status
+status *args:
+    .venv\Scripts\python.exe apps/cli/autopilot.py --status {{args}}
 
 # 執行年度滾倉複利回測 (如: just rolling --year 2025 --capital 100)
 rolling *args:
@@ -70,6 +70,18 @@ swap-stop:
 # 【合約 100U】即時查看合約操盤日誌 (最近 25 行)
 swap-log:
     powershell.exe -Command "if (Test-Path logs/overnight_swap_bot.log) { Get-Content logs/overnight_swap_bot.log -Tail 25 } else { Write-Host '目前尚未產生合約操盤日誌。' }"
+
+# 【高槓桿 10x 合約】啟動 10 倍槓桿 BTC 永續合約守護進程 (按 Ctrl+C 即可退出)
+swap-10x *args:
+    .venv\Scripts\python.exe -u apps/cli/overnight_swap_bot.py --leverage 10 --name swap_10x_100u {{args}}
+
+# 【高槓桿 10x 合約】停止 10 倍槓桿合約守護進程 (優雅結算並輸出戰報)
+swap-10x-stop:
+    powershell.exe -Command "New-Item -Path data/swap_10x_100u_stop.flag -ItemType File -Force | Out-Null; Write-Host '[高槓桿信號已送出] 已寫入停止信號，10x 守護進程將於下一次心跳結算退出。'"
+
+# 【高槓桿 10x 合約】即時查看 10 倍槓桿合約操盤日誌 (最近 25 行)
+swap-10x-log:
+    powershell.exe -Command "if (Test-Path logs/overnight_swap_10x_100u.log) { Get-Content logs/overnight_swap_10x_100u.log -Tail 25 } else { Write-Host '目前尚未產生 10x 合約操盤日誌。' }"
 
 # 100U BTC 即時持倉狀態與戰果分析
 btc *args:

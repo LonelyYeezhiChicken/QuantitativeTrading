@@ -35,7 +35,7 @@ class UnifiedAutopilotEngine:
 
     def __init__(
         self,
-        mode: str = "SWAP_3X",              # 'SWAP_3X' or 'SPOT'
+        mode: Optional[str] = None,
         capital: float = 100.0,
         symbol: str = "BTC/USDT",
         leverage: int = 3,
@@ -44,16 +44,40 @@ class UnifiedAutopilotEngine:
         state_file: Optional[Path] = None,
         journal_mgr: Optional[TradeJournalManager] = None,
         dry_run: bool = True,
+        price_sl_pct: Optional[float] = None,
+        price_tp_pct: Optional[float] = None,
+        price_pullback_pct: Optional[float] = None,
     ):
-        self.mode = mode.upper()
-        self.capital = capital
         self.symbol = symbol
-        self.leverage = leverage if "SWAP" in self.mode else 1
+        self.capital = capital
         self.enable_ai_veto = enable_ai_veto
         self.dry_run = dry_run
 
+        # Auto-derive mode & leverage
+        if mode:
+            self.mode = mode.upper()
+            if "SPOT" in self.mode:
+                self.leverage = 1
+            else:
+                self.leverage = leverage if leverage > 1 else 3
+        else:
+            if leverage <= 1:
+                self.leverage = 1
+                self.mode = "SPOT"
+            else:
+                self.leverage = leverage
+                self.mode = f"SWAP_{leverage}X"
+
         root_dir = Path(__file__).resolve().parent.parent.parent
-        self.state_file = state_file or (root_dir / "data" / "autopilot_state.json")
+        if state_file:
+            self.state_file = state_file
+        else:
+            clean_sym = self.symbol.replace("/", "_").replace("-", "_")
+            if self.mode == "SWAP_3X" and self.symbol == "BTC/USDT" and capital == 100.0:
+                self.state_file = root_dir / "data" / "autopilot_state.json"
+            else:
+                self.state_file = root_dir / "data" / f"autopilot_{clean_sym}_{self.mode.lower()}_{int(capital)}u.json"
+
         self.journal_file = root_dir / "data" / "autopilot_journal.json"
         self.journal_mgr = journal_mgr or TradeJournalManager(
             db_path=str(root_dir / "data" / "trade_journal_db.json"),
@@ -68,17 +92,30 @@ class UnifiedAutopilotEngine:
         )
         self.ai_agent = OllamaDecisionAgent(model=ollama_model)
 
-        # Champion Strategy Models
+        # Champion Strategy Models & Adaptive Volatility Risk Math
         if "SWAP" in self.mode:
             self.strategy = SwapMultiRegimeModel(ema_span=21)
+            self.price_sl_pct = price_sl_pct if price_sl_pct is not None else 1.5
+            self.price_tp_pct = price_tp_pct if price_tp_pct is not None else (2.0 if self.leverage >= 10 else 1.0)
+            self.price_pullback_pct = price_pullback_pct if price_pullback_pct is not None else (0.5 if self.leverage >= 10 else 0.33)
+            self.margin_sl_threshold = self.price_sl_pct * self.leverage
+            self.margin_tp_threshold = self.price_tp_pct * self.leverage
+            self.margin_pullback_threshold = self.price_pullback_pct * self.leverage
         else:
             self.strategy = SpotMomentumPullbackModel(ema_span=21)
+            self.price_sl_pct = price_sl_pct if price_sl_pct is not None else 2.0
+            self.price_tp_pct = price_tp_pct if price_tp_pct is not None else 1.5
+            self.price_pullback_pct = price_pullback_pct if price_pullback_pct is not None else 0.4
+            self.margin_sl_threshold = self.price_sl_pct
+            self.margin_tp_threshold = self.price_tp_pct
+            self.margin_pullback_threshold = self.price_pullback_pct
 
         # In-memory runtime state
         self.status = AutopilotState.STANDBY  # 預設待機，絕不自動交易
         self.cash = self.capital
         self.position: Dict[str, Any] = {
             "side": "NONE",
+            "amount": 0.0,
             "amount_btc": 0.0,
             "entry_price": 0.0,
             "margin_used": 0.0,
@@ -178,17 +215,14 @@ class UnifiedAutopilotEngine:
             pullback = peak_pct - pnl_pct
 
             # 1. Hard Stop Loss
-            hard_sl_threshold = -4.0 if "SWAP" in self.mode else -1.5
-            if pnl_pct <= hard_sl_threshold:
-                self._close_position(cur_price, reason=f"硬停損觸發 (浮虧 {pnl_pct:.2f}% 截斷風險)")
+            if pnl_pct <= -self.margin_sl_threshold:
+                self._close_position(cur_price, reason=f"自適應保證金停損觸發 (虧損達 {pnl_pct:.2f}%, 截斷風險)")
                 step_result["action_taken"] = "STOP_LOSS"
                 step_result["message"] = f"已執行硬停損平倉 (虧損 {pnl_pct:.2f}%)"
                 return step_result
 
             # 2. Trailing Take Profit
-            min_gain_for_trail = 3.0 if "SWAP" in self.mode else 1.5
-            pullback_trigger = 1.0 if "SWAP" in self.mode else 0.4
-            if peak_pct >= min_gain_for_trail and pullback >= pullback_trigger:
+            if peak_pct >= self.margin_tp_threshold and pullback >= self.margin_pullback_threshold:
                 self._close_position(cur_price, reason=f"動態移動停利 (最高獲利 +{peak_pct:.2f}% 回撤 {pullback:.2f}%)")
                 step_result["action_taken"] = "TAKE_PROFIT"
                 step_result["message"] = f"已執行移動停利平倉 (鎖定利潤 +{pnl_pct:.2f}%)"
@@ -201,17 +235,24 @@ class UnifiedAutopilotEngine:
         signals = self._compute_market_signals(cur_price)
         rsi = signals["rsi"]
         ema21 = signals["ema21"]
+        ema50 = signals.get("ema50", ema21)
 
         # Strategy Candidate Decision
         candidate_signal = None
         candidate_reason = ""
 
         if "SWAP" in self.mode:
-            # Swap MultiRegime rules
+            # Swap MultiRegime rules:
+            # 1. Healthy dip entry
             if (cur_price >= ema21 and 45.0 <= rsi <= 58.0) or (rsi < 35.0):
                 candidate_signal = "LONG"
-                candidate_reason = f"站穩均線多頭動量 (RSI={rsi:.1f}, 價穩EMA21)" if rsi >= 45 else f"短線跌深超賣反彈 (RSI={rsi:.1f}<35)"
-            elif cur_price < ema21 * 0.995 and 40.0 <= rsi <= 48.0:
+                candidate_reason = f"均線上方多頭動量確認 (RSI={rsi:.1f}, 價穩EMA21)" if rsi >= 45 else f"短線跌深超賣反彈 (RSI={rsi:.1f}<35)"
+            # 2. Strong trend continuation momentum entry
+            elif cur_price >= ema21 and cur_price >= ema50 and 58.0 < rsi <= 72.0:
+                candidate_signal = "LONG"
+                candidate_reason = f"雙均線多頭排列強勢動能突破 (RSI={rsi:.1f}, 站上EMA21/EMA50)"
+            # 3. Breakdown short entry
+            elif cur_price < ema21 * 0.995 and 38.0 <= rsi <= 48.0:
                 candidate_signal = "SHORT"
                 candidate_reason = f"均線破位空方順勢 (RSI={rsi:.1f}, 跌破EMA21)"
         else:
@@ -246,11 +287,10 @@ class UnifiedAutopilotEngine:
         qty_to_buy = notional / max(cur_price, 1e-4)
 
         # Calculate Native Hard Stop-Loss price to attach atomically upon entry
-        hard_sl_threshold = 4.0 if "SWAP" in self.mode else 1.5
         if candidate_signal == "LONG":
-            native_sl_price = cur_price * (1.0 - (hard_sl_threshold / 100.0 / self.leverage))
+            native_sl_price = cur_price * (1.0 - (self.price_sl_pct / 100.0))
         else:
-            native_sl_price = cur_price * (1.0 + (hard_sl_threshold / 100.0 / self.leverage))
+            native_sl_price = cur_price * (1.0 + (self.price_sl_pct / 100.0))
 
         # Gateway order with Atomic Native SL attachment
         order_res = self.gw.create_order(
@@ -282,10 +322,11 @@ class UnifiedAutopilotEngine:
                     "price": cur_price,
                     "rsi": rsi,
                     "ema21": ema21,
+                    "ema50": ema50,
                     "atr": cur_price * 0.015,
                 },
-                stop_loss_pct=4.0 if "SWAP" in self.mode else 1.5,
-                trailing_pullback_pct=1.0 if "SWAP" in self.mode else 0.4,
+                stop_loss_pct=self.margin_sl_threshold,
+                trailing_pullback_pct=self.margin_pullback_threshold,
             )
             if j_entry and hasattr(j_entry, "review"):
                 j_entry.review.strategy_evaluation = ai_decision_text
@@ -294,6 +335,7 @@ class UnifiedAutopilotEngine:
 
             self.position = {
                 "side": candidate_signal,
+                "amount": qty_to_buy,
                 "amount_btc": qty_to_buy,
                 "entry_price": cur_price,
                 "margin_used": trade_margin,
@@ -302,6 +344,7 @@ class UnifiedAutopilotEngine:
                 "entry_why": candidate_reason,
                 "ai_decision": ai_decision_text,
                 "journal_id": j_entry.journal_id if j_entry else "",
+                "native_sl_price": native_sl_price,
             }
             self.save_state()
             step_result["action_taken"] = "OPEN_POSITION"
@@ -450,15 +493,16 @@ class UnifiedAutopilotEngine:
                 df = klines if isinstance(klines, pd.DataFrame) else pd.DataFrame(klines)
                 close_s = df["close"]
                 ema21 = float(close_s.ewm(span=21, adjust=False).mean().iloc[-1])
+                ema50 = float(close_s.ewm(span=50, adjust=False).mean().iloc[-1]) if len(close_s) >= 30 else ema21
                 diff = close_s.diff()
                 gain = diff.clip(lower=0).rolling(14).mean()
                 loss = (-diff.clip(upper=0)).rolling(14).mean()
                 rs = gain / (loss + 1e-9)
                 rsi = float((100.0 - (100.0 / (1.0 + rs))).iloc[-1])
-                return {"price": cur_price, "rsi": rsi, "ema21": ema21}
+                return {"price": cur_price, "rsi": rsi, "ema21": ema21, "ema50": ema50}
         except Exception:
             pass
-        return {"price": cur_price, "rsi": 50.0, "ema21": cur_price}
+        return {"price": cur_price, "rsi": 50.0, "ema21": cur_price, "ema50": cur_price}
 
     def save_state(self):
         """Save persistent state to disk."""

@@ -48,17 +48,24 @@ def print_status(engine: UnifiedAutopilotEngine):
 
 def main():
     parser = argparse.ArgumentParser(description="Unified Autopilot Trading CLI")
-    parser.add_argument("--mode", type=str, default="SWAP_3X", choices=["SWAP_3X", "SPOT"], help="Trading mode")
+    parser.add_argument("--symbol", type=str, default="BTC/USDT", help="Trading symbol (e.g. BTC/USDT, ETH/USDT, SOL/USDT)")
+    parser.add_argument("--leverage", type=int, default=3, help="Leverage multiplier (1 for SPOT, >1 for SWAP)")
     parser.add_argument("--capital", type=float, default=100.0, help="Initial capital in USDT")
+    parser.add_argument("--mode", type=str, default=None, choices=["SWAP_3X", "SPOT", None], help="Explicit mode override (optional)")
     parser.add_argument("--interval", type=int, default=30, help="Heartbeat loop interval in seconds")
     parser.add_argument("--arm", action="store_true", help="Explicitly arm trading upon startup")
     parser.add_argument("--status", action="store_true", help="Print status and exit")
     parser.add_argument("--disarm", action="store_true", help="Disarm to standby and exit")
+    parser.add_argument("--run-loop", action="store_true", help="Run 24/7 continuous autonomous monitoring loop")
+    parser.add_argument("--no-ai", action="store_true", help="Disable local Ollama AI veto guard")
     args = parser.parse_args()
 
     engine = UnifiedAutopilotEngine(
-        mode=args.mode,
+        symbol=args.symbol,
+        leverage=args.leverage,
         capital=args.capital,
+        mode=args.mode,
+        enable_ai_veto=not args.no_ai,
     )
 
     if args.status:
@@ -71,8 +78,9 @@ def main():
         return
 
     print("=" * 70)
-    print("  比特幣量化自動操盤中樞 (Unified Autopilot)")
-    print(f"  模式: {args.mode} | 標的: BTC/USDT | 本金: ${args.capital:.2f} USDT")
+    print("  全自動量化操盤中樞 (Unified Autopilot)")
+    print(f"  標的: {args.symbol} | 槓桿: {engine.leverage}x ({engine.mode}) | 本金: ${args.capital:.2f} USDT")
+    print(f"  策略: {engine.strategy.__class__.__name__} | 風控: 價格停損 -{engine.price_sl_pct:.2f}% (保證金 -{engine.margin_sl_threshold:.1f}%)")
     print("=" * 70)
 
     if args.arm:
@@ -90,8 +98,13 @@ def main():
             loop_count += 1
             step = engine.step()
             state_tag = "【ARMED 運行中】" if engine.status == AutopilotState.ARMED else "【STANDBY 待機】"
+            coin_code = args.symbol.split('/')[0]
             pnl_tag = f"持倉: {step['position_side']} | 浮盈: ${step['pnl_usdt']:+,.2f} ({step['pnl_pct']:+.2f}%)" if step['position_side'] != "NONE" else "空倉待機"
-            print(f"#{loop_count:04d} | {state_tag} BTC: ${step['price']:,.2f} | 淨值: ${step['total_equity']:.2f} U | {pnl_tag} | {step['message']}")
+            print(f"#{loop_count:04d} | {state_tag} {coin_code}: ${step['price']:,.2f} | 淨值: ${step['total_equity']:.2f} U | {pnl_tag} | {step['message']}")
+
+            if not args.run_loop and not args.arm:
+                # If neither run-loop nor arm was requested, perform one clean cycle inspection and exit
+                break
 
             time.sleep(args.interval)
     except KeyboardInterrupt:

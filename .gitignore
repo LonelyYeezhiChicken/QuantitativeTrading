@@ -46,9 +46,7 @@ Thumbs.db
 *.log
 logs/
 data/paper_account_state.json
-data/bingx_paper_100u.json
-data/bingx_swap_100u.json
-data/autopilot_state.json
-data/autopilot_journal.json
-data/bot_stop.flag
-data/swap_stop.flag
+data/bingx_paper_*.json
+data/bingx_swap_*.json
+data/autopilot_*.json
+data/*_stop.flag

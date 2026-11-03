@@ -2,7 +2,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.14%2B-blue.svg)](https://www.python.org/)
 [![Architecture](https://img.shields.io/badge/architecture-Modular%20Multi--Package-blueviolet.svg)]()
-[![BDD Tests](https://img.shields.io/badge/BDD%20Tests-28%20Passed%20(100%25)-brightgreen.svg)]()
+[![BDD Tests](https://img.shields.io/badge/BDD%20Tests-59%20Passed%20(100%25)-brightgreen.svg)]()
 [![Data Leakage](https://img.shields.io/badge/Data%20Leakage-Zero%20Lookahead%20Bias-success.svg)]()
 [![Trading Modes](https://img.shields.io/badge/execution-Spot%20%7C%20Swap%20(Futures)-orange.svg)]()
 [![CI Workflow](https://github.com/LonelyYeezhiChicken/QuantitativeTrading/actions/workflows/ci.yml/badge.svg)](https://github.com/LonelyYeezhiChicken/QuantitativeTrading/actions/workflows/ci.yml)
@@ -52,7 +52,7 @@ QuantitativeTrading/
 │   └── cli/                     # 純數字免指令終端控制台與各模組獨立診斷工具
 │
 └── tests/                       # 行為驅動測試矩陣 (BDD & Unit Tests)
-    ├── bdd/                     # Gherkin 規格書與 Given-When-Then 步驟 (28 項全數通過)
+    ├── bdd/                     # Gherkin 規格書與 Given-When-Then 步驟 (59 項全數通過)
     └── ...                      # 前視偏差防護、雙網域容災、保證金計算等單元測試
 ```
 
@@ -86,6 +86,11 @@ QuantitativeTrading/
 ### 5. 模組化年度滾動複利回測 (Rolling Compound Backtest)
 - 支援任意交易模型插拔，提供跨年度（如 2024、2025 全年）、自訂起始本金（如 100 USDT 滾倉）之滑點手續費真實摩擦回測。
 
+### 6. 極簡全自動操盤中樞 (Unified Autopilot Orchestration)
+- **僅需輸入幣種與槓桿倍數**：系統全自動辨識市場體制（現貨吸籌或合約多體制）、自適應計算 ATR 價格停損與動態移動停利。
+- **雲端原子性硬停損防護**：單一 API 請求直接向交易所掛上條件單，斷網亦能保證永不穿倉。
+- **本地 Ollama AI 選擇題審查與極簡三問覆盤**：開倉前嚴格審查，平倉後自動產出精簡真實覆盤筆記。
+
 ---
 
 ## 統一任務調度 (Task Runner)
@@ -94,9 +99,13 @@ QuantitativeTrading/
 
 | 指令 | 說明 |
 | :--- | :--- |
+| **`just start`** | 啟動全自動量化操盤中樞（預設 BTC 3x 100U，可帶 `--symbol ETH/USDT --leverage 10`） |
+| **`just standby`** | 將操盤中樞切換為待機模式（停止開新倉） |
+| **`just status`** | 即時查詢操盤中樞持倉、未實現損益與最新精簡交易覆盤 |
+| **`just journal`** | 查看最新一筆交易之深度技術快照與覆盤筆記（或指定 ID） |
 | **`just gui`** | 啟動 Streamlit 視覺化金融控制台（瀏覽器開啟 `http://localhost:8501`） |
 | **`just menu`** | 啟動免指令純數字終端互動選單（輸入 `0~8` 一鍵執行） |
-| **`just test`** | 執行全套 28 個單元與 BDD 行為驅動測試（含覆蓋率驗證） |
+| **`just test`** | 執行全套 59 個單元與 BDD 行為驅動測試（100% PASS） |
 | **`just bingx`** | 執行 BingX 官方 OpenAPI 現貨與合約雙軌連線與認證診斷 |
 | **`just pionex`** | 測試派網 (Pionex) OpenAPI 連線與即時行情 |
 | **`just typesafe`** | 執行 TypeSafe AI (Jev) 短線決策模型診斷 |
