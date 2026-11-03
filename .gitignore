@@ -46,3 +46,4 @@ Thumbs.db
 logs/
 data/paper_account_state.json
 data/bingx_paper_100u.json
+data/bot_stop.flag

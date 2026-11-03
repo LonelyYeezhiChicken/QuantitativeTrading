@@ -31,7 +31,19 @@ backtest *args:
 rolling *args:
     .venv\Scripts\python.exe apps/cli/run_rolling_backtest.py {{args}}
 
-# 100U BTC 模擬交易追蹤器 (查看即時持倉、損益與 AI 操盤建議)
+# 啟動 AGY 過夜自動操盤守護進程 (按 Ctrl+C 即可退出)
+bot *args:
+    .venv\Scripts\python.exe apps/cli/overnight_trading_bot.py {{args}}
+
+# 停止過夜操盤守護進程 (優雅結算並輸出戰報)
+bot-stop:
+    powershell.exe -Command "New-Item -Path data/bot_stop.flag -ItemType File -Force | Out-Null; Write-Host '[信號已送出] 已寫入停止信號，守護進程將於下一次心跳結算退出。'"
+
+# 即時查看過夜操盤日誌 (最近 25 行)
+bot-log:
+    powershell.exe -Command "if (Test-Path logs/overnight_bot.log) { Get-Content logs/overnight_bot.log -Tail 25 } else { Write-Host '目前尚未產生操盤日誌。' }"
+
+# 100U BTC 即時持倉狀態與戰果分析
 btc *args:
     .venv\Scripts\python.exe apps/cli/bingx_paper_tracker.py {{args}}
 
