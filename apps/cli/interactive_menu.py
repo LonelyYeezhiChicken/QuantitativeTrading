@@ -12,7 +12,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 def print_banner():
     print("\n" + "=" * 55)
-    print("  🤖 AI 量化交易免指令選單系統 (SNEK Monorepo)")
+    print("  🤖 AI 量化交易免指令選單系統 (Quantitative Trading Engine)")
     print("=" * 55)
     print("  [1] 下載 / 更新比特幣歷史行情 (BTC/USDT 1h)")
     print("  [2] 下載 / 更新以太坊歷史行情 (ETH/USDT 1h)")

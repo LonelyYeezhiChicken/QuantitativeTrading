@@ -1,4 +1,4 @@
-"""Streamlit Web Dashboard for Crypto AI Quantitative Trading (SNEK Monorepo Standard)."""
+"""Streamlit Web Dashboard for Crypto AI Quantitative Trading Platform."""
 
 import sys
 from pathlib import Path
@@ -38,7 +38,7 @@ def main():
     )
 
     st.title("🤖 加密貨幣 AI 多因子量化控制台")
-    st.caption("SNEK Monorepo 模組化架構 | 支援任意模型插拔回測與 100U 滾倉複利分析")
+    st.caption("企業級模組化量化架構 | 支援任意模型插拔回測與 100U 滾倉複利分析")
 
     # ----------------- Shared State / Instances -----------------
     dm = DataManager()

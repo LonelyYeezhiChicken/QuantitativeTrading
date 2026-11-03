@@ -1,194 +1,156 @@
-# 🤖 AI 與協作者工程交接指南 (Project Handover & Developer Guide)
+# 🤖 系統工程架構與協作交接手冊 (Engineering Handover & Architecture Specification)
 
-> **致未來的協作者與 AI 代理人 (AI Coding Agents)**：  
-> 本文件旨在為接手本專案的工程師、量化研究員與 AI 提供完整的系統全景、設計哲學、架構規範、環境配置及開發守則。在進行任何重大改動前，請務必先通讀本指南。
-
----
-
-## 1. 專案背景與設計哲學
-
-本專案是一個現代化、模組化、高覆蓋測試的加密貨幣量化研究與交易系統。  
-核心設計哲學遵循：
-1. **SNEK Monorepo 多套件架構**：領域邊界清晰，套件可獨立測試與複用，所有跨模組調度統一由根目錄管理。
-2. **行為驅動開發 (BDD - Behavior-Driven Development)**：所有新功能、新網關或重大架構變更，必須先撰寫 Gherkin `.feature` 規範，再實作對應的 Given-When-Then 測試步驟。
-3. **安全第一 (Safety by Default)**：
-   - 所有經紀商網關預設必須啟用 `dry_run = True`，未經明確授權絕不調用實盤扣款端點。
-   - 所有私密金鑰（API Key, Secret Key）嚴格隔離於 `.env` 中，**嚴禁提交至 Git**。
-4. **離線可運行 (Offline & Mock First)**：
-   - 無論是回測、特徵工程、或外部第三方模型（如 TypeSafe AI），在缺少網路或金鑰的情況下，均必須具備本地 Mock / Fallback 機制，確保全套測試能 100% 離線通過。
+> **致接手工程師、量化研究員與 AI 代理人 (AI Coding Agents)**：  
+> 本手冊為本專案的權威技術規格書。詳細說明系統的整體設計哲學、分層領域模組契約、環境設定規範、雙軌交易機制與測試準則。在進行任何架構擴充或程式碼異動前，請務必詳閱本手冊。
 
 ---
 
-## 2. 系統架構與模組權責 (Architecture & Packages)
+## 1. 系統設計哲學 (Design Principles)
 
-系統主要由 `packages/`（領域可複用模組）、`apps/`（應用層與使用者介面）以及 `tests/`（測試層）三大支柱構成：
+本系統是一套獨立、模組化、高可靠性的現代化加密貨幣量化研究與交易執行平台，整體設計恪守四大核心原則：
+
+1. **領域驅動模組化架構 (Domain-Driven Multi-Package Design)**：
+   各業務領域獨立封裝於 `packages/`，彼此透過抽象介面（如 [`BaseTradingModel`](file:///C:/code/AIDev/QuantitativeTrading/packages/models/base.py)、[`BaseBrokerGateway`](file:///C:/code/AIDev/QuantitativeTrading/packages/execution/base.py)）解耦，支援高度可測試性與任意新模型/交易所的隨插即用。
+2. **行為驅動開發 (BDD - Behavior-Driven Development)**：
+   所有核心業務邏輯、經紀商通訊與交易流程均以 Gherkin 語言撰寫 `.feature` 規範，並以 `pytest-bdd` 實作 Given-When-Then 測試步驟，實現「規格即測試、測試即文檔」。
+3. **無資料外洩原則 (Zero Data Leakage)**：
+   所有特徵工程（Alpha Factors）嚴格使用過去時序數據計算，預測標籤採用未來位移 (`shift(-1)`)，絕不發生任何前視偏差 (Lookahead Bias)。
+4. **安全演練優先 (Safety & Dry-Run First)**：
+   所有對外經紀商網關預設強制啟用 `dry_run = True`，未經明確授權絕不調用交易所扣款端點。所有私密金鑰嚴格由 `.env` 託管並納入 `.gitignore`，**嚴禁提交至版本控制系統**。
+
+---
+
+## 2. 領域模組分層與協議契約 (Package Contracts)
 
 ```text
 packages/
-├── core/
-│   └── config.py              # 全域風控配置、ATR 停損/移動停利、Kelly 資金管理
-├── data/
-│   └── downloader.py          # CCXT 行情抓取器、Parquet 列式存儲與資料清洗
-├── features/
-│   └── pipeline.py            # 78+ 技術因子生成、標籤 Pipeline (嚴格防範前視偏差 Data Leakage)
-├── models/
-│   ├── base.py                # BaseTradingModel 統一預測模型抽象介面
-│   ├── lgbm_model.py          # 原生 LightGBM 迴歸/分類訓練器 (Purged CV 驗證)
-│   └── typesafe_agent.py      # TypeSafe AI (Jev) 短線決策引擎 (支援 System One 機率校準與 Mock)
-├── backtest/
-│   ├── engine.py              # 摩擦成本撮合回測引擎、Sharpe/MDD 統計
-│   └── rolling_backtester.py  # 模組化年度滾動複利回測器 (Rolling Compound Backtest)
-└── execution/
-    ├── base.py                # BaseBrokerGateway 抽象網關 (定義 MarketType.SPOT 與 SWAP)
-    ├── paper_broker.py        # 本地虛擬盤帳戶撮合器 (Paper Trading State)
-    ├── pionex_client.py       # 派網 (Pionex) REST 客戶端 (HMAC-SHA256 簽名)
-    ├── pionex_gateway.py      # 派網高階經紀商網關
-    ├── bingx_client.py        # BingX 官方 OpenAPI 客戶端 (雙網域容災、升冪排序簽章)
-    └── bingx_gateway.py       # BingX 高階經紀商網關 (支援現貨與合約雙軌獨立資產管理)
+├── core/             # 全域配置與風控層
+│   └── config.py     # 集中管理手續費、滑點、ATR 停損乘數、動態部位縮放演算法
+│
+├── data/             # 行情數據工程層
+│   ├── ccxt_fetcher.py # CCXT 異步/同步行情採集器，支援自動重試與速率限制
+│   └── data_manager.py # Parquet 列式存儲管線，支援增量更新與高效率歷史快取
+│
+├── features/         # 因子特徵工程層
+│   ├── indicators.py # 78+ 項技術指標庫 (RSI, MACD, Bollinger, ATR, EMA Trend)
+│   └── pipeline.py   # 時序因子清洗流水線，自動進行標準化與時序平移防漏
+│
+├── models/           # 預測與決策模型層
+│   ├── base.py       # BaseTradingModel 抽象基類 (定義 train, predict, predict_proba)
+│   ├── lgbm_agent.py # 原生 LightGBM 機器學習模型 (支援 Purged K-Fold 時序交叉驗證)
+│   ├── rule_based.py # 經典動量與雙均線規則模型 (作為基準 Baseline)
+│   └── typesafe_agent.py # TypeSafe AI (Jev) 短線決策引擎 (支援強型別機率校準與 Mock Fallback)
+│
+├── backtest/         # 回測評估與績效分析層
+│   ├── engine.py     # 包含滑點與手續費摩擦之回測撮合引擎
+│   ├── metrics.py    # 年化報酬率、Sharpe Ratio、最大回撤 (MDD)、Profit Factor 計算
+│   └── rolling_evaluator.py # 年度滾動複利回測器 (Rolling Compound Backtest)
+│
+└── execution/        # 經紀商執行網關層
+    ├── base.py       # BaseBrokerGateway 抽象介面 (定義 MarketType.SPOT 與 MarketType.SWAP)
+    ├── paper_broker.py # 本地虛擬撮合錢包 (模擬真實行情下的掛單成交)
+    ├── pionex_client.py / pionex_gateway.py # 派網 (Pionex) OpenAPI REST 客戶端與網關
+    └── bingx_client.py / bingx_gateway.py   # BingX 官方 OpenAPI 雙網域容災客戶端與網關
 ```
 
 ---
 
-## 3. 環境準備與依賴管理
+## 3. 現貨 (SPOT) 與 永續合約 (SWAP) 雙軌執行機制
 
-專案使用現代化高效 Python 工具鏈：
-- **Python 版本**：3.14+ (相容 3.12+)
-- **套件管理器**：[uv](https://github.com/astral-sh/uv) (高速解析與虛擬環境管理)
-- **指令任務排程**：[just](https://github.com/casey/just)
-
-### 快速初始化流程
-```bash
-# 1. 複製環境變數範本
-cp .env.example .env
-
-# 2. 自動建立虛擬環境 (.venv) 並安裝所有依賴
-just sync
-
-# 3. 執行全套測試驗證環境
-just test
-```
-
----
-
-## 4. 環境變數配置 (.env) 指南
-
-專案根目錄下需配置 `.env` 檔案（該檔案已被 `.gitignore` 排除）：
-
-```env
-# ==============================================================================
-# BingX (盈幣) 官方 OpenAPI 憑證
-# ==============================================================================
-BINGX_API_KEY=your_bingx_api_key_here
-BINGX_API_SECRET=your_bingx_api_secret_here
-
-# ==============================================================================
-# Pionex (派網) OpenAPI 憑證 (選填)
-# ==============================================================================
-PIONEX_API_KEY=your_pionex_api_key_here
-PIONEX_API_SECRET=your_pionex_api_secret_here
-
-# ==============================================================================
-# TypeSafe AI (Jev) 憑證 (選填，無金鑰時自動啟用 Mock 決策)
-# ==============================================================================
-TYPESAFE_API_KEY=your_typesafe_api_key_here
-```
-
-> **重要說明**：
-> 1. `BINGX_API_KEY` 與 `BINGX_API_SECRET` 是成對使用的。若未配置 Secret Key，私有資產查詢端點將無法計算 HMAC-SHA256 簽章。
-> 2. 系統會自動讀取 `.env`，若未提供金鑰，系統將安全地回退為模擬帳戶與公開行情運作。
-
----
-
-## 5. 現貨 (SPOT) 與 永續合約 (SWAP) 雙軌架構
-
-在 `packages/execution/base.py` 中定義了核心枚舉：
+系統在 [`packages/execution/base.py`](file:///C:/code/AIDev/QuantitativeTrading/packages/execution/base.py) 定義了標準枚舉：
 ```python
 class MarketType(str, Enum):
     SPOT = "SPOT"      # 現貨 (Spot Asset Trading)
     SWAP = "SWAP"      # 永續合約 (Perpetual Futures / Swap)
 ```
 
-### 兩者運作機制差異：
-- **現貨市場 (`MarketType.SPOT`)**：
-  - 以現金（USDT）全額買入基礎幣種（BTC、ETH）。
-  - 不存在槓桿，無強平機制。
-  - 下單調用 `/openApi/spot/v1/...`。
-- **永續合約 (`MarketType.SWAP`)**：
-  - 支援雙向開倉：多頭 (`position_side="LONG"`) 與 空頭 (`position_side="SHORT"`)。
-  - 具備槓桿倍數 (`leverage`: 1x~100x)，僅扣除起始保證金：`Margin = (Size * Price) / Leverage`。
-  - 自動追蹤持倉、計算未實現盈虧與預估強平價格 (`liquidationPrice`)。
-  - 下單調用 `/openApi/swap/v2/...`，帳戶保證金調用 `/openApi/swap/v3/...`。
+### 業務邏輯與風控區隔：
+| 維度 | 現貨 (SPOT) | 永續合約 (SWAP) |
+| :--- | :--- | :--- |
+| **倉位方向** | 僅多頭持幣 (持有現貨資產) | 雙向持倉 ([`LONG`](file:///C:/code/AIDev/QuantitativeTrading/packages/execution/bingx_gateway.py) / [`SHORT`](file:///C:/code/AIDev/QuantitativeTrading/packages/execution/bingx_gateway.py)) |
+| **資金佔用** | 扣除 `數量 × 成交價` 全額資金 | 僅扣除起始保證金 `(數量 × 成交價) / 槓桿倍數` |
+| **槓桿倍數** | 無 (固定 1x) | 支援 `1x ~ 100x`，透過 `set_leverage()` 動態配置 |
+| **強平風控** | 無強平風險 | 動態計算預估強平價格 (`liquidationPrice`) |
+| **BingX API** | `/openApi/spot/v1/...` | `/openApi/swap/v2/...` & `/openApi/swap/v3/...` |
 
 ---
 
-## 6. TypeSafe AI (Jev) 短線決策引擎
+## 4. 外部通訊與安全規範 (External APIs & Security)
 
-模組路徑：[`packages/models/typesafe_agent.py`](file:///C:/code/AIDev/QuantitativeTrading/packages/models/typesafe_agent.py)
-- **定位**：針對 15m/1h 級別進行高頻突破或插針反轉決策。
-- **強型別輸出合約**：
-  - `action`: `BUY` / `SELL` / `HOLD`
-  - `is_high_conviction`: $[0, 1]$ 嚴格校準之二元高勝率機率 (`noul`)
-  - `volatility_risk`: 1~5 級波動風險評級 (`score`)
-- **離線模擬機制**：
-  當環境缺少 `TYPESAFE_API_KEY` 時，系統自動啟用 `mock_fallback`，依據 RSI、EMA Bias 與量能特徵在本地產出強型別預測，確保所有回測與測試皆可離線執行。
+### 1. BingX 官方 OpenAPI 整合規範
+- **雙網域容災機制 (Domain Fallback)**：
+  - 主要網域：`https://open-api.bingx.com`
+  - 備援網域：`https://open-api.bingx.pro`（遭遇連線失敗或超時自動平滑切換）。
+- **認證簽名演算法**：
+  - 注入毫秒級時間戳 (`timestamp`)。
+  - 所有 Query 參數依 ASCII 字典升冪排序：`qs = "&".join(f"{k}={v}" for k in sorted(params.keys()))`。
+  - 透過 `API Secret` 計算 HMAC-SHA256 16 進位簽章：`&signature={hex}`。
+  - 必備自訂標頭：`X-SOURCE-KEY: BX-AI-SKILL` 與 `X-BX-APIKEY`。
 
----
+### 2. 環境變數配置規程
+根目錄 `.env` 檔案格式（詳見 [`.env.example`](file:///C:/code/AIDev/QuantitativeTrading/.env.example)）：
+```env
+# BingX 官方憑證
+BINGX_API_KEY=your_key_here
+BINGX_API_SECRET=your_secret_here
 
-## 7. BDD 規格驅動開發規範
+# 派網憑證 (選填)
+PIONEX_API_KEY=your_pionex_key_here
+PIONEX_API_SECRET=your_pionex_secret_here
 
-本專案全面實施 BDD 驗證，所有功能測試存放在 `tests/bdd/`：
-1. **編寫 `.feature` 規格書**（例如 `tests/bdd/market_type_spot_swap.feature`）。
-2. **實作 Given-When-Then 步驟腳本**（例如 `tests/bdd/test_market_type_scenarios.py`）。
-3. 執行測試命令：
-   ```bash
-   just test
-   ```
-   **標準要求**：任何 PR 或提交前，必須確保測試 100% 通過（目前全套 28 個測試已全面 PASS）。
-
----
-
-## 8. 安全與提交流程守則 (Security & Git Workflow)
+# TypeSafe AI 憑證 (選填，無金鑰自動啟用本地 Mock 決策)
+TYPESAFE_API_KEY=your_typesafe_key_here
+```
 
 > [!CAUTION]
-> **嚴格禁止將任何 API Key 或 Secret 提交至 Git 倉庫！**
-
-在執行 `git add` 與 `git commit` 前，必須檢查：
-1. 確認 `.env` 確實被 `.gitignore` 排除：
-   ```bash
-   git status --ignored
-   ```
-2. 檢查工作區內沒有任何 hardcode 的金鑰：
-   ```bash
-   git grep "API_KEY"
-   ```
-3. 確認所有新增的單元測試均使用假字串（如 `test_key_123`），絕不使用真實私鑰。
+> **絕對禁止**在任何 Commit、測試腳本或文檔中 Hardcode 真實金鑰！`.gitignore` 已嚴格設置排除規則。
 
 ---
 
-## 9. 常用指令速查 (Cheat Sheet)
+## 5. BDD 規格驅動測試矩陣 (BDD Test Matrix)
+
+所有核心功能皆包含可執行的 BDD 規格：
+
+| 規格檔案 | 測試實作檔案 | 驗證範疇 |
+| :--- | :--- | :--- |
+| `tests/bdd/dashboard_behavior.feature` | `test_dashboard_scenarios.py` | 視覺化控制台載入、交易對切換、回測圖表渲染 |
+| `tests/bdd/market_type_spot_swap.feature` | `test_market_type_scenarios.py` | 現貨全額扣款、合約槓桿保證金、做多/做空與強平估算 |
+| `tests/bdd/bingx_integration.feature` | `test_bingx_scenarios.py` | BingX HMAC 簽名升冪排序、專屬 Header、演練下單 |
+| `tests/bdd/pionex_integration.feature` | `test_pionex_scenarios.py` | 派網 Ticker 抓取、符號互轉、模擬撮合 |
+| `tests/bdd/typesafe_decision.feature` | `test_typesafe_scenarios.py` | Jev 短線決策模型、強型別合約、Mock Fallback |
+
+執行全套測試指令：
+```bash
+just test
+```
+**當前基準**：全套 28 項單元與 BDD 測試 **100% PASS**。
+
+---
+
+## 6. 協作與開發常用指令 (Developer Cheat Sheet)
 
 ```bash
-# 啟動 Web 視覺化控制台 (Streamlit)
-just gui
+# 1. 虛擬環境建立與同步
+just sync
 
-# 啟動純數字互動終端選單
-just menu
-
-# 執行全套 BDD 與單元測試
+# 2. 執行全套自動化測試
 just test
 
-# 執行 BingX OpenAPI 現貨與合約雙軌連線診斷
+# 3. 執行 BingX 現貨/合約連線與認證診斷
 just bingx
 
-# 執行年度滾動複利回測 (2025 年，本金 100U)
-just rolling --year 2025 --capital 100
+# 4. 啟動 Streamlit 視覺化金融儀表板
+just gui
 
-# 測試 TypeSafe AI 決策引擎
-just typesafe
+# 5. 啟動終端互動選單 (純數字按鍵操作)
+just menu
+
+# 6. 執行年度滾動複利回測 (例如 2025 年，本金 100U)
+just rolling --year 2025 --capital 100
 ```
 
 ---
 
-## 10. 學術免責聲明 (Disclaimer)
+## 7. 學術免責聲明 (Academic Disclaimer)
 
-本專案與本代碼庫僅供**學術研究、演算法驗證與程式教學**使用。任何因連接實盤交易所交易而產生的財務損失，使用者須自行完全承擔，專案開發團隊概不負責。
+本專案由開源社群維護，旨在進行**演算法驗證、機器學習時序研究與量化系統架構教學**。使用者於真實金融市場進行之任何操作決策與盈虧風險，概由使用者自行承擔。
