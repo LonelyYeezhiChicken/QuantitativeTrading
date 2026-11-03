@@ -36,7 +36,7 @@ QuantitativeTrading/
 ├── justfile                     # 統一任務排程管理器 (Task Runner)
 ├── .env.example                 # 環境變數安全範本檔 (複製為 .env 使用)
 ├── .gitignore                   # 安全過濾規則 (嚴格杜絕 .env 與私鑰提交)
-├── AI_HANDOVER.md               # 協作者與 AI 代理人工程交接手冊
+├── AGENTS.md                    # 協作者與 AI 代理人工程交接手冊
 ├── start_dashboard.bat          # 雙擊一鍵啟動視覺化控制台 (Windows 環境)
 │
 ├── packages/                    # 領域核心套件庫 (Core Domain Packages)
@@ -145,7 +145,7 @@ just gui
 ## 協作與工程交接 (Engineering Handover)
 
 本專案提供專為工程師與 AI 代理人撰寫的技術交接手冊：
-[AI_HANDOVER.md](file:///C:/code/AIDev/QuantitativeTrading/AI_HANDOVER.md)
+[AGENTS.md](file:///C:/code/AIDev/QuantitativeTrading/AGENTS.md)
 
 涵蓋模組契約、資料流管線、BDD 規範實踐及資安準則。
 

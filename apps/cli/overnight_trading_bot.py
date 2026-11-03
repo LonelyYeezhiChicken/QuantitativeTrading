@@ -22,6 +22,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from packages.execution import BingXGateway, MarketType
+from packages.journal import TradeJournalManager
 
 STATE_FILE = ROOT_DIR / "data" / "bingx_paper_100u.json"
 LOG_DIR = ROOT_DIR / "logs"
@@ -29,6 +30,7 @@ LOG_FILE = LOG_DIR / "overnight_bot.log"
 STOP_FLAG_FILE = ROOT_DIR / "data" / "bot_stop.flag"
 
 RUNNING = True
+journal_mgr = TradeJournalManager()
 
 
 def handle_exit(signum, frame):
@@ -139,8 +141,8 @@ def fetch_market_signals(gw: BingXGateway, symbol: str = "BTC/USDT") -> dict:
     }
 
 
-def execute_buy(state: dict, price: float, trade_usdt: float, reason: str):
-    """Execute autonomous simulated buy order."""
+def execute_buy(state: dict, price: float, trade_usdt: float, reason: str, sig: dict = None):
+    """Execute autonomous simulated buy order and register in trade journal."""
     pos = state["position"]
     trade_usdt = min(trade_usdt, state["cash_usdt"])
     if trade_usdt <= 0:
@@ -150,6 +152,19 @@ def execute_buy(state: dict, price: float, trade_usdt: float, reason: str):
     state["cash_usdt"] -= trade_usdt
 
     if pos["side"] == "NONE":
+        entry = journal_mgr.on_trade_open(
+            symbol="BTC/USDT",
+            market_type="SPOT",
+            side="LONG",
+            entry_price=price,
+            amount_btc=btc_qty,
+            margin_used=trade_usdt,
+            leverage=1,
+            raw_reason=reason,
+            snapshot_dict=sig or {"price": price},
+            stop_loss_pct=1.5,
+            trailing_pullback_pct=0.4,
+        )
         state["position"] = {
             "symbol": "BTC/USDT",
             "side": "LONG",
@@ -157,10 +172,11 @@ def execute_buy(state: dict, price: float, trade_usdt: float, reason: str):
             "entry_price": price,
             "margin_used": trade_usdt,
             "leverage": 1,
-            "entry_time": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "entry_time": entry.entry_time,
             "highest_price": price,
+            "journal_id": entry.journal_id,
         }
-        log_msg(f"【自動進場買入】原因: {reason} | 價格: ${price:,.2f} | 投入: ${trade_usdt:.2f} U | 數量: {btc_qty:.6f} BTC")
+        log_msg(f"【自動進場買入】原因: {reason} | 價格: ${price:,.2f} | 投入: ${trade_usdt:.2f} U | 數量: {btc_qty:.6f} BTC | 日誌: {entry.journal_id}")
     elif pos["side"] == "LONG":
         # DCA / Add Position
         old_amt = pos["amount_btc"]
@@ -178,7 +194,7 @@ def execute_buy(state: dict, price: float, trade_usdt: float, reason: str):
 
 
 def execute_sell(state: dict, price: float, reason: str):
-    """Execute autonomous simulated sell/close order."""
+    """Execute autonomous simulated sell/close order and finalize trade journal."""
     pos = state["position"]
     if pos["side"] == "NONE":
         return
@@ -201,6 +217,10 @@ def execute_sell(state: dict, price: float, reason: str):
         "reason": reason,
     }
     state["history"].append(record)
+
+    journal_id = pos.get("journal_id")
+    if journal_id:
+        journal_mgr.on_trade_close(journal_id, exit_price=price, exit_reason=reason)
 
     state["position"] = {
         "symbol": "BTC/USDT",
@@ -270,9 +290,24 @@ def main():
             unrealized_pnl = (price - entry_p) * qty if pos["side"] == "LONG" else 0.0
             total_equity = cash + margin + unrealized_pnl
 
-            # Update highest price tracked
+            # Update highest price tracked and journal trajectory
             if pos["side"] == "LONG":
                 pos["highest_price"] = max(pos.get("highest_price", price), price)
+                if not pos.get("journal_id"):
+                    j_entry = journal_mgr.on_trade_open(
+                        symbol="BTC/USDT",
+                        market_type="SPOT",
+                        side="LONG",
+                        entry_price=pos["entry_price"],
+                        amount_btc=pos["amount_btc"],
+                        margin_used=pos.get("margin_used", 50.0),
+                        leverage=1,
+                        raw_reason="現貨自動追蹤持倉",
+                        entry_time_str=pos.get("entry_time"),
+                        snapshot_dict=sig,
+                    )
+                    pos["journal_id"] = j_entry.journal_id
+                journal_mgr.on_trade_update(pos["journal_id"], price)
                 save_state(state)
 
             highest_p = pos.get("highest_price", price)
@@ -287,9 +322,9 @@ def main():
                 # 1. Healthy dip near or above EMA21 with RSI < 55
                 # 2. Or Oversold rebound (RSI < 38)
                 if price >= ema21 * 0.998 and rsi <= 55:
-                    execute_buy(state, price, trade_usdt=50.0, reason=f"均線回踩支撐確認 (RSI={rsi:.1f}, 價貼近EMA21)")
+                    execute_buy(state, price, trade_usdt=50.0, reason=f"均線回踩支撐確認 (RSI={rsi:.1f}, 價貼近EMA21)", sig=sig)
                 elif rsi < 38:
-                    execute_buy(state, price, trade_usdt=50.0, reason=f"短線超賣低接 (RSI={rsi:.1f} < 38)")
+                    execute_buy(state, price, trade_usdt=50.0, reason=f"短線超賣低接 (RSI={rsi:.1f} < 38)", sig=sig)
 
             elif pos["side"] == "LONG":
                 gain_pct = ((price - entry_p) / entry_p) * 100
@@ -312,7 +347,7 @@ def main():
                 # 3. DCA Add Position:
                 # If down -0.8% ~ -1.2% near EMA, and still have >= 40U cash, add remaining capital to lower avg price
                 elif -1.2 <= gain_pct <= -0.7 and cash >= 40.0 and rsi < 48:
-                    execute_buy(state, price, trade_usdt=cash, reason=f"分批加碼攤平 (回跌 {gain_pct:.2f}%, 動用剩餘 ${cash:.2f} U 壓低成本)")
+                    execute_buy(state, price, trade_usdt=cash, reason=f"分批加碼攤平 (回跌 {gain_pct:.2f}%, 動用剩餘 ${cash:.2f} U 壓低成本)", sig=sig)
 
         except Exception as e:
             log_msg(f"[例外警告] 輪詢迴圈異常 (不影響運行，將自動重試): {e}")

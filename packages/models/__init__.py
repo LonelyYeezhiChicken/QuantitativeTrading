@@ -5,6 +5,14 @@ from packages.models.dataset import PurgedTimeSeriesSplit
 from packages.models.lgbm_agent import LGBMAgent
 from packages.models.rule_based import DualEMACrossoverModel, RSIMomentumModel
 from packages.models.typesafe_agent import TypeSafeAIAgent
+from packages.models.advanced_strategies import (
+    FibonacciSNRModel,
+    SpotMomentumPullbackModel,
+    SwapMultiRegimeModel,
+    RSIBottomHunterModel,
+    BollingerBreakoutModel,
+)
+from packages.models.ollama_agent import OllamaDecisionAgent
 
 __all__ = [
     "BaseTradingModel",
@@ -13,4 +21,10 @@ __all__ = [
     "DualEMACrossoverModel",
     "RSIMomentumModel",
     "TypeSafeAIAgent",
+    "FibonacciSNRModel",
+    "SpotMomentumPullbackModel",
+    "SwapMultiRegimeModel",
+    "RSIBottomHunterModel",
+    "BollingerBreakoutModel",
+    "OllamaDecisionAgent",
 ]

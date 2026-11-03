@@ -2,6 +2,7 @@
 
 import hashlib
 import hmac
+import json
 import re
 import time
 from typing import Any, Dict, List, Optional
@@ -372,8 +373,10 @@ class BingXClient:
         quantity: float,
         price: Optional[float] = None,
         client_order_id: Optional[str] = None,
+        stop_loss_price: Optional[float] = None,
+        take_profit_price: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """Place a perpetual swap order (supports LONG / SHORT).
+        """Place a perpetual swap order (supports LONG / SHORT and atomic Native SL/TP).
 
         POST /openApi/swap/v2/trade/order
         """
@@ -393,6 +396,56 @@ class BingXClient:
 
         if order_type.upper() == "LIMIT":
             params.setdefault("timeInForce", "GTC")
+
+        # Atomic Stop-Loss attachment on order entry (ensures SL exists on exchange even if local client disconnects immediately)
+        if stop_loss_price is not None and stop_loss_price > 0:
+            params["stopLoss"] = json.dumps({
+                "type": "STOP_MARKET",
+                "stopPrice": round(stop_loss_price, 2),
+                "workingType": "MARK_PRICE",
+            }, separators=(",", ":"))
+
+        # Atomic Take-Profit attachment
+        if take_profit_price is not None and take_profit_price > 0:
+            params["takeProfit"] = json.dumps({
+                "type": "TAKE_PROFIT_MARKET",
+                "stopPrice": round(take_profit_price, 2),
+                "workingType": "MARK_PRICE",
+            }, separators=(",", ":"))
+
+        return self.request(
+            method="POST",
+            path="/openApi/swap/v2/trade/order",
+            params=params,
+            is_private=True,
+        )
+
+    def create_swap_stop_order(
+        self,
+        symbol: str,
+        position_side: str,                   # 'LONG' or 'SHORT'
+        stop_price: float,
+        quantity: float,
+        working_type: str = "MARK_PRICE",
+        client_order_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Place a standalone stop-loss market conditional order.
+
+        POST /openApi/swap/v2/trade/order
+        """
+        side = "SELL" if position_side.upper() == "LONG" else "BUY"
+        params: Dict[str, Any] = {
+            "symbol": symbol,
+            "side": side,
+            "positionSide": position_side.upper(),
+            "type": "STOP_MARKET",
+            "stopPrice": round(stop_price, 2),
+            "quantity": quantity,
+            "closePosition": "true",
+            "workingType": working_type,
+        }
+        if client_order_id:
+            params["clientOrderId"] = client_order_id
 
         return self.request(
             method="POST",
@@ -421,6 +474,18 @@ class BingXClient:
             method="DELETE",
             path="/openApi/swap/v2/trade/order",
             params=params,
+            is_private=True,
+        )
+
+    def cancel_all_swap_orders(self, symbol: str) -> Dict[str, Any]:
+        """Cancel all open orders and conditional orders for a swap symbol.
+
+        DELETE /openApi/swap/v2/trade/allOpenOrders
+        """
+        return self.request(
+            method="DELETE",
+            path="/openApi/swap/v2/trade/allOpenOrders",
+            params={"symbol": symbol},
             is_private=True,
         )
 

@@ -118,12 +118,21 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 | `tests/bdd/bingx_integration.feature` | `test_bingx_scenarios.py` | BingX HMAC 簽名升冪排序、專屬 Header、演練下單 |
 | `tests/bdd/pionex_integration.feature` | `test_pionex_scenarios.py` | 派網 Ticker 抓取、符號互轉、模擬撮合 |
 | `tests/bdd/typesafe_decision.feature` | `test_typesafe_scenarios.py` | Jev 短線決策模型、強型別合約、Mock Fallback |
+| `tests/bdd/strategy_convergence.feature` | `test_strategy_convergence_scenarios.py` | 五年 (2021~2025) BTC 回測收斂矩陣、黃金口袋模型、策略淘汰評定 |
+| `tests/bdd/autopilot_manual_arm_and_ai_decision.feature` | `test_autopilot_scenarios.py` | 預設待機防呆 (STANDBY)、手動啟動 (ARM)、Ollama 二選一風控、極簡三問覆盤與磁碟端到端持久化 |
+| `tests/bdd/trade_journal.feature` | `test_journal_scenarios.py` | 權威交易日誌生命週期 (開倉快照、軌跡監控、平倉歸因、Markdown 與 INDEX.md 生成) |
+| `tests/bdd/native_stop_loss_and_disconnect_resilience.feature` | `test_native_stop_loss_scenarios.py` | 原生硬停損條件單原子性附加、本機斷網雙網域切換容災、連線恢復狀態自動對齊、平倉撤單 |
+
+> [!IMPORTANT]
+> **日誌單一真實來源 (Single Source of Truth) 與真實 BDD 驗證準則**：
+> 1. 所有交易（包含現貨守護進程、合約守護進程、自動操盤中樞）之交易日誌皆由 [`TradeJournalManager`](file:///C:/code/AIDev/QuantitativeTrading/packages/journal/manager.py) 統一持久化於 `data/trade_journal_db.json` 與 `journals/entries/`，嚴禁自行建立旁路暫存檔案。
+> 2. BDD 測試必須對真實磁碟檔案與完整生命週期狀態轉移（開倉 -> 軌跡更新 -> 平倉 -> Markdown 生成 -> 索引更新）進行斷言，嚴禁以記憶體隔離 Mock 偽造測試通過。
 
 執行全套測試指令：
 ```bash
 just test
 ```
-**當前基準**：全套 28 項單元與 BDD 測試 **100% PASS**。
+**當前基準**：全套 54 項單元與 BDD 測試 **100% PASS**。
 
 ---
 
@@ -133,19 +142,28 @@ just test
 # 1. 虛擬環境建立與同步
 just sync
 
-# 2. 執行全套自動化測試
+# 2. 執行全套自動化測試 (54 項規格 100% PASS)
 just test
 
-# 3. 執行 BingX 現貨/合約連線與認證診斷
+# 3. 啟動量化操盤中樞 (預設 STANDBY 待機模式)
+just start
+
+# 4. 手動解除武裝 (切換為待機模式)
+just standby
+
+# 5. 即時查詢操盤中樞持倉與精簡覆盤
+just status
+
+# 6. 執行 BingX 現貨/合約連線與認證診斷
 just bingx
 
-# 4. 啟動 Streamlit 視覺化金融儀表板
+# 7. 啟動 Streamlit 視覺化金融儀表板 (含極簡 3 欄覆盤卡)
 just gui
 
-# 5. 啟動終端互動選單 (純數字按鍵操作)
+# 8. 啟動終端互動選單 (純數字按鍵操作)
 just menu
 
-# 6. 執行年度滾動複利回測 (例如 2025 年，本金 100U)
+# 9. 執行年度滾動複利回測 (例如 2025 年，本金 100U)
 just rolling --year 2025 --capital 100
 ```
 

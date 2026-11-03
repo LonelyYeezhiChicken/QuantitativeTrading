@@ -31,3 +31,21 @@ Feature: 免指令量化交易控制台 (No-Code Quant Trading Dashboard)
     Then 模擬盤應自動扣除 0.05% 手續費與滑價並增加持倉部位
     And 帳戶剩餘現金應正確扣減
     And 交易紀錄流水應新增一筆 BUY 訂單紀錄
+
+  Scenario: 手動模擬買賣與雙通道下單撮合 (Manual Order Execution & Dual Channel Safe Fallback)
+    Given 交易員操作手動下單面板
+    When 交易員透過本地模擬經紀商執行市價買入 100.0 USDT
+    Then 買單回傳物件應具備成交數量與價格且無 KeyError 異常
+    When 交易員執行市價全額平倉賣出
+    Then 賣單回傳物件應具備平倉數量與實現盈虧且持倉歸零
+    When 交易員切換至 BingX OpenAPI 通道發送模擬買單
+    Then 網關應返回撮合成交結果與訂單識別碼
+
+  Scenario: 多模型特徵擬合與年度滾動複利評估 (Multi-model Feature Backtesting & Rolling Evaluation)
+    Given 具備完整 78+ 技術因子的特徵矩陣
+    When 針對特徵數據擬合 Dual EMA 與 RSI 規則策略
+    Then 策略應產出連續數值化交易訊號且無前視偏差
+    When 回測引擎以自訂手續費費率 0.0006 執行推演
+    Then 應回傳包含資產淨值曲線與績效指標字典的元組結構
+    When 年度滾倉評估器傳入交易模型與年份
+    Then 應回傳標準 RollingEvaluationResult 數據類別且可讀取期末淨值與年度收益率

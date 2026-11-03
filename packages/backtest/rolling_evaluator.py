@@ -125,9 +125,23 @@ class RollingBacktestEvaluator:
         train_model: bool = True,
     ) -> RollingEvaluationResult:
         """Evaluate any model implementing BaseTradingModel on OHLCV data."""
-        # 1. Feature Engineering
-        pipeline = FeaturePipeline(target_horizon=3, label_threshold=0.005)
-        features_df, feature_cols = pipeline.build_features(df)
+        # 1. Feature Engineering with automatic parquet caching
+        dm = DataManager()
+        clean_symbol = symbol.replace("/", "_")
+        cache_desc = period_description.replace(" ", "_").replace("(", "").replace(")", "").replace("/", "_")
+        feat_cache_file = dm.processed_dir / f"{clean_symbol}_{cache_desc}_features.parquet"
+
+        if feat_cache_file.exists():
+            features_df = pd.read_parquet(feat_cache_file)
+            feature_cols = [c for c in features_df.columns if c not in ["timestamp", "open", "high", "low", "close", "volume", "target_forward_return", "target_direction"]]
+        else:
+            pipeline = FeaturePipeline(target_horizon=3, label_threshold=0.005)
+            features_df, feature_cols = pipeline.build_features(df)
+            try:
+                dm.processed_dir.mkdir(parents=True, exist_ok=True)
+                features_df.to_parquet(feat_cache_file, engine="pyarrow", index=False)
+            except Exception:
+                pass
 
         # 2. Train / Fit Model if required
         if train_model:

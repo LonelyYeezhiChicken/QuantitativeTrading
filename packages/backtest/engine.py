@@ -55,17 +55,33 @@ class BacktestEngine:
         current_equity = self.initial_capital
         entry_price = 0.0
         stop_price = 0.0
+        stopped_out_dir = 0.0
 
         for t in range(n):
             current_price = close_prices[t]
             
+            # Check Stop Loss / Trailing Stop
             if current_pos > 0 and current_price < stop_price:
                 exit_cost = current_equity * (self.fee_rate + self.slippage)
                 current_equity -= exit_cost
+                stopped_out_dir = 1.0
+                current_pos = 0.0
+                entry_price = 0.0
+            elif current_pos < 0 and current_price > stop_price:
+                exit_cost = current_equity * (self.fee_rate + self.slippage)
+                current_equity -= exit_cost
+                stopped_out_dir = -1.0
                 current_pos = 0.0
                 entry_price = 0.0
 
-            target_pos = raw_signals[t - 1] if t > 0 else 0.0
+            raw_target = raw_signals[t - 1] if t > 0 else 0.0
+
+            # If stopped out in this direction, require signal to reset to 0 or reverse before re-entering
+            if stopped_out_dir != 0.0:
+                if raw_target == 0.0 or (np.sign(raw_target) != np.sign(stopped_out_dir)):
+                    stopped_out_dir = 0.0
+
+            target_pos = 0.0 if stopped_out_dir != 0.0 else raw_target
 
             turnover = abs(target_pos - current_pos)
             if turnover > 0:
@@ -75,10 +91,18 @@ class BacktestEngine:
                 if current_pos > 0:
                     entry_price = current_price
                     stop_price = current_price * (1.0 - (natr[t] * self.atr_stop_multiplier))
+                elif current_pos < 0:
+                    entry_price = current_price
+                    stop_price = current_price * (1.0 + (natr[t] * self.atr_stop_multiplier))
 
+            # Dynamic Trailing Stop profit lock
             if current_pos > 0 and current_price > entry_price:
                 new_stop = current_price * (1.0 - (natr[t] * self.atr_stop_multiplier))
                 if new_stop > stop_price:
+                    stop_price = new_stop
+            elif current_pos < 0 and current_price < entry_price:
+                new_stop = current_price * (1.0 + (natr[t] * self.atr_stop_multiplier))
+                if new_stop < stop_price:
                     stop_price = new_stop
 
             asset_ret = (close_prices[t] / close_prices[t - 1]) - 1.0 if t > 0 else 0.0

@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from packages.execution.base import BaseBrokerGateway, MarketType
 from packages.execution.bingx_client import BingXClient
+from packages.execution.bingx_ws import BingXWebSocketClient
 
 load_dotenv()
 
@@ -25,11 +26,19 @@ class BingXGateway(BaseBrokerGateway):
         base_urls: Optional[List[str]] = None,
         dry_run: bool = True,  # Default to True for maximum safety
         default_market_type: str = MarketType.SPOT.value,
+        enable_ws: bool = True,
     ):
         self.api_key = api_key or os.getenv("BINGX_API_KEY", "")
         self.api_secret = api_secret or os.getenv("BINGX_API_SECRET", "")
         self._dry_run = dry_run
         self._default_market_type = default_market_type.upper()
+        self._enable_ws = enable_ws
+        self._ws_client: Optional[BingXWebSocketClient] = None
+        if enable_ws:
+            try:
+                self._ws_client = BingXWebSocketClient.get_instance()
+            except Exception:
+                self._ws_client = None
 
         self.client = BingXClient(
             api_key=self.api_key,
@@ -59,6 +68,16 @@ class BingXGateway(BaseBrokerGateway):
     def default_market_type(self) -> str:
         return self._default_market_type
 
+    @property
+    def is_ws_connected(self) -> bool:
+        """True if real-time WebSocket stream is active."""
+        return self._ws_client.is_connected() if self._ws_client else False
+
+    @property
+    def ws_client(self) -> Optional[BingXWebSocketClient]:
+        """Accessor for underlying WebSocket client."""
+        return self._ws_client
+
     @staticmethod
     def to_bingx_symbol(symbol: str) -> str:
         """Convert standard 'BTC/USDT' or 'BTC_USDT' to BingX 'BTC-USDT' format."""
@@ -70,8 +89,27 @@ class BingXGateway(BaseBrokerGateway):
         return symbol.replace("-", "/").upper()
 
     def fetch_ticker(self, symbol: str, market_type: Optional[str] = None) -> Dict[str, float]:
-        """Fetch current ticker price from BingX (supports SPOT and SWAP)."""
+        """Fetch current ticker price from BingX (prioritizes real-time WebSocket, falls back to REST)."""
         m_type = (market_type or self.default_market_type).upper()
+
+        # 1. Fast-path: Check real-time WebSocket memory cache (< 1ms latency)
+        if self._ws_client:
+            cached = self._ws_client.get_ticker(symbol, m_type)
+            if cached and cached.get("price", 0.0) > 0:
+                p = cached["price"]
+                return {
+                    "price": p,
+                    "bid": cached.get("bid", p),
+                    "ask": cached.get("ask", p),
+                    "high_24h": cached.get("high_24h", p),
+                    "low_24h": cached.get("low_24h", p),
+                    "change_24h_pct": cached.get("change_24h_pct", 0.0),
+                    "volume_24h": cached.get("volume_24h", 0.0),
+                    "timestamp": cached.get("timestamp", int(datetime.now(timezone.utc).timestamp() * 1000)),
+                    "source": "WEBSOCKET",
+                }
+
+        # 2. Fallback path: REST API query
         bx_symbol = self.to_bingx_symbol(symbol)
         price = 0.0
         bid = 0.0
@@ -218,9 +256,11 @@ class BingXGateway(BaseBrokerGateway):
         market_type: Optional[str] = None,     # 'SPOT' or 'SWAP'
         position_side: str = "LONG",          # 'LONG' or 'SHORT' (for SWAP)
         leverage: Optional[int] = None,       # Leverage multiplier (for SWAP)
+        stop_loss_price: Optional[float] = None,   # Native STOP_MARKET price on exchange
+        take_profit_price: Optional[float] = None, # Native TAKE_PROFIT_MARKET price on exchange
         **kwargs,
     ) -> Dict[str, Any]:
-        """Submit an order to BingX (supports SPOT and SWAP, simulated if dry_run=True)."""
+        """Submit an order to BingX (supports SPOT and SWAP with atomic Native SL/TP)."""
         m_type = (market_type or self.default_market_type).upper()
         bx_symbol = self.to_bingx_symbol(symbol)
         side_clean = side.upper()
@@ -264,6 +304,7 @@ class BingXGateway(BaseBrokerGateway):
                     "initialMargin": 0.0,
                     "liquidationPrice": liq_price,
                     "unrealizedProfit": 0.0,
+                    "stopLossPrice": stop_loss_price,
                 })
 
                 total_amt = existing_pos["positionAmt"] + size
@@ -272,6 +313,7 @@ class BingXGateway(BaseBrokerGateway):
                 existing_pos["entryPrice"] = fill_price
                 existing_pos["leverage"] = actual_leverage
                 existing_pos["liquidationPrice"] = liq_price
+                existing_pos["stopLossPrice"] = stop_loss_price
 
                 self._simulated_swap_positions[pos_key] = existing_pos
 
@@ -287,6 +329,8 @@ class BingXGateway(BaseBrokerGateway):
                     "executedQty": size,
                     "leverage": actual_leverage,
                     "marginRequired": margin_required,
+                    "stopLossPrice": stop_loss_price,
+                    "takeProfitPrice": take_profit_price,
                     "status": "FILLED",
                     "time": int(datetime.now(timezone.utc).timestamp() * 1000),
                     "is_dry_run": True,
@@ -295,7 +339,7 @@ class BingXGateway(BaseBrokerGateway):
                 self._simulated_orders.append(order_record)
                 return {"result": True, "code": 0, "data": order_record}
 
-            # Live Swap Execution via BingX REST API
+            # Live Swap Execution via BingX REST API with Atomic Native SL/TP
             return self.client.create_swap_order(
                 symbol=bx_symbol,
                 side=side_clean,
@@ -304,6 +348,8 @@ class BingXGateway(BaseBrokerGateway):
                 quantity=size,
                 price=price,
                 client_order_id=client_order_id,
+                stop_loss_price=stop_loss_price,
+                take_profit_price=take_profit_price,
             )
 
         # ----------------- 2. SPOT Execution -----------------
@@ -381,6 +427,21 @@ class BingXGateway(BaseBrokerGateway):
 
         resp = self.client.cancel_order(symbol=bx_symbol, order_id=order_id)
         return resp.get("code") == 0
+
+    def cancel_all_orders(self, symbol: str, market_type: Optional[str] = None) -> bool:
+        """Cancel all open orders and conditional orders for a symbol."""
+        m_type = (market_type or self.default_market_type).upper()
+        bx_symbol = self.to_bingx_symbol(symbol)
+        if self.is_dry_run:
+            for o in self._simulated_orders:
+                if o.get("symbol") == bx_symbol and o.get("status") in ["NEW", "PENDING"]:
+                    o["status"] = "CANCELED"
+            return True
+
+        if m_type == MarketType.SWAP.value:
+            resp = self.client.cancel_all_swap_orders(symbol=bx_symbol)
+            return resp.get("code") == 0
+        return True
 
     def get_open_orders(self, symbol: str, market_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """Retrieve open orders."""

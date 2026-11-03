@@ -22,6 +22,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from packages.execution import BingXGateway, MarketType
+from packages.journal import TradeJournalManager
 
 STATE_FILE = ROOT_DIR / "data" / "bingx_swap_100u.json"
 LOG_DIR = ROOT_DIR / "logs"
@@ -29,6 +30,7 @@ LOG_FILE = LOG_DIR / "overnight_swap_bot.log"
 STOP_FLAG_FILE = ROOT_DIR / "data" / "swap_stop.flag"
 
 RUNNING = True
+journal_mgr = TradeJournalManager()
 
 
 def handle_exit(signum, frame):
@@ -135,8 +137,8 @@ def fetch_swap_signals(gw: BingXGateway, symbol: str = "BTC/USDT") -> dict:
     }
 
 
-def execute_swap_open(state: dict, price: float, side: str, margin_amount: float, leverage: int, reason: str):
-    """Execute autonomous simulated swap open position (LONG or SHORT)."""
+def execute_swap_open(state: dict, price: float, side: str, margin_amount: float, leverage: int, reason: str, sig: dict = None):
+    """Execute autonomous simulated swap open position (LONG or SHORT) and register journal."""
     pos = state["position"]
     avail = state["available_margin"]
     actual_margin = min(margin_amount, avail)
@@ -149,7 +151,20 @@ def execute_swap_open(state: dict, price: float, side: str, margin_amount: float
     side = side.upper()
 
     if pos["side"] == "NONE":
-        liq_price = price * (1.0 - (0.9 / leverage)) if side == "LONG" else price * (1.0 + (0.9 / leverage))
+        entry = journal_mgr.on_trade_open(
+            symbol="BTC/USDT",
+            market_type="SWAP",
+            side=side,
+            entry_price=price,
+            amount_btc=btc_qty,
+            margin_used=actual_margin,
+            leverage=leverage,
+            raw_reason=reason,
+            snapshot_dict=sig or {"price": price},
+            stop_loss_pct=3.0,
+            trailing_pullback_pct=1.0,
+        )
+        liq_price = entry.liquidation_price
         state["position"] = {
             "symbol": "BTC/USDT",
             "side": side,
@@ -158,10 +173,27 @@ def execute_swap_open(state: dict, price: float, side: str, margin_amount: float
             "margin_used": actual_margin,
             "leverage": leverage,
             "liquidation_price": liq_price,
-            "entry_time": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "entry_time": entry.entry_time,
             "highest_pnl_pct": 0.0,
+            "journal_id": entry.journal_id,
         }
-        log_msg(f"【合約開倉 ({side})】原因: {reason} | 價格: ${price:,.2f} | 保證金: ${actual_margin:.2f} U ({leverage}x, 名義: ${notional:,.2f}) | 數量: {btc_qty:.6f} BTC | 強平價: ${liq_price:,.2f}")
+
+        # Place order on Gateway with Atomic Native Stop-Loss
+        try:
+            gw.create_order(
+                symbol="BTC/USDT",
+                side="BUY" if side == "LONG" else "SELL",
+                order_type="MARKET",
+                size=btc_qty,
+                market_type=MarketType.SWAP.value,
+                position_side=side,
+                leverage=leverage,
+                stop_loss_price=entry.risk_plan.stop_loss_price,
+            )
+        except Exception as e:
+            log_msg(f"[下單警示] 網關掛單異常: {e} (已由本地狀態及日誌備援紀錄)")
+
+        log_msg(f"【合約開倉 ({side})】原因: {reason} | 價格: ${price:,.2f} | 原生硬停損: ${entry.risk_plan.stop_loss_price:,.2f} (-3.0%) | 保證金: ${actual_margin:.2f} U ({leverage}x, 名義: ${notional:,.2f}) | 數量: {btc_qty:.6f} BTC | 強平價: ${liq_price:,.2f} | 日誌: {entry.journal_id}")
     elif pos["side"] == side:
         # DCA / Add Position on same side
         old_amt = pos["amount_btc"]
@@ -179,7 +211,7 @@ def execute_swap_open(state: dict, price: float, side: str, margin_amount: float
 
 
 def execute_swap_close(state: dict, price: float, reason: str):
-    """Execute autonomous simulated swap close position."""
+    """Execute autonomous simulated swap close position and finalize trade journal."""
     pos = state["position"]
     if pos["side"] == "NONE":
         return
@@ -211,6 +243,16 @@ def execute_swap_close(state: dict, price: float, reason: str):
     }
     state["history"].append(record)
 
+    journal_id = pos.get("journal_id")
+    if journal_id:
+        journal_mgr.on_trade_close(journal_id, exit_price=price, exit_reason=reason)
+
+    # Cancel native conditional stop orders on exchange upon closing
+    try:
+        gw.cancel_all_orders("BTC/USDT", market_type=MarketType.SWAP.value)
+    except Exception as e:
+        log_msg(f"[撤單警告] 取消雲端掛單失敗: {e}")
+
     state["position"] = {
         "symbol": "BTC/USDT",
         "side": "NONE",
@@ -223,6 +265,7 @@ def execute_swap_close(state: dict, price: float, reason: str):
         "highest_pnl_pct": 0.0,
     }
     save_state(state)
+    log_msg(f"【合約平倉獲利/止損】原因: {reason} | 賣出價: ${price:,.2f} (開倉: ${entry_p:,.2f}) | 盈虧: ${pnl:+,.2f} USDT ({pnl_pct:+.2f}%) | 剩餘可用保證金: ${state['available_margin']:.2f} USDT")
     log_msg(f"【合約平倉結算 ({side})】原因: {reason} | 結算價: ${price:,.2f} (開倉: ${entry_p:,.2f}) | 盈虧: ${pnl:+,.2f} USDT ({pnl_pct:+.2f}%) | 剩餘可用保證金: ${state['available_margin']:.2f} USDT")
 
 
@@ -289,9 +332,24 @@ def main():
             unrealized_pct = (unrealized_pnl / used_margin * 100) if used_margin > 0 else 0.0
             total_equity = avail_margin + used_margin + unrealized_pnl
 
-            # Update highest PnL achieved for trailing stop
+            # Update highest PnL achieved and journal trajectory
             if side != "NONE":
                 pos["highest_pnl_pct"] = max(pos.get("highest_pnl_pct", 0.0), unrealized_pct)
+                if not pos.get("journal_id"):
+                    j_entry = journal_mgr.on_trade_open(
+                        symbol="BTC/USDT",
+                        market_type="SWAP",
+                        side=side,
+                        entry_price=entry_p,
+                        amount_btc=qty,
+                        margin_used=used_margin,
+                        leverage=lev,
+                        raw_reason=f"合約 {side} 部位自主追蹤",
+                        entry_time_str=pos.get("entry_time"),
+                        snapshot_dict=sig,
+                    )
+                    pos["journal_id"] = j_entry.journal_id
+                journal_mgr.on_trade_update(pos["journal_id"], price)
                 save_state(state)
 
             highest_pct = pos.get("highest_pnl_pct", 0.0)
@@ -304,13 +362,13 @@ def main():
                 # Entry Strategy:
                 # 1. Bullish Trend Entry: Price > EMA21 and RSI between 45 and 58
                 if price >= ema21 and 45.0 <= rsi <= 58.0:
-                    execute_swap_open(state, price, side="LONG", margin_amount=50.0, leverage=lev, reason=f"均線上方多頭動量確認 (RSI={rsi:.1f}, 站穩EMA21)")
+                    execute_swap_open(state, price, side="LONG", margin_amount=50.0, leverage=lev, reason=f"均線上方多頭動量確認 (RSI={rsi:.1f}, 站穩EMA21)", sig=sig)
                 # 2. Oversold Mean-Reversion Long: RSI < 35
                 elif rsi < 35.0:
-                    execute_swap_open(state, price, side="LONG", margin_amount=50.0, leverage=lev, reason=f"合約短線超賣反彈訊號 (RSI={rsi:.1f} < 35)")
+                    execute_swap_open(state, price, side="LONG", margin_amount=50.0, leverage=lev, reason=f"合約短線超賣反彈訊號 (RSI={rsi:.1f} < 35)", sig=sig)
                 # 3. Bearish Breakdown Short: Price < EMA21 and RSI between 40 and 48
                 elif price < ema21 * 0.995 and 40.0 <= rsi <= 48.0:
-                    execute_swap_open(state, price, side="SHORT", margin_amount=50.0, leverage=lev, reason=f"均線跌破空頭順勢開空 (RSI={rsi:.1f}, 跌破EMA21)")
+                    execute_swap_open(state, price, side="SHORT", margin_amount=50.0, leverage=lev, reason=f"均線跌破空頭順勢開空 (RSI={rsi:.1f}, 跌破EMA21)", sig=sig)
 
             else:
                 pullback_from_peak = highest_pct - unrealized_pct

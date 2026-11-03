@@ -27,9 +27,25 @@ download *args:
 backtest *args:
     .venv\Scripts\python.exe apps/cli/train_and_backtest.py {{args}}
 
+# 啟動自動化量化操盤中樞 (手動武裝開始操盤)
+start *args:
+    .venv\Scripts\python.exe apps/cli/autopilot.py --arm {{args}}
+
+# 切換操盤中樞為待機狀態 (停止開新倉)
+standby:
+    .venv\Scripts\python.exe apps/cli/autopilot.py --disarm
+
+# 即時查看操盤中樞狀態與最新精簡交易日誌
+status:
+    .venv\Scripts\python.exe apps/cli/autopilot.py --status
+
 # 執行年度滾倉複利回測 (如: just rolling --year 2025 --capital 100)
 rolling *args:
     .venv\Scripts\python.exe apps/cli/run_rolling_backtest.py {{args}}
+
+# 執行五年 (2021~2025) BTC 全策略回測與收斂矩陣
+matrix *args:
+    .venv\Scripts\python.exe apps/cli/run_5year_backtest_matrix.py {{args}}
 
 # 【現貨 100U】啟動過夜自動操盤守護進程 (按 Ctrl+C 即可退出)
 bot *args:
@@ -58,6 +74,14 @@ swap-log:
 # 100U BTC 即時持倉狀態與戰果分析
 btc *args:
     .venv\Scripts\python.exe apps/cli/bingx_paper_tracker.py {{args}}
+
+# 查看交易自主學習日誌 (最新一筆或指定 ID 覆盤)
+journal *args:
+    .venv\Scripts\python.exe apps/cli/trade_journal_viewer.py {{args}}
+
+# 歷史交易自主學習日誌清單總覽
+journal-list *args:
+    .venv\Scripts\python.exe apps/cli/trade_journal_viewer.py --list {{args}}
 
 # 測試派網 (Pionex) OpenAPI 連線與即時報價
 pionex *args:

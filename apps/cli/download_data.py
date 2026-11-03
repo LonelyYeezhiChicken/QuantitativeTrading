@@ -50,7 +50,7 @@ def main():
             symbol=args.symbol,
             timeframe=args.timeframe,
             days=args.days,
-            start_price=45000.0 if "BTC" in args.symbol else 2500.0,
+            start_price=75000.0 if "BTC" in args.symbol else (3950.0 if "XAUT" in args.symbol else 2500.0),
         )
 
     saved_path = dm.save_raw_data(df, args.symbol, args.timeframe)
