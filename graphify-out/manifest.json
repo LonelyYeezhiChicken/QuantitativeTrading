@@ -138,15 +138,15 @@
     "semantic_hash": ""
   },
   "apps/cli/overnight_swap_bot.py": {
-    "mtime": 1793725221.877159,
-    "seen": 1793725547.7075186,
-    "ast_hash": "c023272eb0e9cae528c883b85caa1106",
+    "mtime": 1793726691.338622,
+    "seen": 1793726759.3527436,
+    "ast_hash": "1e6a5963d02aa5ba7e470c9348484f54",
     "semantic_hash": ""
   },
   "apps/cli/overnight_trading_bot.py": {
-    "mtime": 1793716157.760787,
-    "seen": 1793720550.5958183,
-    "ast_hash": "c71c1b526ccb46c45b169e83a4ae1f0e",
+    "mtime": 1793726136.3649123,
+    "seen": 1793726759.352746,
+    "ast_hash": "08bf746372385e5c756440e9034550e7",
     "semantic_hash": ""
   },
   "apps/cli/paper_trade.py": {
@@ -234,9 +234,9 @@
     "semantic_hash": ""
   },
   "data/trade_journal_db.json": {
-    "mtime": 1793725513.649042,
-    "seen": 1793725547.7075608,
-    "ast_hash": "fcf96dc13038e2b8a7ce980513b4a2fa",
+    "mtime": 1793726755.7645383,
+    "seen": 1793726759.3527884,
+    "ast_hash": "182d38863a354d368397828140c579e2",
     "semantic_hash": ""
   },
   "interactive_menu.py": {
@@ -954,9 +954,9 @@
     "semantic_hash": ""
   },
   "AGENTS.md": {
-    "mtime": 1793724271.4156542,
-    "seen": 1793724306.9924078,
-    "ast_hash": "894832d89db5a8a758b616330d237cba",
+    "mtime": 1793725570.531574,
+    "seen": 1793726759.3530169,
+    "ast_hash": "03484d95e534e5bbd3cae6cd30785a5d",
     "semantic_hash": ""
   },
   "README.md": {
@@ -966,21 +966,21 @@
     "semantic_hash": ""
   },
   "journals/INDEX.md": {
-    "mtime": 1793725513.6475346,
-    "seen": 1793725547.707807,
-    "ast_hash": "414ea26c29ddb17570ff2f9171e81427",
+    "mtime": 1793726744.8149412,
+    "seen": 1793726759.3530204,
+    "ast_hash": "bc7369299d1ffb918bba2e047ec2d36a",
     "semantic_hash": ""
   },
   "journals/entries/SPOT_20261103_124013_LONG.md": {
-    "mtime": 1793725490.273494,
-    "seen": 1793725547.7078085,
-    "ast_hash": "0a774ba487b1826df56fd274749257a5",
+    "mtime": 1793726747.1370945,
+    "seen": 1793726759.353022,
+    "ast_hash": "15620c5771a320e75eb638491c5420f9",
     "semantic_hash": ""
   },
   "journals/entries/SWAP_20261103_140101_LONG.md": {
-    "mtime": 1793725492.0674205,
-    "seen": 1793725547.7078097,
-    "ast_hash": "f3539cf25f347b835f180b03facbb7ed",
+    "mtime": 1793726752.6572163,
+    "seen": 1793726759.3530238,
+    "ast_hash": "81b51c81421ea2ad25ab43615a8b6f00",
     "semantic_hash": ""
   },
   "reports/btc_5year_convergence_report.md": {
@@ -999,12 +999,6 @@
     "mtime": 1793721580.180429,
     "seen": 1793722086.294154,
     "ast_hash": "23e4aa069c7e293001bab05282ec6127",
-    "semantic_hash": ""
-  },
-  "data/autopilot_journal.json": {
-    "mtime": 1793725529.9112487,
-    "seen": 1793725547.7075567,
-    "ast_hash": "19ccfc8effb80cb27a7993b654af1a8e",
     "semantic_hash": ""
   },
   "packages/core/autopilot_engine.py": {
@@ -1056,9 +1050,9 @@
     "semantic_hash": ""
   },
   "apps/dashboard/views/overview_tab.py": {
-    "mtime": 1793725288.4391706,
-    "seen": 1793725547.707549,
-    "ast_hash": "294b7966c772f351e00a1ed1d61d5290",
+    "mtime": 1793726671.4389272,
+    "seen": 1793726759.3527756,
+    "ast_hash": "f164e13d6f8a194ae69c8bbe6f8f293c",
     "semantic_hash": ""
   },
   "apps/dashboard/views/research_tab.py": {
@@ -1089,6 +1083,48 @@
     "mtime": 1793725513.649042,
     "seen": 1793725547.7078178,
     "ast_hash": "035b9a504e45a42d571676a74e749d11",
+    "semantic_hash": ""
+  },
+  "data/bingx_swap_10x_100u.json": {
+    "mtime": 1793726755.7685912,
+    "seen": 1793726759.352784,
+    "ast_hash": "34547f82556ddaae338936da4dc97878",
+    "semantic_hash": ""
+  },
+  "tests/test_multi_instance_swap_bot.py": {
+    "mtime": 1793726599.560818,
+    "seen": 1793726759.352892,
+    "ast_hash": "31934a1751c99600bcb5cc2be894a177",
+    "semantic_hash": ""
+  },
+  "journals/entries/SWAP_20261103_170958_LONG.md": {
+    "mtime": 1793725798.8388002,
+    "seen": 1793726759.3530338,
+    "ast_hash": "6e4509d100d0f8fefe05dd344ecc9aa1",
+    "semantic_hash": ""
+  },
+  "journals/entries/SWAP_20261103_172323_LONG.md": {
+    "mtime": 1793726604.1692524,
+    "seen": 1793726759.353035,
+    "ast_hash": "c34a705de3e69743402b31908d138209",
+    "semantic_hash": ""
+  },
+  "journals/entries/SWAP_20261103_172455_LONG.md": {
+    "mtime": 1793726755.7645383,
+    "seen": 1793726759.3530364,
+    "ast_hash": "971942c3ad404becd94cb72071c139b0",
+    "semantic_hash": ""
+  },
+  "journals/entries/SWAP_20261103_172525_LONG.md": {
+    "mtime": 1793726725.3834946,
+    "seen": 1793726759.3530376,
+    "ast_hash": "a273a24039316fa813945437d60a4d23",
+    "semantic_hash": ""
+  },
+  "journals/entries/SWAP_20261103_172544_LONG.md": {
+    "mtime": 1793726744.8144264,
+    "seen": 1793726759.3530388,
+    "ast_hash": "724f0e7eedc79e9febafba2c1feef7d7",
     "semantic_hash": ""
   }
 }

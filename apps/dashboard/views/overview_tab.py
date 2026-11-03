@@ -57,13 +57,41 @@ def render_overview_tab(
         swap_upnl = 0.0
     swap_equity = swap_avail + swap_margin + swap_upnl
 
+    # Check for High-Leverage 10x swap bot state
+    swap_10x_file = ROOT_DIR / "data" / "bingx_swap_10x_100u.json"
+    swap_10x_state = {}
+    has_10x_bot = False
+    s10_upnl, s10_equity = 0.0, 0.0
+    if swap_10x_file.exists():
+        try:
+            import json
+            with open(swap_10x_file, "r", encoding="utf-8") as f:
+                swap_10x_state = json.load(f)
+            has_10x_bot = True
+            s10_pos = swap_10x_state.get("position", {})
+            s10_side = s10_pos.get("side", "NONE")
+            s10_qty = s10_pos.get("amount_btc", 0.0)
+            s10_cost = s10_pos.get("entry_price", btc_p)
+            s10_margin = s10_pos.get("margin_used", 50.0)
+            s10_avail = swap_10x_state.get("available_margin", 50.0)
+            if s10_side == "LONG":
+                s10_upnl = (btc_p - s10_cost) * s10_qty
+            elif s10_side == "SHORT":
+                s10_upnl = (s10_cost - btc_p) * s10_qty
+            else:
+                s10_upnl = 0.0
+            s10_equity = s10_avail + s10_margin + s10_upnl
+        except Exception:
+            has_10x_bot = False
+
     # Compile unified journal entries directly from authoritative TradeJournalManager
     entries, total_realized_pnl, total_portfolio_upnl = get_unified_journal_entries_fn(jm, btc_p)
 
-    # Portfolio Valuation Calculation: Initial (200U) + Realized PnL + Floating Unrealized PnL
-    total_portfolio_equity = 200.0 + total_realized_pnl + total_portfolio_upnl
+    # Portfolio Valuation Calculation: Initial (200U or 300U) + Realized PnL + Floating Unrealized PnL
+    capital_base = 300.0 if has_10x_bot else 200.0
+    total_portfolio_equity = capital_base + total_realized_pnl + total_portfolio_upnl
     total_net_pnl = total_realized_pnl + total_portfolio_upnl
-    total_pnl_pct = (total_net_pnl / 200.0) * 100.0
+    total_pnl_pct = (total_net_pnl / capital_base) * 100.0
     open_trades_count = len([e for e in entries if e.get("status") == "OPEN"])
     closed_trades_count = len([e for e in entries if e.get("status") == "CLOSED"])
 
@@ -215,9 +243,12 @@ def render_overview_tab(
     # Macro Gold Ratio
     render_gold_macro_card(btc_price=btc_p, xaut_price=xaut_p)
 
-    # ---- Section 3: Dual Bot Live Monitor ----
-    st.markdown("#### 雙守護進程倉位與風控")
-    bot_c1, bot_c2 = st.columns(2)
+    # ---- Section 3: Dual or Triple Bot Live Monitor ----
+    st.markdown("#### 量化守護進程倉位與風控")
+    if has_10x_bot:
+        bot_c1, bot_c2, bot_c3 = st.columns(3)
+    else:
+        bot_c1, bot_c2 = st.columns(2)
 
     with bot_c1:
         st.markdown(f"""
@@ -252,6 +283,25 @@ def render_overview_tab(
         if st.button("安全停止合約進程", key="btn_stop_swap", use_container_width=True):
             (ROOT_DIR / "data" / "swap_stop.flag").touch()
             st.success("已寫入合約停止標誌 (swap_stop.flag)")
+
+    if has_10x_bot:
+        with bot_c3:
+            s10_side = s10_pos.get("side", "NONE")
+            st.markdown(f"""
+            <div class="stat-card" style="border-left: 4px solid #f0883e;">
+                <div class="stat-title" style="color: #f0883e;">高槓桿合約 (SWAP 100U, 10x)</div>
+                <div style="font-size: 15px; margin-bottom: 8px;">
+                    持倉方向: <b>{s10_side}</b> ({s10_qty:.6f} BTC, 10x 槓桿)<br>
+                    進場均價: <b>${s10_cost:,.2f}</b> | 強平價: <b>${s10_pos.get('liquidation_price', 0):,.2f}</b><br>
+                    未實現盈虧: <span class="{'text-green' if s10_upnl>=0 else 'text-red'}"><b>${s10_upnl:+,.2f} U ({((s10_upnl/s10_margin*100) if s10_margin>0 else 0):+.2f}%)</b></span><br>
+                    可用保證金: <b>${s10_avail:.2f} U</b> | 單元權益: <b>${s10_equity:.2f} USDT</b>
+                </div>
+                <div class="stat-sub">風控規則: 價格停損 (-1.5%) | 目標停利 (+20.0% ROE) | 雲端原生硬停損</div>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("安全停止 10x 進程", key="btn_stop_swap_10x", use_container_width=True):
+                (ROOT_DIR / "data" / "swap_10x_100u_stop.flag").touch()
+                st.success("已寫入 10x 合約停止標誌 (swap_10x_100u_stop.flag)")
 
     # ---- Section 4: Latest Trade Reflection ----
     st.markdown("#### 最新精簡覆盤 (為什麼進場 / 決策是什麼 / 出場與結果)")
