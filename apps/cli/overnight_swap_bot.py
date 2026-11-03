@@ -320,7 +320,12 @@ def main():
     price_sl = args.price_sl_pct
     price_tp = args.price_tp_pct
     price_pullback = args.price_pullback_pct
-    if args.leverage >= 10 and args.price_sl_pct == 1.33:
+    if args.leverage > 10 and args.price_sl_pct == 1.33:
+        # Scale price SL and TP so that margin loss is strictly capped at -15%
+        price_sl = round(15.0 / args.leverage, 4)       # e.g. 50x -> 0.30% price distance (-15% on margin)
+        price_tp = round(25.0 / args.leverage, 4)       # e.g. 50x -> 0.50% price distance (+25% on margin)
+        price_pullback = round(5.0 / args.leverage, 4) # e.g. 50x -> 0.10% price distance (5% on margin)
+    elif args.leverage >= 10 and args.price_sl_pct == 1.33:
         price_sl = 1.5       # -1.5% price distance (-15% on 10x margin)
         price_tp = 2.0       # +2.0% price distance (+20% on 10x margin)
         price_pullback = 0.5 # 0.5% price pullback (5% on 10x margin)

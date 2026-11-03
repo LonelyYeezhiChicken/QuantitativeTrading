@@ -51,7 +51,7 @@ def main():
     parser.add_argument("--symbol", type=str, default="BTC/USDT", help="Trading symbol (e.g. BTC/USDT, ETH/USDT, SOL/USDT)")
     parser.add_argument("--leverage", type=int, default=3, help="Leverage multiplier (1 for SPOT, >1 for SWAP)")
     parser.add_argument("--capital", type=float, default=100.0, help="Initial capital in USDT")
-    parser.add_argument("--mode", type=str, default=None, choices=["SWAP_3X", "SPOT", None], help="Explicit mode override (optional)")
+    parser.add_argument("--mode", type=str, default=None, help="Explicit mode override (optional, defaults to auto-derive from leverage)")
     parser.add_argument("--interval", type=int, default=30, help="Heartbeat loop interval in seconds")
     parser.add_argument("--arm", action="store_true", help="Explicitly arm trading upon startup")
     parser.add_argument("--status", action="store_true", help="Print status and exit")
