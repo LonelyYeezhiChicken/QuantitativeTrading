@@ -45,3 +45,4 @@ Thumbs.db
 *.log
 logs/
 data/paper_account_state.json
+data/bingx_paper_100u.json

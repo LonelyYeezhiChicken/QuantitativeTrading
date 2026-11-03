@@ -1,4 +1,4 @@
-# Crypto AI Quant Monorepo Task Runner (Justfile)
+# Crypto AI Quant Task Runner (Justfile)
 # 使用方式：輸入 `just` 或 `just --list` 查看所有可用指令
 
 set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
@@ -30,6 +30,10 @@ backtest *args:
 # 執行年度滾倉複利回測 (如: just rolling --year 2025 --capital 100)
 rolling *args:
     .venv\Scripts\python.exe apps/cli/run_rolling_backtest.py {{args}}
+
+# 100U BTC 模擬交易追蹤器 (查看即時持倉、損益與 AI 操盤建議)
+btc *args:
+    .venv\Scripts\python.exe apps/cli/bingx_paper_tracker.py {{args}}
 
 # 測試派網 (Pionex) OpenAPI 連線與即時報價
 pionex *args:
