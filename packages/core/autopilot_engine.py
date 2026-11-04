@@ -1129,15 +1129,16 @@ class UnifiedAutopilotEngine:
         data = response.get("data", {})
         if not isinstance(data, dict):
             return False, 0.0, 0.0, "PENDING"
-        status = str(data.get("status", "")).upper()
-        order_id = data.get("orderId")
+        order_dict = data.get("order", data) if isinstance(data.get("order"), dict) else data
+        status = str(order_dict.get("status", "")).upper()
+        order_id = order_dict.get("orderId")
         if status not in {"FILLED", "CLOSED"} and order_id:
             try:
                 queried = self.gw.get_order(self.symbol, str(order_id), market_type=market_type)
                 queried_data = queried.get("data", {}) if isinstance(queried, dict) else {}
                 if isinstance(queried_data, dict):
-                    data = queried_data
-                    status = str(data.get("status", "")).upper()
+                    order_dict = queried_data.get("order", queried_data) if isinstance(queried_data.get("order"), dict) else queried_data
+                    status = str(order_dict.get("status", "")).upper()
             except Exception:
                 pass
         if status not in {"FILLED", "CLOSED"}:
@@ -1145,11 +1146,11 @@ class UnifiedAutopilotEngine:
                 return False, 0.0, 0.0, "FAILED"
             return False, 0.0, 0.0, "PENDING"
         try:
-            filled_qty = float(data.get("executedQty", data.get("quantity", data.get("origQty", requested_qty))))
-            fill_price = float(data.get("avgPrice", data.get("price", 0.0)))
+            filled_qty = float(order_dict.get("executedQty", order_dict.get("quantity", order_dict.get("origQty", requested_qty))))
+            fill_price = float(order_dict.get("avgPrice", order_dict.get("price", 0.0)))
         except (TypeError, ValueError):
             return False, 0.0, 0.0, "PENDING"
-        if filled_qty + max(1e-12, requested_qty * 1e-8) < requested_qty or fill_price <= 0:
+        if fill_price <= 0 or filled_qty <= 0:
             return False, filled_qty, fill_price, "PENDING"
         return True, min(filled_qty, requested_qty), fill_price, "FILLED"
 
@@ -1215,7 +1216,8 @@ class UnifiedAutopilotEngine:
         except Exception:
             return False
         order_data = response.get("data", {}) if isinstance(response, dict) else {}
-        order_status = str(order_data.get("status", "")).upper() if isinstance(order_data, dict) else ""
+        order_dict = order_data.get("order", order_data) if isinstance(order_data.get("order"), dict) else order_data
+        order_status = str(order_dict.get("status", "")).upper() if isinstance(order_dict, dict) else ""
         if order_status in {"CANCELED", "CANCELLED", "REJECTED", "EXPIRED"}:
             self.pending_order = None
             self.save_state()
