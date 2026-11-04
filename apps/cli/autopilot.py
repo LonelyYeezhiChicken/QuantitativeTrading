@@ -9,6 +9,7 @@ Usage:
 
 import argparse
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -19,6 +20,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from packages.core.autopilot_engine import UnifiedAutopilotEngine, AutopilotState
+from packages.core.event_bus import MarketEventBus, TickerUpdateEvent
 
 
 def print_status(engine: UnifiedAutopilotEngine):
@@ -95,10 +97,34 @@ def main():
     print("-" * 70)
 
     loop_count = 0
+    event_bus = MarketEventBus()
+    wakeup_event = threading.Event()
+    latest_tick: dict = {"price": None}
+
+    def _on_bus_tick(ev: TickerUpdateEvent):
+        if ev.price > 0:
+            latest_tick["price"] = ev.price
+            if engine.position.get("side", "NONE") != "NONE":
+                res = engine.on_ticker_event(ev)
+                if res and res.get("action_taken") not in ("NONE", None):
+                    wakeup_event.set()
+
+    event_bus.subscribe(TickerUpdateEvent, _on_bus_tick)
+    m_type = "SWAP" if "SWAP" in engine.mode else "SPOT"
+    market_feed = engine.gw.create_market_feed(
+        event_bus=event_bus,
+        symbols=[args.symbol],
+        market_type=m_type,
+        poll_interval_sec=min(5.0, float(args.interval)),
+    )
+    if args.run_loop or args.arm:
+        market_feed.start()
+        print(f"[EventBus 已啟動] 資料源適配器: {market_feed.get_feed_status()['mode']} (WebSocket 即時監聽 + 斷線自動輪詢備援)")
+
     try:
         while True:
             loop_count += 1
-            step = engine.step()
+            step = engine.step(override_price=latest_tick.get("price"))
             state_tag = "【ARMED 運行中】" if engine.status == AutopilotState.ARMED else "【STANDBY 待機】"
             coin_code = args.symbol.split('/')[0]
             pnl_tag = f"持倉: {step['position_side']} | 浮盈: ${step['pnl_usdt']:+,.2f} ({step['pnl_pct']:+.2f}%)" if step['position_side'] != "NONE" else "空倉待機"
@@ -108,9 +134,14 @@ def main():
                 # If neither run-loop nor arm was requested, perform one clean cycle inspection and exit
                 break
 
-            time.sleep(args.interval)
+            wakeup_event.clear()
+            for _ in range(args.interval):
+                if wakeup_event.wait(timeout=1.0):
+                    break
     except KeyboardInterrupt:
         print("\n[系統關閉] 收到中斷信號，安全退出。")
+    finally:
+        market_feed.stop()
 
 
 if __name__ == "__main__":

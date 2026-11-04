@@ -455,6 +455,12 @@ class UnifiedAutopilotEngine:
         self.closed_trades: list[Dict[str, Any]] = []
         self.pending_order: Optional[Dict[str, Any]] = None
         self.event_bus: Optional[Any] = None
+        from packages.core.event_bus import InMemoryKlineRollingCache
+
+        self._kline_cache = InMemoryKlineRollingCache(
+            kline_fetcher=self._fetch_raw_klines_for_cache,
+            refresh_interval_sec=60.0,
+        )
         self.load_state()
         if event_bus is not None:
             self.attach_event_bus(event_bus)
@@ -1035,20 +1041,38 @@ class UnifiedAutopilotEngine:
 
         return False
 
-    def _compute_market_signals(self, cur_price: float) -> Dict[str, Any]:
-        """Compute live 1h technical and structural signals (EMA21, EMA50, Wilder RSI, ATR, 48h Fib Pocket)."""
+    def _fetch_raw_klines_for_cache(self, symbol: str, market_type: str) -> Dict[str, list[float]]:
+        """Fetch 100 1h OHLC bars from gateway for the rolling in-memory cache."""
         try:
-            m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
-            klines = self.gw.fetch_klines(self.symbol, timeframe="1h", limit=100, market_type=m_type)
-            if klines is not None and len(klines) >= 20:
-                df = klines if isinstance(klines, pd.DataFrame) else pd.DataFrame(klines)
-                closes = [float(x) for x in df["close"].tolist()]
-                highs = [float(x) for x in df["high"].tolist()] if "high" in df.columns else closes
-                lows = [float(x) for x in df["low"].tolist()] if "low" in df.columns else closes
-                return compute_structural_indicators_from_ohlc(closes, highs, lows, cur_price)
+            if hasattr(self.gw, "fetch_klines"):
+                klines = self.gw.fetch_klines(symbol, timeframe="1h", limit=100, market_type=market_type)
+                if klines is not None and len(klines) >= 20:
+                    df = klines if isinstance(klines, pd.DataFrame) else pd.DataFrame(klines)
+                    closes = [float(x) for x in df["close"].tolist()]
+                    highs = [float(x) for x in df["high"].tolist()] if "high" in df.columns else closes
+                    lows = [float(x) for x in df["low"].tolist()] if "low" in df.columns else closes
+                    return {"closes": closes, "highs": highs, "lows": lows}
+            elif hasattr(self.gw, "client") and hasattr(self.gw.client, "fetch_klines"):
+                bx_sym = self.gw.to_bingx_symbol(symbol) if hasattr(self.gw, "to_bingx_symbol") else symbol
+                resp = self.gw.client.fetch_klines(bx_sym, interval="1h", limit=100)
+                k_data = resp.get("data", []) if isinstance(resp, dict) else []
+                if k_data:
+                    return {
+                        "closes": [float(x[4]) for x in k_data][::-1],
+                        "highs": [float(x[2]) for x in k_data][::-1],
+                        "lows": [float(x[3]) for x in k_data][::-1],
+                    }
         except Exception:
             pass
-        return compute_structural_indicators_from_ohlc([cur_price], [cur_price], [cur_price], cur_price)
+        return {}
+
+    def _compute_market_signals(self, cur_price: float) -> Dict[str, Any]:
+        """Compute live 1h technical and structural signals via InMemoryKlineRollingCache (zero redundant REST calls)."""
+        m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
+        try:
+            return self._kline_cache.compute_signals_on_tick(self.symbol, m_type, price=cur_price)
+        except Exception:
+            return compute_structural_indicators_from_ohlc([cur_price], [cur_price], [cur_price], cur_price)
 
     def save_state(self):
         """Save persistent state to disk."""
