@@ -12,6 +12,7 @@ from packages.data import DataManager
 from packages.features import FeaturePipeline
 from packages.models.base import BaseTradingModel
 from packages.backtest.engine import BacktestEngine
+from packages.backtest.oos import select_evaluation_window
 
 @dataclass
 class RollingEvaluationResult:
@@ -29,6 +30,11 @@ class RollingEvaluationResult:
     metrics: Dict[str, float]
     monthly_breakdown: pd.DataFrame
     results_df: pd.DataFrame
+    # OUT_OF_SAMPLE: scored only on rows the model never trained on (out-of-fold).
+    # NO_TRAINING: rule-based model, nothing learned from the data.
+    # PRETRAINED: model fitted elsewhere (train_model=False); caller guarantees separation.
+    evaluation_scope: str = "UNKNOWN"
+    evaluated_bars: int = 0
 
     def print_summary(self):
         """Print clean quantitative performance report."""
@@ -36,6 +42,7 @@ class RollingEvaluationResult:
         print(f"  策略滾倉複利回測報告: {self.model_name}")
         print("=" * 70)
         print(f"  標的 / 區間                : {self.symbol} ({self.period_description})")
+        print(f"  評估範圍 (Scope)           : {self.evaluation_scope} ({self.evaluated_bars:,} bars)")
         print(f"  起始本金 (Initial Capital) : ${self.initial_capital:,.2f} USDT")
         print(f"  期末淨值 (Final Equity)    : ${self.final_equity:,.2f} USDT")
         print(f"  年度淨獲利 (Net Profit)    : ${self.net_profit:+,.2f} USDT ({self.total_return_pct:+.2f}%)")
@@ -144,11 +151,15 @@ class RollingBacktestEvaluator:
                 pass
 
         # 2. Train / Fit Model if required
+        # 3. Model Inference: a freshly trained model is scored ONLY on its out-of-fold
+        #    rows. Fitting on the period and then predicting the same period would grade
+        #    the model on data it memorized (in-sample backtest).
         if train_model:
             model.fit(features_df, feature_cols=feature_cols, target_col="target_forward_return")
-
-        # 3. Model Inference (Predictions / Signals)
-        predicted_signals = model.predict(features_df)
+            features_df, predicted_signals, scope = select_evaluation_window(model, features_df)
+        else:
+            predicted_signals = model.predict(features_df)
+            scope = "PRETRAINED"
 
         # 4. Compounding Backtest Simulation
         engine = BacktestEngine(
@@ -166,8 +177,9 @@ class RollingBacktestEvaluator:
         net_profit = final_equity - self.initial_capital
         total_ret_pct = perf.get("Total Return (%)", 0.0)
 
-        start_price = df["close"].iloc[0]
-        end_price = df["close"].iloc[-1]
+        # Benchmark over exactly the evaluated window.
+        start_price = features_df["close"].iloc[0]
+        end_price = features_df["close"].iloc[-1]
         bench_ret_pct = ((end_price / start_price) - 1.0) * 100.0
         bench_final_equity = self.initial_capital * (1.0 + (bench_ret_pct / 100.0))
         alpha_pct = total_ret_pct - bench_ret_pct
@@ -203,6 +215,8 @@ class RollingBacktestEvaluator:
             metrics=perf,
             monthly_breakdown=monthly_df,
             results_df=results_df,
+            evaluation_scope=scope,
+            evaluated_bars=len(results_df),
         )
 
     def evaluate_year(

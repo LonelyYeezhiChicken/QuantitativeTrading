@@ -33,8 +33,15 @@ def main():
     pipeline = FeaturePipeline(target_horizon=3)
     features_df, feature_cols = pipeline.build_features(raw_df)
     
+    # Train only on bars BEFORE the simulated window (plus a purge gap of the label
+    # horizon); otherwise the paper-traded bars would be part of the training set.
+    horizon = pipeline.target_horizon
+    train_df = features_df.iloc[: max(0, len(features_df) - args.steps - horizon)]
+    if len(train_df) < 200:
+        print(f"[Error] Not enough history before the last {args.steps} bars to train out-of-sample.")
+        sys.exit(1)
     agent = LGBMAgent()
-    agent.train_cv(features_df, feature_cols, target_col="target_forward_return")
+    agent.train_cv(train_df, feature_cols, target_col="target_forward_return")
 
     broker = PaperBroker(initial_balance=10000.0)
 

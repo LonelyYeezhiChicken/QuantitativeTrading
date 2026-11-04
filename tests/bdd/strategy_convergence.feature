@@ -22,6 +22,8 @@ Feature: 交易策略五年 BTC 回測與收斂淘汰矩陣 (Strategy Convergenc
     Then 策略應在趨勢方向一致且回踩黃金口袋時發出進場訊號
     And 策略應於觸及前高阻力或跌破 0.786 深位止損時正確平倉離場
     And 五年回測最大回撤應受控在 20% 以內且維持正夏普比率
+    # 已知未達標 (xfail strict)：修正回測引擎「停損 K 線虧損未入帳」偏差後，
+    # 實測五年 BTC 為 報酬 -22.98% / MDD 39.25% / Sharpe 0.02 (舊引擎誤報 +133.95% / 14.86% / 1.89)。
 
   Scenario: 策略收斂規則精準識別保留與淘汰策略 (Strict Quantitative Pruning Classification)
     Given 五年策略回測指標矩陣已計算完成

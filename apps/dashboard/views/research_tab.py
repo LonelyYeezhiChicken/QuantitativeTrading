@@ -16,6 +16,7 @@ from packages.models import (
 )
 from packages.backtest import (
     BacktestEngine,
+    select_evaluation_window,
     RollingBacktestEvaluator,
     StrategyConvergenceAnalyzer,
 )
@@ -98,13 +99,15 @@ def render_research_tab(dm: DataManager):
                     else:
                         model = RSIMomentumModel(lower_thresh=35.0, upper_thresh=65.0)
 
-                    # Fit model on historical data
+                    # Fit model, then score it only on rows it never trained on
+                    # (out-of-fold for learning models; all rows for rule-based ones).
                     model.fit(feat_df, cols)
-                    preds = model.predict(feat_df)
+                    eval_df, preds, eval_scope = select_evaluation_window(model, feat_df)
+                    st.caption(f"評估範圍: {eval_scope} ({len(eval_df):,} / {len(feat_df):,} 根 K 線，排除僅作訓練用的前段資料)")
 
                     # Run backtest with proper fee_rate parameter
                     engine = BacktestEngine(initial_capital=10000.0, fee_rate=0.0006, confidence_threshold=0.002)
-                    results_df, perf = engine.run(feat_df, preds)
+                    results_df, perf = engine.run(eval_df, preds)
 
                     final_equity = results_df["equity"].iloc[-1]
                     total_ret = perf.get("Total Return (%)", 0.0)
