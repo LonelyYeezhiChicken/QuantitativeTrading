@@ -23,6 +23,11 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from packages.execution import BingXGateway, MarketType
 from packages.journal import TradeJournalManager
+from packages.core.autopilot_engine import (
+    compute_structural_indicators_from_ohlc,
+    evaluate_structural_entry,
+    evaluate_three_stage_exit,
+)
 
 STATE_FILE = ROOT_DIR / "data" / "bingx_paper_100u.json"
 LOG_DIR = ROOT_DIR / "logs"
@@ -88,12 +93,12 @@ def save_state(state: dict):
 
 
 def fetch_market_signals(gw: BingXGateway, symbol: str = "BTC/USDT") -> dict:
-    """Fetch live ticker and compute instant indicators (RSI 14, EMA 21, ATR 14)."""
+    """Fetch live ticker and compute 1h structural indicators (EMA21/50, Wilder RSI 14, ATR 14, 48h Fib Pocket)."""
     ticker = gw.fetch_ticker(symbol)
     price = ticker.get("price", 0.0)
 
     try:
-        klines_resp = gw.client.fetch_klines(gw.to_bingx_symbol(symbol), interval="1h", limit=40)
+        klines_resp = gw.client.fetch_klines(gw.to_bingx_symbol(symbol), interval="1h", limit=100)
         k_data = klines_resp.get("data", [])
         closes = [float(x[4]) for x in k_data][::-1] if k_data else [price]
         highs = [float(x[2]) for x in k_data][::-1] if k_data else [price]
@@ -103,42 +108,14 @@ def fetch_market_signals(gw: BingXGateway, symbol: str = "BTC/USDT") -> dict:
         highs = [price]
         lows = [price]
 
-    rsi = 50.0
-    ema21 = price
-    atr = price * 0.015
-
-    if len(closes) >= 15:
-        deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
-        gains = [d if d > 0 else 0 for d in deltas]
-        losses = [-d if d < 0 else 0 for d in deltas]
-        avg_gain = sum(gains[-14:]) / 14
-        avg_loss = sum(losses[-14:]) / 14
-        if avg_loss > 0:
-            rs = avg_gain / avg_loss
-            rsi = 100.0 - (100.0 / (1.0 + rs))
-
-        k = 2.0 / (21.0 + 1.0)
-        ema = closes[0]
-        for c in closes[1:]:
-            ema = c * k + ema * (1.0 - k)
-        ema21 = ema
-
-        # ATR
-        tr_list = []
-        for i in range(1, len(closes)):
-            tr = max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1]))
-            tr_list.append(tr)
-        if len(tr_list) >= 14:
-            atr = sum(tr_list[-14:]) / 14
-
-    return {
-        "price": price,
-        "bid": ticker.get("bid", price),
-        "ask": ticker.get("ask", price),
-        "rsi": rsi,
-        "ema21": ema21,
-        "atr": atr,
-    }
+    return compute_structural_indicators_from_ohlc(
+        closes=closes,
+        highs=highs,
+        lows=lows,
+        cur_price=price,
+        bid=ticker.get("bid", price),
+        ask=ticker.get("ask", price),
+    )
 
 
 def execute_buy(state: dict, price: float, trade_usdt: float, reason: str, sig: dict = None):
@@ -318,34 +295,26 @@ def main():
 
             # ================= STRATEGY DECISION ENGINE =================
             if pos["side"] == "NONE":
-                # Entry Strategy:
-                # 1. Healthy dip near or above EMA21 with RSI < 55
-                # 2. Or Oversold rebound (RSI < 38)
-                if price >= ema21 * 0.998 and rsi <= 55:
-                    execute_buy(state, price, trade_usdt=50.0, reason=f"均線回踩支撐確認 (RSI={rsi:.1f}, 價貼近EMA21)", sig=sig)
-                elif rsi < 38:
-                    execute_buy(state, price, trade_usdt=50.0, reason=f"短線超賣低接 (RSI={rsi:.1f} < 38)", sig=sig)
+                candidate_side, candidate_reason = evaluate_structural_entry("SPOT", price, sig)
+                if candidate_side == "LONG":
+                    execute_buy(state, price, trade_usdt=50.0, reason=candidate_reason, sig=sig)
 
             elif pos["side"] == "LONG":
-                gain_pct = ((price - entry_p) / entry_p) * 100
-                pullback_from_high = ((highest_p - price) / highest_p) * 100 if highest_p > 0 else 0.0
+                gain_pct = ((price - entry_p) / entry_p) * 100 if entry_p > 0 else 0.0
+                peak_gain_pct = ((highest_p - entry_p) / entry_p) * 100 if entry_p > 0 else gain_pct
 
-                # 1. Take Profit:
-                # Condition A: RSI overbought exhaustion (RSI >= 72)
-                if rsi >= 72 and gain_pct > 0.8:
-                    execute_sell(state, price, reason=f"1h RSI 嚴重超買鈍化 (RSI={rsi:.1f} >= 72, 鎖定獲利 +{gain_pct:.2f}%)")
-
-                # Condition B: Trailing Stop Profit (Gain reached >= 1.5% and pulled back 0.4% from peak)
-                elif gain_pct >= 1.5 and pullback_from_high >= 0.4:
-                    execute_sell(state, price, reason=f"移動停利觸發 (最高點 ${highest_p:,.2f} 回檔 {pullback_from_high:.2f}%, 鎖定 +{gain_pct:.2f}%)")
-
-                # 2. Stop Loss:
-                # Hard stop at -1.5% to protect capital
-                elif gain_pct <= -1.5:
-                    execute_sell(state, price, reason=f"硬停損觸發 (虧損達到 -1.5%，嚴格截斷風險)")
-
-                # 3. DCA Add Position:
-                # If down -0.8% ~ -1.2% near EMA, and still have >= 40U cash, add remaining capital to lower avg price
+                exit_action, exit_reason = evaluate_three_stage_exit(
+                    pnl_pct=gain_pct,
+                    peak_pct=peak_gain_pct,
+                    sl_threshold=1.5,
+                    tp_threshold=1.5,
+                    pullback_threshold=0.4,
+                    rsi=rsi,
+                    side="LONG",
+                )
+                if exit_action is not None:
+                    execute_sell(state, price, reason=exit_reason)
+                # DCA Add Position: If down -0.8% ~ -1.2% near EMA, and still have >= 40U cash
                 elif -1.2 <= gain_pct <= -0.7 and cash >= 40.0 and rsi < 48:
                     execute_buy(state, price, trade_usdt=cash, reason=f"分批加碼攤平 (回跌 {gain_pct:.2f}%, 動用剩餘 ${cash:.2f} U 壓低成本)", sig=sig)
 

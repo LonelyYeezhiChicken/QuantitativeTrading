@@ -32,6 +32,176 @@ class AutopilotState:
     PAUSED = "PAUSED"      # 暫停中：維持當前部位，暫不開立新倉
 
 
+def compute_structural_indicators_from_ohlc(
+    closes: list[float],
+    highs: Optional[list[float]],
+    lows: Optional[list[float]],
+    cur_price: float,
+    bid: Optional[float] = None,
+    ask: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Compute EMA21, EMA50, Wilder RSI(14), ATR(14), and 48h Fibonacci Golden Pocket structure."""
+    if not closes:
+        closes = [cur_price]
+    highs = highs if highs and len(highs) == len(closes) else list(closes)
+    lows = lows if lows and len(lows) == len(closes) else list(closes)
+
+    s_close = pd.Series(closes, dtype=float)
+    ema21 = float(s_close.ewm(span=21, adjust=False).mean().iloc[-1])
+    ema50 = float(s_close.ewm(span=50, adjust=False).mean().iloc[-1]) if len(closes) >= 25 else ema21
+    prev_close = float(closes[-2]) if len(closes) >= 2 else cur_price
+
+    rsi = 50.0
+    if len(closes) >= 15:
+        diff = s_close.diff()
+        gain = diff.clip(lower=0).ewm(alpha=1.0 / 14.0, adjust=False).mean()
+        loss = (-diff.clip(upper=0)).ewm(alpha=1.0 / 14.0, adjust=False).mean()
+        rs = gain / (loss + 1e-9)
+        rsi = float((100.0 - (100.0 / (1.0 + rs))).iloc[-1])
+
+    atr = cur_price * 0.015
+    if len(closes) >= 15:
+        tr_list = [
+            max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1]))
+            for i in range(1, len(closes))
+        ]
+        if tr_list:
+            atr = float(pd.Series(tr_list, dtype=float).ewm(alpha=1.0 / 14.0, adjust=False).mean().iloc[-1])
+
+    window = min(48, len(closes))
+    swing_high_48 = float(max(highs[-window:])) if window > 0 else cur_price
+    swing_low_48 = float(min(lows[-window:])) if window > 0 else cur_price
+    swing_range = swing_high_48 - swing_low_48
+
+    in_bull_gp = False
+    in_bear_gp = False
+    if swing_range > (cur_price * 0.012):
+        bull_top = swing_high_48 - 0.50 * swing_range
+        bull_bot = swing_high_48 - 0.65 * swing_range
+        bear_bot = swing_low_48 + 0.50 * swing_range
+        bear_top = swing_low_48 + 0.65 * swing_range
+        in_bull_gp = bool(bull_bot <= cur_price <= bull_top)
+        in_bear_gp = bool(bear_bot <= cur_price <= bear_top)
+
+    return {
+        "price": cur_price,
+        "bid": bid if bid is not None else cur_price,
+        "ask": ask if ask is not None else cur_price,
+        "rsi": rsi,
+        "ema21": ema21,
+        "ema50": ema50,
+        "atr": atr,
+        "prev_close": prev_close,
+        "swing_high_48": swing_high_48,
+        "swing_low_48": swing_low_48,
+        "in_bull_golden_pocket": in_bull_gp,
+        "in_bear_golden_pocket": in_bear_gp,
+    }
+
+
+def evaluate_structural_entry(
+    mode: str,
+    cur_price: float,
+    signals: Dict[str, Any],
+) -> Tuple[Optional[str], str]:
+    """Evaluate entry signal using macro trend alignment (EMA21 vs EMA50),
+    48h Fibonacci Golden Pocket (0.50~0.65), and anti-falling-knife confirmation.
+    """
+    rsi = float(signals.get("rsi", 50.0))
+    ema21 = float(signals.get("ema21", cur_price))
+    ema50 = float(signals.get("ema50", ema21))
+    prev_close = float(signals.get("prev_close", cur_price - 1.0))
+    in_bull_gp = bool(signals.get("in_bull_golden_pocket", False))
+    in_bear_gp = bool(signals.get("in_bear_golden_pocket", False))
+
+    is_bull_macro = ema21 >= (ema50 * 0.999)
+    is_bear_macro = ema21 < (ema50 * 0.9995)
+    is_candle_rebound = cur_price > prev_close
+
+    if "SWAP" in mode.upper():
+        # 1. Bullish Fibonacci Golden Pocket (0.50 ~ 0.65) Structural Support
+        if in_bull_gp and is_bull_macro and is_candle_rebound and 35.0 <= rsi <= 58.0:
+            return "LONG", f"斐波那契黃金口袋支撐回踩確認 (RSI={rsi:.1f}, 48h 0.5~0.65 結構區止跌)"
+        # 2. Bullish Trend Pullback (requires EMA21 >= EMA50 macro trend alignment)
+        if cur_price >= ema21 and is_bull_macro and 45.0 <= rsi <= 58.0:
+            return "LONG", f"雙均線順勢回踩多頭動量確認 (RSI={rsi:.1f}, 價穩EMA21>=EMA50)"
+        # 3. Strong Dual-EMA Momentum Continuation
+        if cur_price >= ema21 and cur_price >= ema50 and is_bull_macro and 58.0 < rsi <= 70.0:
+            return "LONG", f"雙均線多頭排列強勢動能突破 (RSI={rsi:.1f}, 站上EMA21/EMA50)"
+        # 4. Confirmed Oversold Reversal (requires cur_price > prev_close to avoid catching a falling knife)
+        if rsi < 35.0 and is_candle_rebound:
+            return "LONG", f"短線超賣止跌勾頭反彈確認 (RSI={rsi:.1f}<35, 現價高於前收)"
+        # 5. Bearish Fibonacci Golden Pocket Rejection
+        if in_bear_gp and is_bear_macro and (cur_price < prev_close) and 42.0 <= rsi <= 62.0:
+            return "SHORT", f"斐波那契空方黃金口袋壓力受阻 (RSI={rsi:.1f}, 48h 0.5~0.65 反彈受壓)"
+        # 6. Bearish Breakdown Short (strictly requires EMA21 < EMA50 macro bearish structure)
+        if cur_price < ema21 * 0.995 and is_bear_macro and 38.0 <= rsi <= 48.0:
+            return "SHORT", f"雙均線空頭排列破位順勢開空 (RSI={rsi:.1f}, 跌破EMA21<EMA50)"
+    else:
+        # Spot Structural Entry Rules (Long-Only)
+        if in_bull_gp and is_bull_macro and is_candle_rebound and rsi <= 58.0:
+            return "LONG", f"現貨斐波那契黃金口袋支撐低接 (RSI={rsi:.1f}, 48h 0.5~0.65 結構支撐)"
+        if cur_price >= ema21 * 0.998 and is_bull_macro and rsi <= 55.0:
+            return "LONG", f"現貨順勢均線支撐回踩確認 (RSI={rsi:.1f}, 貼近EMA21>=EMA50)"
+        if rsi < 38.0 and is_candle_rebound:
+            return "LONG", f"現貨短線超賣止跌勾頭低接 (RSI={rsi:.1f}<38, 現價高於前收)"
+
+    return None, ""
+
+
+def evaluate_three_stage_exit(
+    pnl_pct: float,
+    peak_pct: float,
+    sl_threshold: float,
+    tp_threshold: float,
+    pullback_threshold: float,
+    breakeven_trigger_pct: Optional[float] = None,
+    breakeven_floor_pct: Optional[float] = None,
+    rsi: Optional[float] = None,
+    side: str = "LONG",
+) -> Tuple[Optional[str], str]:
+    """Evaluate 3-Stage Exit Shield:
+    - Stage 1: Hard Stop-Loss (-sl_threshold)
+    - Stage 2: Break-Even Ratchet (once peak_pct >= breakeven_trigger_pct, protect +breakeven_floor_pct)
+    - Stage 3: Trailing Take-Profit (once peak_pct >= tp_threshold and pullback >= pullback_threshold)
+    """
+    pullback = peak_pct - pnl_pct
+    be_trigger = breakeven_trigger_pct if breakeven_trigger_pct is not None else (tp_threshold * 0.5)
+    if breakeven_floor_pct is None:
+        if tp_threshold >= 10.0:
+            be_floor = 1.5
+        elif tp_threshold >= 3.0:
+            be_floor = 0.5
+        else:
+            be_floor = 0.25
+    else:
+        be_floor = breakeven_floor_pct
+
+    # Stage 1: Hard Stop Loss
+    if pnl_pct <= -sl_threshold:
+        return "STOP_LOSS", f"自適應保證金停損觸發 (虧損達 {pnl_pct:.2f}%, 截斷風險)"
+
+    # Extreme RSI Exhaustion Take Profit
+    if rsi is not None:
+        if side == "LONG" and rsi >= 75.0 and pnl_pct >= be_trigger:
+            return "TAKE_PROFIT", f"1h RSI 極端超買停利 (RSI={rsi:.1f} >= 75, 獲利 +{pnl_pct:.2f}%)"
+        if side == "SHORT" and rsi <= 25.0 and pnl_pct >= be_trigger:
+            return "TAKE_PROFIT", f"1h RSI 極端超賣停利 (RSI={rsi:.1f} <= 25, 獲利 +{pnl_pct:.2f}%)"
+
+    # Stage 3: Full Trailing Take Profit
+    if peak_pct >= tp_threshold and pullback >= pullback_threshold:
+        return "TAKE_PROFIT", f"動態移動停利 (最高獲利 +{peak_pct:.2f}% 回撤 {pullback:.2f}%, 鎖定 +{pnl_pct:.2f}%)"
+
+    # Stage 2: Break-Even Ratchet Shield (Halfway target reached, then pulled back to breakeven floor)
+    if peak_pct >= be_trigger and pnl_pct <= be_floor:
+        return (
+            "BREAKEVEN_STOP",
+            f"保本推移鎖利觸發 (最高浮盈曾達 +{peak_pct:.2f}% 突破半程門檻，回落守住 +{pnl_pct:.2f}% 保本底線)",
+        )
+
+    return None, ""
+
+
 class UnifiedAutopilotEngine:
     """Production-grade single autopilot trading engine."""
 
@@ -252,15 +422,19 @@ class UnifiedAutopilotEngine:
             return step_result
 
         # ----------------- ARMED TRADING LOOP -----------------
-        # A. Position Management (Stop Loss / Trailing Take Profit)
+        # A. Position Management (3-Stage Exit Shield: Hard SL / Break-Even Ratchet / Trailing TP)
         if side != "NONE":
-            # Reconcile with exchange to detect if native hard SL triggered on exchange during network drop
             peak_pct = self.position.get("highest_pnl_pct", 0.0)
-            pullback = peak_pct - pnl_pct
-
-            # 1. Hard Stop Loss
-            if pnl_pct <= -self.margin_sl_threshold:
-                closed = self._close_position(cur_price, reason=f"自適應保證金停損觸發 (虧損達 {pnl_pct:.2f}%, 截斷風險)")
+            exit_action, exit_reason = evaluate_three_stage_exit(
+                pnl_pct=pnl_pct,
+                peak_pct=peak_pct,
+                sl_threshold=self.margin_sl_threshold,
+                tp_threshold=self.margin_tp_threshold,
+                pullback_threshold=self.margin_pullback_threshold,
+                side=side,
+            )
+            if exit_action == "STOP_LOSS":
+                closed = self._close_position(cur_price, reason=exit_reason)
                 step_result["action_taken"] = "STOP_LOSS" if closed else "CLOSE_FAILED"
                 step_result["message"] = (
                     f"已執行硬停損平倉 (虧損 {pnl_pct:.2f}%)"
@@ -271,9 +445,20 @@ class UnifiedAutopilotEngine:
                 )
                 return step_result
 
-            # 2. Trailing Take Profit
-            if peak_pct >= self.margin_tp_threshold and pullback >= self.margin_pullback_threshold:
-                closed = self._close_position(cur_price, reason=f"動態移動停利 (最高獲利 +{peak_pct:.2f}% 回撤 {pullback:.2f}%)")
+            if exit_action == "BREAKEVEN_STOP":
+                closed = self._close_position(cur_price, reason=exit_reason)
+                step_result["action_taken"] = "BREAKEVEN_STOP" if closed else "CLOSE_FAILED"
+                step_result["message"] = (
+                    f"已執行保本推移鎖利平倉 (鎖定正報酬 +{pnl_pct:.2f}%)"
+                    if closed and not self.pending_order
+                    else "部位已平倉；日誌或條件單清理待重試"
+                    if closed
+                    else "保本平倉未確認，保留持倉並等待對帳"
+                )
+                return step_result
+
+            if exit_action == "TAKE_PROFIT":
+                closed = self._close_position(cur_price, reason=exit_reason)
                 step_result["action_taken"] = "TAKE_PROFIT" if closed else "CLOSE_FAILED"
                 step_result["message"] = (
                     f"已執行移動停利平倉 (鎖定利潤 +{pnl_pct:.2f}%)"
@@ -290,32 +475,9 @@ class UnifiedAutopilotEngine:
         # B. Entry Evaluation (Only when flat and ARMED)
         signals = self._compute_market_signals(cur_price)
         rsi = signals["rsi"]
-        ema21 = signals["ema21"]
-        ema50 = signals.get("ema50", ema21)
 
-        # Strategy Candidate Decision
-        candidate_signal = None
-        candidate_reason = ""
-
-        if "SWAP" in self.mode:
-            # Swap MultiRegime rules:
-            # 1. Healthy dip entry
-            if (cur_price >= ema21 and 45.0 <= rsi <= 58.0) or (rsi < 35.0):
-                candidate_signal = "LONG"
-                candidate_reason = f"均線上方多頭動量確認 (RSI={rsi:.1f}, 價穩EMA21)" if rsi >= 45 else f"短線跌深超賣反彈 (RSI={rsi:.1f}<35)"
-            # 2. Strong trend continuation momentum entry
-            elif cur_price >= ema21 and cur_price >= ema50 and 58.0 < rsi <= 72.0:
-                candidate_signal = "LONG"
-                candidate_reason = f"雙均線多頭排列強勢動能突破 (RSI={rsi:.1f}, 站上EMA21/EMA50)"
-            # 3. Breakdown short entry
-            elif cur_price < ema21 * 0.995 and 38.0 <= rsi <= 48.0:
-                candidate_signal = "SHORT"
-                candidate_reason = f"均線破位空方順勢 (RSI={rsi:.1f}, 跌破EMA21)"
-        else:
-            # Spot Momentum Pullback rules
-            if (cur_price >= ema21 * 0.998 and rsi <= 55.0) or (rsi < 38.0):
-                candidate_signal = "LONG"
-                candidate_reason = f"均線支撐回踩確認 (RSI={rsi:.1f}, 貼近EMA21)" if rsi >= 40 else f"短線超賣低接 (RSI={rsi:.1f}<38)"
+        # Strategy Candidate Decision (Structural Entry Filter + Fibonacci Golden Pocket + Anti-Knife)
+        candidate_signal, candidate_reason = evaluate_structural_entry(self.mode, cur_price, signals)
 
         if not candidate_signal:
             step_result["message"] = f"無開倉信號 (RSI={rsi:.1f}, 市價=${cur_price:,.2f})，等待標準型態"
@@ -691,25 +853,20 @@ class UnifiedAutopilotEngine:
 
         return False
 
-    def _compute_market_signals(self, cur_price: float) -> Dict[str, float]:
-        """Compute live 1h technical signals for decision making."""
+    def _compute_market_signals(self, cur_price: float) -> Dict[str, Any]:
+        """Compute live 1h technical and structural signals (EMA21, EMA50, Wilder RSI, ATR, 48h Fib Pocket)."""
         try:
             m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
-            klines = self.gw.fetch_klines(self.symbol, timeframe="1h", limit=50, market_type=m_type)
-            if klines is not None and len(klines) >= 25:
+            klines = self.gw.fetch_klines(self.symbol, timeframe="1h", limit=100, market_type=m_type)
+            if klines is not None and len(klines) >= 20:
                 df = klines if isinstance(klines, pd.DataFrame) else pd.DataFrame(klines)
-                close_s = df["close"]
-                ema21 = float(close_s.ewm(span=21, adjust=False).mean().iloc[-1])
-                ema50 = float(close_s.ewm(span=50, adjust=False).mean().iloc[-1]) if len(close_s) >= 30 else ema21
-                diff = close_s.diff()
-                gain = diff.clip(lower=0).rolling(14).mean()
-                loss = (-diff.clip(upper=0)).rolling(14).mean()
-                rs = gain / (loss + 1e-9)
-                rsi = float((100.0 - (100.0 / (1.0 + rs))).iloc[-1])
-                return {"price": cur_price, "rsi": rsi, "ema21": ema21, "ema50": ema50}
+                closes = [float(x) for x in df["close"].tolist()]
+                highs = [float(x) for x in df["high"].tolist()] if "high" in df.columns else closes
+                lows = [float(x) for x in df["low"].tolist()] if "low" in df.columns else closes
+                return compute_structural_indicators_from_ohlc(closes, highs, lows, cur_price)
         except Exception:
             pass
-        return {"price": cur_price, "rsi": 50.0, "ema21": cur_price, "ema50": cur_price}
+        return compute_structural_indicators_from_ohlc([cur_price], [cur_price], [cur_price], cur_price)
 
     def save_state(self):
         """Save persistent state to disk."""

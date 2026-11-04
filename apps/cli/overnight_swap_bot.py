@@ -23,6 +23,11 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from packages.execution import BingXGateway, MarketType
 from packages.journal import TradeJournalManager
+from packages.core.autopilot_engine import (
+    compute_structural_indicators_from_ohlc,
+    evaluate_structural_entry,
+    evaluate_three_stage_exit,
+)
 
 STATE_FILE = ROOT_DIR / "data" / "bingx_swap_100u.json"
 LOG_DIR = ROOT_DIR / "logs"
@@ -114,51 +119,29 @@ def save_state(state: dict):
 
 
 def fetch_swap_signals(gw: BingXGateway, symbol: str = "BTC/USDT") -> dict:
-    """Fetch live swap ticker and compute 1h indicators (RSI 14, EMA 21, EMA 50)."""
+    """Fetch live swap ticker and compute 1h structural indicators (EMA21/50, Wilder RSI 14, ATR 14, 48h Fib Pocket)."""
     ticker = gw.fetch_ticker(symbol, market_type=MarketType.SWAP.value)
     price = ticker.get("price", 0.0)
 
     try:
-        klines_resp = gw.client.fetch_klines(gw.to_bingx_symbol(symbol), interval="1h", limit=40)
+        klines_resp = gw.client.fetch_klines(gw.to_bingx_symbol(symbol), interval="1h", limit=100)
         k_data = klines_resp.get("data", [])
         closes = [float(x[4]) for x in k_data][::-1] if k_data else [price]
+        highs = [float(x[2]) for x in k_data][::-1] if k_data else [price]
+        lows = [float(x[3]) for x in k_data][::-1] if k_data else [price]
     except Exception:
         closes = [price]
+        highs = [price]
+        lows = [price]
 
-    rsi = 50.0
-    ema21 = price
-    ema50 = price
-
-    if len(closes) >= 15:
-        deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
-        gains = [d if d > 0 else 0 for d in deltas]
-        losses = [-d if d < 0 else 0 for d in deltas]
-        avg_gain = sum(gains[-14:]) / 14
-        avg_loss = sum(losses[-14:]) / 14
-        if avg_loss > 0:
-            rs = avg_gain / avg_loss
-            rsi = 100.0 - (100.0 / (1.0 + rs))
-
-        k21 = 2.0 / (21.0 + 1.0)
-        e21 = closes[0]
-        for c in closes[1:]:
-            e21 = c * k21 + e21 * (1.0 - k21)
-        ema21 = e21
-
-        k50 = 2.0 / (50.0 + 1.0)
-        e50 = closes[0]
-        for c in closes[1:]:
-            e50 = c * k50 + e50 * (1.0 - k50)
-        ema50 = e50
-
-    return {
-        "price": price,
-        "bid": ticker.get("bid", price),
-        "ask": ticker.get("ask", price),
-        "rsi": rsi,
-        "ema21": ema21,
-        "ema50": ema50,
-    }
+    return compute_structural_indicators_from_ohlc(
+        closes=closes,
+        highs=highs,
+        lows=lows,
+        cur_price=price,
+        bid=ticker.get("bid", price),
+        ask=ticker.get("ask", price),
+    )
 
 
 def execute_swap_open(
@@ -458,41 +441,47 @@ def main():
             # ================= SWAP DECISION ENGINE =================
             trade_margin = min(50.0, avail_margin)
             if side == "NONE":
-                # Entry Strategy:
-                # 1. Bullish Trend Dip Entry: Price > EMA21 and healthy RSI pullback
-                if price >= ema21 and 45.0 <= rsi <= 58.0:
-                    execute_swap_open(state, price, side="LONG", margin_amount=trade_margin, leverage=lev, reason=f"均線上方多頭動量確認 (RSI={rsi:.1f}, 站穩EMA21)", sig=sig, gw=gw, price_sl_pct=price_sl, price_pullback_pct=price_pullback)
-                # 2. Bullish Momentum Trend Continuation: Above both EMA21 and EMA50 with strong trend
-                elif price >= ema21 and price >= ema50 and 58.0 < rsi <= 72.0:
-                    execute_swap_open(state, price, side="LONG", margin_amount=trade_margin, leverage=lev, reason=f"雙均線多頭排列強勢動能突破 (RSI={rsi:.1f}, 站上EMA21/EMA50)", sig=sig, gw=gw, price_sl_pct=price_sl, price_pullback_pct=price_pullback)
-                # 3. Oversold Mean-Reversion Long: RSI < 35
-                elif rsi < 35.0:
-                    execute_swap_open(state, price, side="LONG", margin_amount=trade_margin, leverage=lev, reason=f"合約短線超賣反彈訊號 (RSI={rsi:.1f} < 35)", sig=sig, gw=gw, price_sl_pct=price_sl, price_pullback_pct=price_pullback)
-                # 4. Bearish Breakdown Short: Price < EMA21 and RSI between 38 and 48
-                elif price < ema21 * 0.995 and 38.0 <= rsi <= 48.0:
-                    execute_swap_open(state, price, side="SHORT", margin_amount=trade_margin, leverage=lev, reason=f"均線跌破空頭順勢開空 (RSI={rsi:.1f}, 跌破EMA21)", sig=sig, gw=gw, price_sl_pct=price_sl, price_pullback_pct=price_pullback)
+                candidate_side, candidate_reason = evaluate_structural_entry("SWAP", price, sig)
+                if candidate_side:
+                    execute_swap_open(
+                        state,
+                        price,
+                        side=candidate_side,
+                        margin_amount=trade_margin,
+                        leverage=lev,
+                        reason=candidate_reason,
+                        sig=sig,
+                        gw=gw,
+                        price_sl_pct=price_sl,
+                        price_pullback_pct=price_pullback,
+                    )
 
             else:
-                pullback_from_peak = highest_pct - unrealized_pct
-
-                # 1. Take Profit Conditions:
-                # A. Extreme RSI exhaustion
-                if side == "LONG" and rsi >= 75.0 and unrealized_pct >= (target_margin_tp * 0.5):
-                    execute_swap_close(state, price, reason=f"1h RSI 極端超買 (RSI={rsi:.1f} >= 75, 獲利 +{unrealized_pct:.2f}%)", gw=gw)
-                elif side == "SHORT" and rsi <= 25.0 and unrealized_pct >= (target_margin_tp * 0.5):
-                    execute_swap_close(state, price, reason=f"1h RSI 極端超賣 (RSI={rsi:.1f} <= 25, 獲利 +{unrealized_pct:.2f}%)", gw=gw)
-
-                # B. Trailing Take Profit: Gain reached target threshold, pulled back from peak
-                elif highest_pct >= target_margin_tp and pullback_from_peak >= target_margin_pullback:
-                    execute_swap_close(state, price, reason=f"動態移動停利 (波段高點 +{highest_pct:.2f}% 回撤 {pullback_from_peak:.2f}%, 鎖定 +{unrealized_pct:.2f}%)", gw=gw)
-
-                # 2. Hard Stop Loss: -target_margin_sl margin loss
-                elif unrealized_pct <= -target_margin_sl:
-                    execute_swap_close(state, price, reason=f"嚴格保證金停損觸發 (虧損達 {unrealized_pct:.2f}%, 截斷合約風險)", gw=gw)
-
-                # 3. DCA Add Position: (Only for conservative leverage <= 5x to avoid Martingale blowout)
+                exit_action, exit_reason = evaluate_three_stage_exit(
+                    pnl_pct=unrealized_pct,
+                    peak_pct=highest_pct,
+                    sl_threshold=target_margin_sl,
+                    tp_threshold=target_margin_tp,
+                    pullback_threshold=target_margin_pullback,
+                    rsi=rsi,
+                    side=side,
+                )
+                if exit_action is not None:
+                    execute_swap_close(state, price, reason=exit_reason, gw=gw)
+                # DCA Add Position: (Only for conservative leverage <= 5x to avoid Martingale blowout)
                 elif lev <= 5 and -2.5 <= unrealized_pct <= -1.5 and avail_margin >= 40.0:
-                    execute_swap_open(state, price, side=side, margin_amount=avail_margin, leverage=lev, reason=f"逆勢回檔分批攤平 (浮虧 {unrealized_pct:.2f}%, 動用剩餘 ${avail_margin:.2f} U 加碼)", sig=sig, gw=gw, price_sl_pct=price_sl, price_pullback_pct=price_pullback)
+                    execute_swap_open(
+                        state,
+                        price,
+                        side=side,
+                        margin_amount=avail_margin,
+                        leverage=lev,
+                        reason=f"逆勢回檔分批攤平 (浮虧 {unrealized_pct:.2f}%, 動用剩餘 ${avail_margin:.2f} U 加碼)",
+                        sig=sig,
+                        gw=gw,
+                        price_sl_pct=price_sl,
+                        price_pullback_pct=price_pullback,
+                    )
 
         except Exception as e:
             log_msg(f"[例外警告] 合約輪詢異常 (自動重試中): {e}")
