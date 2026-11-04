@@ -13,7 +13,7 @@ if hasattr(sys.stdout, "reconfigure"):
 from packages.data import DataManager
 from packages.features import FeaturePipeline
 from packages.models import LGBMAgent
-from packages.backtest import BacktestEngine
+from packages.backtest import BacktestEngine, select_evaluation_window
 
 def main():
     parser = argparse.ArgumentParser(description="Train LightGBM Quant Model and Run Backtest")
@@ -60,9 +60,12 @@ def main():
         bar = "#" * bar_len
         print(f"  {row['feature']:<20} | {row['importance']:>8.2f} {bar}")
 
-    # 3. Model Inference
-    print(f"\n[Step 4] Predicting Returns and Simulating Strategy...")
-    predicted_returns = agent.predict(features_df)
+    # 3. Model Inference: score ONLY out-of-fold rows. The final booster was trained on
+    #    every row, so predicting features_df with it would be an in-sample backtest.
+    print(f"\n[Step 4] Out-of-Sample Predictions and Strategy Simulation...")
+    eval_df, predicted_returns, scope = select_evaluation_window(agent, features_df)
+    print(f"  -> Evaluation scope: {scope} ({len(eval_df):,} of {len(features_df):,} bars; "
+          f"leading bars used only as training history are excluded)")
 
     # 4. Backtesting with Fees & Slippage
     engine = BacktestEngine(
@@ -72,7 +75,7 @@ def main():
         confidence_threshold=args.threshold,
         allow_short=False,
     )
-    results_df, perf = engine.run(features_df, predicted_returns)
+    results_df, perf = engine.run(eval_df, predicted_returns)
 
     print("\n" + "=" * 60)
     print("  STRATEGY BACKTEST PERFORMANCE REPORT (With Fees & Slippage)")
@@ -80,7 +83,7 @@ def main():
     for k, v in perf.items():
         print(f"  {k:<28}: {v}")
 
-    bench_ret = ((features_df["close"].iloc[-1] / features_df["close"].iloc[0]) - 1.0) * 100
+    bench_ret = ((eval_df["close"].iloc[-1] / eval_df["close"].iloc[0]) - 1.0) * 100
     strat_ret = perf.get("Total Return (%)", 0.0)
     print("-" * 60)
     print(f"  Strategy Return           : {strat_ret:+.2f}%")

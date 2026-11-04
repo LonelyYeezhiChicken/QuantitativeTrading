@@ -57,45 +57,57 @@ class BacktestEngine:
         stop_price = 0.0
         stopped_out_dir = 0.0
 
+        # Timeline per bar t (bar t ends at close[t]):
+        #   1. At close[t-1] the position for interval (t-1, t] is set from signal[t-1].
+        #      Entry price / initial stop use close[t-1] and natr[t-1] only.
+        #   2. That position earns the asset return close[t-1] -> close[t].
+        #   3. At close[t] the stop is checked and the position is exited at close[t].
+        # The old loop checked the stop BEFORE booking step 2, so every stop-out erased the
+        # very loss that triggered it (the exit decision used close[t] to avoid close[t]'s move).
         for t in range(n):
+            if t > 0:
+                raw_target = raw_signals[t - 1]
+
+                # If stopped out in this direction, require signal to reset to 0 or reverse before re-entering
+                if stopped_out_dir != 0.0:
+                    if raw_target == 0.0 or (np.sign(raw_target) != np.sign(stopped_out_dir)):
+                        stopped_out_dir = 0.0
+
+                target_pos = 0.0 if stopped_out_dir != 0.0 else raw_target
+
+                turnover = abs(target_pos - current_pos)
+                if turnover > 0:
+                    cost = current_equity * turnover * (self.fee_rate + self.slippage)
+                    current_equity -= cost
+                    prev_pos = current_pos
+                    current_pos = target_pos
+                    if current_pos != 0.0 and np.sign(current_pos) != np.sign(prev_pos):
+                        entry_price = close_prices[t - 1]
+                        if current_pos > 0:
+                            stop_price = entry_price * (1.0 - (natr[t - 1] * self.atr_stop_multiplier))
+                        else:
+                            stop_price = entry_price * (1.0 + (natr[t - 1] * self.atr_stop_multiplier))
+
+            # 2. Book the return of the position held through bar t
+            held_pos = current_pos
+            asset_ret = (close_prices[t] / close_prices[t - 1]) - 1.0 if t > 0 else 0.0
+            period_ret = held_pos * asset_ret
+            current_equity *= (1.0 + period_ret)
+
+            # 3. Stop check at close[t] (after the bar's P&L is booked)
             current_price = close_prices[t]
-            
-            # Check Stop Loss / Trailing Stop
             if current_pos > 0 and current_price < stop_price:
-                exit_cost = current_equity * (self.fee_rate + self.slippage)
-                current_equity -= exit_cost
+                current_equity -= current_equity * (self.fee_rate + self.slippage)
                 stopped_out_dir = 1.0
                 current_pos = 0.0
                 entry_price = 0.0
             elif current_pos < 0 and current_price > stop_price:
-                exit_cost = current_equity * (self.fee_rate + self.slippage)
-                current_equity -= exit_cost
+                current_equity -= current_equity * (self.fee_rate + self.slippage)
                 stopped_out_dir = -1.0
                 current_pos = 0.0
                 entry_price = 0.0
 
-            raw_target = raw_signals[t - 1] if t > 0 else 0.0
-
-            # If stopped out in this direction, require signal to reset to 0 or reverse before re-entering
-            if stopped_out_dir != 0.0:
-                if raw_target == 0.0 or (np.sign(raw_target) != np.sign(stopped_out_dir)):
-                    stopped_out_dir = 0.0
-
-            target_pos = 0.0 if stopped_out_dir != 0.0 else raw_target
-
-            turnover = abs(target_pos - current_pos)
-            if turnover > 0:
-                cost = current_equity * turnover * (self.fee_rate + self.slippage)
-                current_equity -= cost
-                current_pos = target_pos
-                if current_pos > 0:
-                    entry_price = current_price
-                    stop_price = current_price * (1.0 - (natr[t] * self.atr_stop_multiplier))
-                elif current_pos < 0:
-                    entry_price = current_price
-                    stop_price = current_price * (1.0 + (natr[t] * self.atr_stop_multiplier))
-
-            # Dynamic Trailing Stop profit lock
+            # Dynamic Trailing Stop profit lock (uses information up to close[t] for bar t+1)
             if current_pos > 0 and current_price > entry_price:
                 new_stop = current_price * (1.0 - (natr[t] * self.atr_stop_multiplier))
                 if new_stop > stop_price:
@@ -105,11 +117,7 @@ class BacktestEngine:
                 if new_stop < stop_price:
                     stop_price = new_stop
 
-            asset_ret = (close_prices[t] / close_prices[t - 1]) - 1.0 if t > 0 else 0.0
-            period_ret = current_pos * asset_ret
-            current_equity *= (1.0 + period_ret)
-
-            positions[t] = current_pos
+            positions[t] = held_pos
             equity[t] = current_equity
             strategy_returns[t] = period_ret
 

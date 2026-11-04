@@ -125,6 +125,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 | `tests/bdd/autonomous_coin_and_leverage_orchestration.feature` | `test_autonomous_orchestration_scenarios.py` | 極簡全自動操盤（指定幣種與槓桿自動選拔現貨/合約多體制策略、自適應 ATR 停損與全自動循環生命週期） |
 | `tests/bdd/bingx_vst_exchange_simulation.feature` | `test_bingx_vst_scenarios.py` | BingX 官方 VST 交易所模擬盤（路由切換、雙向槓桿配置、真實 VST 下單與持倉同步） |
 | `tests/bdd/zero_data_leakage.feature` | `test_zero_data_leakage_scenarios.py` | 零資料外洩原則（未來擾動歷史因子不變、標籤未來位移 shift、Purged CV 緩衝） |
+| `tests/bdd/backtest_out_of_sample_and_stop_accounting.feature` | `test_backtest_leakage_scenarios.py` | 回測零外洩（停損 K 線虧損必須入帳、無停損時報酬僅由前一根訊號決定、LightGBM 早停驗證取自訓練折尾端不碰測試折、`out_of_sample_predictions()` 樣本外評分、滾動回測 `evaluation_scope` 為 `OUT_OF_SAMPLE`） |
 | `tests/bdd/broker_gateway_polymorphism.feature` | `test_broker_gateway_polymorphism_scenarios.py` | 經紀商抽象網關多型契約（PaperBroker 實作 BaseBrokerGateway、里氏替換、資金防呆） |
 | `tests/bdd/strategy_contract_polymorphism.feature` | `test_strategy_contract_scenarios.py` | 策略模型統一契約與依賴注入（BaseTradingModel 數值邊界、Autopilot 策略熱插拔） |
 | `tests/bdd/multiprocess_journal_and_swap_lifecycle.feature` | `test_multiprocess_and_lifecycle_scenarios.py` | 多進程日誌並發安全合併、同秒開倉防碰撞、測試日誌自動隔離、守護進程平倉反向市價單驗證 |

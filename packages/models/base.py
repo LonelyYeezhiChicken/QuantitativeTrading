@@ -32,9 +32,19 @@ class BaseTradingModel(ABC):
     @abstractmethod
     def predict(self, df: pd.DataFrame) -> np.ndarray:
         """Generate predicted returns or directional signal scores for input dataframe.
-        
+
         Returns:
             np.ndarray: Predicted return values (e.g. 0.003 for +0.3% expected return)
                         or directional strength scores.
         """
         pass
+
+    def out_of_sample_predictions(self) -> Optional[np.ndarray]:
+        """Predictions for the rows of the last `fit` dataframe made by models that never saw them.
+
+        Learning models MUST return their walk-forward / out-of-fold predictions here
+        (NaN for rows that were never in a test fold) so that backtests never score a
+        model on data it was trained on. Models that learn nothing from the data
+        (rule-based strategies) return None and are evaluated with `predict` directly.
+        """
+        return None
