@@ -151,6 +151,17 @@ class TestAutopilotBDDScenarios:
                 trailing_pullback_pct=1.0,
             )
             journal_id = open_entry.journal_id
+            exchange_entry = engine.gw.create_order(
+                symbol="BTC/USDT",
+                side="BUY",
+                order_type="MARKET",
+                size=0.001938,
+                market_type="SWAP",
+                position_side="LONG",
+                leverage=3,
+                simulation_price=77200.0,
+            )
+            assert exchange_entry["result"] is True
 
             # 驗證開倉當下磁碟持久化：db 檔案、markdown 檔案存在且狀態為 OPEN
             assert db_file.exists(), "trade_journal_db.json 必須即時寫入磁碟"

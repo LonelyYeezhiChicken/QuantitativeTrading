@@ -252,13 +252,14 @@ class BingXGateway(BaseBrokerGateway):
             return list(self._simulated_swap_positions.values())
 
         if self.api_key:
-            try:
-                resp = self.client.get_swap_positions(symbol=bx_symbol)
-                data = resp.get("data", [])
-                return data if isinstance(data, list) else []
-            except Exception:
-                return []
-        return []
+            resp = self.client.get_swap_positions(symbol=bx_symbol)
+            data = resp.get("data", [])
+            if isinstance(data, dict):
+                data = data.get("positions", data.get("list", []))
+            if not isinstance(data, list):
+                raise RuntimeError("BingX returned an invalid positions payload")
+            return data
+        raise RuntimeError("BingX API credentials are unavailable; positions cannot be reconciled")
 
     def create_order(
         self,
@@ -287,11 +288,57 @@ class BingXGateway(BaseBrokerGateway):
         # ----------------- 1. SWAP (Perpetual Futures) Execution -----------------
         if m_type == MarketType.SWAP.value:
             if self.is_dry_run:
-                ticker = self.fetch_ticker(symbol, market_type=MarketType.SWAP.value)
-                fill_price = price if (type_clean == "LIMIT" and price is not None) else (ticker["price"] or 50000.0)
+                simulation_price = kwargs.get("simulation_price")
+                ticker = {} if simulation_price else self.fetch_ticker(symbol, market_type=MarketType.SWAP.value)
+                fill_price = float(simulation_price or (price if type_clean == "LIMIT" else 0) or ticker.get("price", 0.0) or 50000.0)
+                order_id = f"BINGX_SWAP_DRY_RUN_{uuid.uuid4().hex[:10].upper()}"
+                pos_key = f"{bx_symbol}_{pos_side}"
+                existing_pos = self._simulated_swap_positions.get(pos_key)
+
+                closing_side = "SELL" if pos_side == "LONG" else "BUY"
+                opening_side = "BUY" if pos_side == "LONG" else "SELL"
+                if not existing_pos and side_clean != opening_side:
+                    return {"result": False, "code": 400, "msg": "No simulated position exists to close"}
+                if existing_pos and side_clean == closing_side:
+                    current_size = float(existing_pos["positionAmt"])
+                    if size > current_size + 1e-12:
+                        return {"result": False, "code": 400, "msg": "Close quantity exceeds simulated position"}
+                    close_size = min(size, current_size)
+                    entry_price = float(existing_pos["entryPrice"])
+                    if pos_side == "LONG":
+                        realized_pnl = (fill_price - entry_price) * close_size
+                    else:
+                        realized_pnl = (entry_price - fill_price) * close_size
+                    margin_release = float(existing_pos["initialMargin"]) * close_size / current_size
+                    remaining_size = current_size - close_size
+                    self._simulated_swap_margin += margin_release + realized_pnl
+                    if remaining_size <= 1e-12:
+                        self._simulated_swap_positions.pop(pos_key, None)
+                    else:
+                        existing_pos["positionAmt"] = remaining_size
+                        existing_pos["initialMargin"] -= margin_release
+                    order_record = {
+                        "orderId": order_id,
+                        "clientOrderId": client_order_id or f"dry_swap_{uuid.uuid4().hex[:8]}",
+                        "symbol": bx_symbol,
+                        "side": side_clean,
+                        "positionSide": pos_side,
+                        "type": type_clean,
+                        "price": fill_price,
+                        "avgPrice": fill_price,
+                        "origQty": size,
+                        "executedQty": close_size,
+                        "realizedPnl": realized_pnl,
+                        "status": "FILLED",
+                        "time": int(datetime.now(timezone.utc).timestamp() * 1000),
+                        "is_dry_run": True,
+                        "market_type": MarketType.SWAP.value,
+                    }
+                    self._simulated_orders.append(order_record)
+                    return {"result": True, "code": 0, "data": order_record}
+
                 notional = size * fill_price
                 margin_required = notional / actual_leverage
-                order_id = f"BINGX_SWAP_DRY_RUN_{uuid.uuid4().hex[:10].upper()}"
 
                 if self._simulated_swap_margin < margin_required:
                     return {
@@ -309,7 +356,6 @@ class BingXGateway(BaseBrokerGateway):
                 else:  # SHORT
                     liq_price = fill_price * (1.0 + (1.0 / actual_leverage) * 0.9)
 
-                pos_key = f"{bx_symbol}_{pos_side}"
                 existing_pos = self._simulated_swap_positions.get(pos_key, {
                     "symbol": bx_symbol,
                     "positionSide": pos_side,
@@ -356,7 +402,7 @@ class BingXGateway(BaseBrokerGateway):
 
             # Live or VST Swap Execution via BingX REST API with Atomic Native SL/TP
             clean_size = round(size, 4)
-            res = self.client.create_swap_order(
+            response = self.client.create_swap_order(
                 symbol=bx_symbol,
                 side=side_clean,
                 position_side=pos_side,
@@ -367,14 +413,13 @@ class BingXGateway(BaseBrokerGateway):
                 stop_loss_price=stop_loss_price,
                 take_profit_price=take_profit_price,
             )
-            if isinstance(res, dict):
-                res["result"] = (res.get("code") == 0)
-            return res
+            return self._normalize_order_response(response)
 
         # ----------------- 2. SPOT Execution -----------------
         if self.is_dry_run:
-            ticker = self.fetch_ticker(symbol, market_type=MarketType.SPOT.value)
-            fill_price = price if (type_clean == "LIMIT" and price is not None) else (ticker["price"] or 50000.0)
+            simulation_price = kwargs.get("simulation_price")
+            ticker = {} if simulation_price else self.fetch_ticker(symbol, market_type=MarketType.SPOT.value)
+            fill_price = float(simulation_price or (price if type_clean == "LIMIT" else 0) or ticker.get("price", 0.0) or 50000.0)
             cost = size * fill_price
             order_id = f"BINGX_DRY_RUN_{uuid.uuid4().hex[:12].upper()}"
 
@@ -420,7 +465,7 @@ class BingXGateway(BaseBrokerGateway):
             return {"result": True, "code": 0, "data": order_record}
 
         # Live SPOT Execution
-        return self.client.create_order(
+        response = self.client.create_order(
             symbol=bx_symbol,
             side=side_clean,
             order_type=type_clean,
@@ -428,6 +473,32 @@ class BingXGateway(BaseBrokerGateway):
             price=price,
             client_order_id=client_order_id,
         )
+        return self._normalize_order_response(response)
+
+    @staticmethod
+    def _normalize_order_response(response: Dict[str, Any]) -> Dict[str, Any]:
+        """Expose a consistent result flag while retaining the exchange payload."""
+        if not isinstance(response, dict):
+            return {"result": False, "msg": "Invalid exchange order response"}
+        data = response.get("data")
+        accepted = response.get("code") == 0 and isinstance(data, dict) and bool(data.get("orderId"))
+        return {**response, "result": bool(response.get("result", accepted))}
+
+    def get_order(self, symbol: str, order_id: str, market_type: Optional[str] = None) -> Dict[str, Any]:
+        """Query order status using the appropriate market endpoint."""
+        m_type = (market_type or self.default_market_type).upper()
+        bx_symbol = self.to_bingx_symbol(symbol)
+        if self.is_dry_run:
+            for order in self._simulated_orders:
+                if str(order.get("orderId")) == str(order_id):
+                    return {"result": True, "code": 0, "data": order}
+            return {"result": False, "code": 404, "msg": "Simulated order not found"}
+        response = (
+            self.client.get_swap_order(bx_symbol, order_id)
+            if m_type == MarketType.SWAP.value
+            else self.client.get_order(bx_symbol, order_id)
+        )
+        return self._normalize_order_response(response)
 
     def cancel_order(self, symbol: str, order_id: str, market_type: Optional[str] = None) -> bool:
         """Cancel an open order."""

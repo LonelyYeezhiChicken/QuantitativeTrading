@@ -306,6 +306,15 @@ class BingXClient:
             is_private=True,
         )
 
+    def get_order(self, symbol: str, order_id: str) -> Dict[str, Any]:
+        """Query a spot order by exchange order ID."""
+        return self.request(
+            method="GET",
+            path="/openApi/spot/v1/trade/query",
+            params={"symbol": symbol, "orderId": order_id},
+            is_private=True,
+        )
+
     # ================= Perpetual Swap (Futures) Endpoints =================
 
     def fetch_swap_ticker(self, symbol: str) -> Dict[str, Any]:
@@ -368,6 +377,15 @@ class BingXClient:
             method="GET",
             path="/openApi/swap/v2/user/positions",
             params=params,
+            is_private=True,
+        )
+
+    def get_swap_order(self, symbol: str, order_id: str) -> Dict[str, Any]:
+        """Query a perpetual swap order by exchange order ID."""
+        return self.request(
+            method="GET",
+            path="/openApi/swap/v2/trade/order",
+            params={"symbol": symbol, "orderId": order_id},
             is_private=True,
         )
 

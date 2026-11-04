@@ -132,6 +132,7 @@ class UnifiedAutopilotEngine:
             "ai_decision": "",
         }
         self.closed_trades: list[Dict[str, Any]] = []
+        self.pending_order: Optional[Dict[str, Any]] = None
         self.load_state()
 
     def arm(self) -> str:
@@ -152,7 +153,9 @@ class UnifiedAutopilotEngine:
         if self.position["side"] != "NONE":
             t_btc = self.gw.fetch_ticker(self.symbol, market_type="SWAP" if "SWAP" in self.mode else "SPOT")
             cur_price = t_btc.get("price", 77000.0)
-            self._close_position(cur_price, reason="交易員手動緊急全額平倉")
+            if not self._close_position(cur_price, reason="交易員手動緊急全額平倉"):
+                self.save_state()
+                return "緊急平倉未確認；已保留持倉狀態並切換為待機，請檢查交易所訂單。"
         self.save_state()
         return "已全額平倉並切換為待機狀態。"
 
@@ -202,6 +205,31 @@ class UnifiedAutopilotEngine:
             "message": "待機中 (STANDBY) - 尚未手動武裝",
         }
 
+        # Resolve acknowledged orders before another order can be submitted.
+        if self.pending_order:
+            resolved = self._resolve_pending_order()
+            step_result["position_side"] = self.position.get("side", "NONE")
+            step_result["total_equity"] = self.cash + self.position.get("margin_used", 0.0)
+            step_result["action_taken"] = "ORDER_RESOLVED" if resolved else "ORDER_PENDING"
+            step_result["message"] = "待確認中的交易所訂單已成交" if resolved else "交易所訂單結果尚未確認，暫停新下單"
+            return step_result
+
+        # Reconcile persisted swap positions even while disarmed. Restarting in
+        # STANDBY must not prevent detection of an exchange-side stop execution.
+        if side != "NONE" and not self.dry_run and "SWAP" in self.mode:
+            try:
+                reconciled = self.reconcile_with_exchange()
+            except Exception:
+                reconciled = None
+            if reconciled is None:
+                step_result["action_taken"] = "RECONCILIATION_REQUIRED"
+                step_result["message"] = "無法確認交易所持倉，保留本機狀態並暫停交易"
+                return step_result
+            if reconciled:
+                step_result["action_taken"] = "NATIVE_STOP_LOSS"
+                step_result["message"] = "交易所原生條件單已平倉，已完成本機狀態對齊"
+                return step_result
+
         # -------------------------------------------------------------
         # SAFETY RULE: If STANDBY, NEVER PLACE ANY ORDERS!
         # -------------------------------------------------------------
@@ -212,27 +240,33 @@ class UnifiedAutopilotEngine:
         # A. Position Management (Stop Loss / Trailing Take Profit)
         if side != "NONE":
             # Reconcile with exchange to detect if native hard SL triggered on exchange during network drop
-            if not self.dry_run and "SWAP" in self.mode:
-                reconciled = self.reconcile_with_exchange()
-                if reconciled:
-                    step_result["action_taken"] = "NATIVE_STOP_LOSS"
-                    step_result["message"] = "交易所原生硬停損已於雲端觸發平倉 (斷網保底生效)"
-                    return step_result
             peak_pct = self.position.get("highest_pnl_pct", 0.0)
             pullback = peak_pct - pnl_pct
 
             # 1. Hard Stop Loss
             if pnl_pct <= -self.margin_sl_threshold:
-                self._close_position(cur_price, reason=f"自適應保證金停損觸發 (虧損達 {pnl_pct:.2f}%, 截斷風險)")
-                step_result["action_taken"] = "STOP_LOSS"
-                step_result["message"] = f"已執行硬停損平倉 (虧損 {pnl_pct:.2f}%)"
+                closed = self._close_position(cur_price, reason=f"自適應保證金停損觸發 (虧損達 {pnl_pct:.2f}%, 截斷風險)")
+                step_result["action_taken"] = "STOP_LOSS" if closed else "CLOSE_FAILED"
+                step_result["message"] = (
+                    f"已執行硬停損平倉 (虧損 {pnl_pct:.2f}%)"
+                    if closed and not self.pending_order
+                    else "部位已平倉；日誌或條件單清理待重試"
+                    if closed
+                    else "停損平倉未確認，保留持倉並等待對帳"
+                )
                 return step_result
 
             # 2. Trailing Take Profit
             if peak_pct >= self.margin_tp_threshold and pullback >= self.margin_pullback_threshold:
-                self._close_position(cur_price, reason=f"動態移動停利 (最高獲利 +{peak_pct:.2f}% 回撤 {pullback:.2f}%)")
-                step_result["action_taken"] = "TAKE_PROFIT"
-                step_result["message"] = f"已執行移動停利平倉 (鎖定利潤 +{pnl_pct:.2f}%)"
+                closed = self._close_position(cur_price, reason=f"動態移動停利 (最高獲利 +{peak_pct:.2f}% 回撤 {pullback:.2f}%)")
+                step_result["action_taken"] = "TAKE_PROFIT" if closed else "CLOSE_FAILED"
+                step_result["message"] = (
+                    f"已執行移動停利平倉 (鎖定利潤 +{pnl_pct:.2f}%)"
+                    if closed and not self.pending_order
+                    else "部位已平倉；日誌或條件單清理待重試"
+                    if closed
+                    else "停利平倉未確認，保留持倉並等待對帳"
+                )
                 return step_result
 
             step_result["message"] = f"持倉監控中 ({side} {qty:.5f} BTC | 浮盈 {pnl_pct:+.2f}%)"
@@ -309,74 +343,92 @@ class UnifiedAutopilotEngine:
             position_side=candidate_signal if "SWAP" in self.mode else None,
             leverage=self.leverage,
             stop_loss_price=native_sl_price,
+            simulation_price=cur_price,
         )
 
-        if order_res.get("result"):
-            self.cash -= trade_margin
-
-            # Register in authoritative TradeJournalManager
-            m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
-            j_entry = self.journal_mgr.on_trade_open(
-                symbol=self.symbol,
-                market_type=m_type,
-                side=candidate_signal,
-                entry_price=cur_price,
-                amount_btc=qty_to_buy,
-                margin_used=trade_margin,
-                leverage=self.leverage,
-                raw_reason=candidate_reason,
-                snapshot_dict={
-                    "price": cur_price,
-                    "rsi": rsi,
-                    "ema21": ema21,
-                    "ema50": ema50,
-                    "atr": cur_price * 0.015,
-                },
-                stop_loss_pct=self.margin_sl_threshold,
-                trailing_pullback_pct=self.margin_pullback_threshold,
+        filled, fill_qty, fill_price, resolution = self._confirm_market_fill(order_res, qty_to_buy, m_type)
+        if filled:
+            self._record_open_position(
+                candidate_signal, fill_qty, fill_price, trade_margin, candidate_reason,
+                ai_decision_text, native_sl_price, signals,
             )
-            if j_entry and hasattr(j_entry, "review"):
-                j_entry.review.strategy_evaluation = ai_decision_text
-                self.journal_mgr._save_db()
-                self.journal_mgr._write_entry_markdown(j_entry)
-
-            self.position = {
-                "side": candidate_signal,
-                "amount": qty_to_buy,
-                "amount_btc": qty_to_buy,
-                "entry_price": cur_price,
-                "margin_used": trade_margin,
-                "highest_pnl_pct": 0.0,
-                "entry_time": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-                "entry_why": candidate_reason,
-                "ai_decision": ai_decision_text,
-                "journal_id": j_entry.journal_id if j_entry else "",
+            step_result["action_taken"] = "OPEN_POSITION"
+            step_result["message"] = f"已成功開倉 {candidate_signal} ({fill_qty:.5f} BTC) | {ai_decision_text}"
+        elif resolution == "PENDING":
+            data = order_res.get("data", {}) if isinstance(order_res, dict) else {}
+            self.pending_order = {
+                "action": "OPEN",
+                "order_id": str(data.get("orderId", "")),
+                "candidate_signal": candidate_signal,
+                "candidate_reason": candidate_reason,
+                "ai_decision_text": ai_decision_text,
+                "quantity": qty_to_buy,
+                "margin": trade_margin,
+                "price": cur_price,
                 "native_sl_price": native_sl_price,
+                "signals": signals,
+                "order_response": order_res,
             }
             self.save_state()
-            step_result["action_taken"] = "OPEN_POSITION"
-            step_result["message"] = f"已成功開倉 {candidate_signal} ({qty_to_buy:.5f} BTC) | {ai_decision_text}"
+            step_result["action_taken"] = "ORDER_PENDING"
+            step_result["message"] = "交易所已受理訂單但成交狀態未確認；暫停重試以避免重複開倉"
         else:
             step_result["message"] = f"下單失敗: {order_res.get('msg', '未知錯誤')}"
 
         return step_result
 
-    def _close_position(self, exit_price: float, reason: str):
-        """Finalize closed position, summarize with AI, and record clean journal."""
+    def _close_position(self, exit_price: float, reason: str, *, exchange_already_closed: bool = False) -> bool:
+        """Close the exchange position first, then persist the confirmed result."""
         side = self.position["side"]
         qty = self.position["amount_btc"]
         entry_p = self.position["entry_price"]
         margin = self.position["margin_used"]
 
+        if side == "NONE" or qty <= 0:
+            return False
+
+        if not exchange_already_closed:
+            market_type = "SWAP" if "SWAP" in self.mode else "SPOT"
+            close_side = "SELL" if side == "LONG" else "BUY"
+            try:
+                close_res = self.gw.create_order(
+                    symbol=self.symbol,
+                    side=close_side,
+                    order_type="MARKET",
+                    size=qty,
+                    market_type=market_type,
+                    position_side=side if market_type == "SWAP" else None,
+                    leverage=self.leverage,
+                    client_order_id=f"auto-close-{int(time.time() * 1000)}",
+                    simulation_price=exit_price,
+                )
+                filled, filled_qty, actual_exit_price, resolution = self._confirm_market_fill(close_res, qty, market_type)
+            except Exception:
+                filled, filled_qty, actual_exit_price, resolution = False, 0.0, exit_price, "PENDING"
+            if not filled:
+                if resolution == "PENDING":
+                    data = close_res.get("data", {}) if isinstance(close_res, dict) else {}
+                    self.pending_order = {
+                        "action": "CLOSE",
+                        "order_id": str(data.get("orderId", "")),
+                        "quantity": qty,
+                        "price": exit_price,
+                        "reason": reason,
+                        "order_response": close_res if "close_res" in locals() else {},
+                    }
+                    self.save_state()
+                return False
+            if filled_qty + max(1e-12, qty * 1e-8) < qty:
+                self.pending_order = {"action": "CLOSE", "order_id": "", "quantity": qty, "reason": reason}
+                self.save_state()
+                return False
+            exit_price = actual_exit_price
+
         if side == "LONG":
             pnl_usdt = (exit_price - entry_p) * qty
         else:
             pnl_usdt = (entry_p - exit_price) * qty
-
         pnl_pct = (pnl_usdt / margin * 100) if margin > 0 else 0.0
-        returned_cash = margin + pnl_usdt
-        self.cash += returned_cash
-
         raw_record = {
             "symbol": self.symbol,
             "side": side,
@@ -390,52 +442,10 @@ class UnifiedAutopilotEngine:
             "entry_time": self.position.get("entry_time", ""),
             "exit_time": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
         }
-
-        # Ask Ollama to summarize into the user's 3 required items
-        ai_summary = self.ai_agent.summarize_trade_journal(raw_record)
-
-        clean_journal_card = {
-            "id": f"TRD_{int(time.time())}",
-            "time": raw_record["exit_time"][:16],
-            "side": side,
-            "pnl_usdt": raw_record["pnl_usdt"],
-            "pnl_pct": raw_record["pnl_pct"],
-            "entry_price": raw_record["entry_price"],
-            "exit_price": raw_record["exit_price"],
-            # User's Core Required Fields
-            "why_enter": ai_summary.get("why_enter", raw_record["entry_reason"]),
-            "ai_decision": ai_summary.get("ai_decision", raw_record["ai_decision"]),
-            "exit_result": ai_summary.get("exit_result", f"{reason} (盈虧: ${pnl_usdt:+,.2f})"),
-        }
-
-        self.closed_trades.insert(0, clean_journal_card)
-
-        # Close position in authoritative TradeJournalManager
-        j_id = self.position.get("journal_id")
-        if j_id:
-            closed_entry = self.journal_mgr.on_trade_close(
-                journal_id=j_id,
-                exit_price=exit_price,
-                exit_reason=reason,
-            )
-            if closed_entry:
-                if ai_summary.get("why_enter"):
-                    closed_entry.review.thesis = ai_summary["why_enter"]
-                if ai_summary.get("ai_decision"):
-                    closed_entry.review.strategy_evaluation = ai_summary["ai_decision"]
-                if ai_summary.get("exit_result"):
-                    closed_entry.review.exit_reason = ai_summary["exit_result"]
-                self.journal_mgr._save_db()
-                self.journal_mgr._write_entry_markdown(closed_entry)
-                self.journal_mgr._render_index()
-
-        # Clean up remaining open/conditional SL orders on exchange
-        try:
-            m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
-            self.gw.cancel_all_orders(self.symbol, market_type=m_type)
-        except Exception:
-            pass
-
+        journal_id = self.position.get("journal_id", "")
+        # Persist exchange-confirmed closure before fallible journal work. A
+        # restart resumes journal/conditional-order cleanup instead of closing twice.
+        self.cash += margin + pnl_usdt
         self.position = {
             "side": "NONE",
             "amount_btc": 0.0,
@@ -447,10 +457,187 @@ class UnifiedAutopilotEngine:
             "ai_decision": "",
             "journal_id": "",
         }
+        self.pending_order = {
+            "action": "JOURNAL_CLOSE",
+            "journal_id": journal_id,
+            "raw_record": raw_record,
+        }
+        self.save_state()
+        self._finish_confirmed_close()
+        return True
+
+    def _finish_confirmed_close(self) -> bool:
+        """Finish disk journaling and conditional-order cleanup idempotently."""
+        pending = self.pending_order or {}
+        raw_record = pending.get("raw_record")
+        if pending.get("action") != "JOURNAL_CLOSE" or not isinstance(raw_record, dict):
+            return False
+        try:
+            ai_summary = self.ai_agent.summarize_trade_journal(raw_record)
+        except Exception:
+            ai_summary = {}
+        pnl_usdt = float(raw_record["pnl_usdt"])
+        journal_id = pending.get("journal_id") or ""
+        clean_journal_card = {
+            "id": f"TRD_{journal_id or raw_record['exit_time'].replace(':', '').replace('-', '').replace(' ', '_')}",
+            "time": raw_record["exit_time"][:16],
+            "side": raw_record["side"],
+            "pnl_usdt": raw_record["pnl_usdt"],
+            "pnl_pct": raw_record["pnl_pct"],
+            "entry_price": raw_record["entry_price"],
+            "exit_price": raw_record["exit_price"],
+            "why_enter": ai_summary.get("why_enter", raw_record["entry_reason"]),
+            "ai_decision": ai_summary.get("ai_decision", raw_record["ai_decision"]),
+            "exit_result": ai_summary.get("exit_result", f"{raw_record['exit_reason']} (盈虧: ${pnl_usdt:+,.2f})"),
+        }
+        if journal_id:
+            try:
+                closed_entry = self.journal_mgr.get_entry(journal_id)
+                if closed_entry is not None and closed_entry.status != "CLOSED":
+                    closed_entry = self.journal_mgr.on_trade_close(
+                        journal_id=journal_id,
+                        exit_price=float(raw_record["exit_price"]),
+                        exit_reason=raw_record["exit_reason"],
+                    )
+                if closed_entry:
+                    if ai_summary.get("why_enter"):
+                        closed_entry.review.thesis = ai_summary["why_enter"]
+                    if ai_summary.get("ai_decision"):
+                        closed_entry.review.strategy_evaluation = ai_summary["ai_decision"]
+                    if ai_summary.get("exit_result"):
+                        closed_entry.review.exit_reason = ai_summary["exit_result"]
+                    self.journal_mgr._save_db()
+                    self.journal_mgr._write_entry_markdown(closed_entry)
+                    self.journal_mgr._render_index()
+            except Exception:
+                return False
+
+        try:
+            if not self.gw.cancel_all_orders(self.symbol, market_type="SWAP" if "SWAP" in self.mode else "SPOT"):
+                return False
+        except Exception:
+            return False
+        if not any(card.get("id") == clean_journal_card["id"] for card in self.closed_trades):
+            self.closed_trades.insert(0, clean_journal_card)
+        self.pending_order = None
         self.save_state()
         self.save_journal()
+        return True
 
-    def reconcile_with_exchange(self, active_exchange_positions: Optional[list] = None) -> bool:
+    def _confirm_market_fill(self, response: Dict[str, Any], requested_qty: float, market_type: str):
+        """Return confirmed full fill details, or distinguish failure from uncertainty."""
+        if not isinstance(response, dict):
+            return False, 0.0, 0.0, "FAILED"
+        if not response.get("result"):
+            return (False, 0.0, 0.0, "PENDING") if response.get("code") == 0 else (False, 0.0, 0.0, "FAILED")
+        data = response.get("data", {})
+        if not isinstance(data, dict):
+            return False, 0.0, 0.0, "PENDING"
+        status = str(data.get("status", "")).upper()
+        order_id = data.get("orderId")
+        if status not in {"FILLED", "CLOSED"} and order_id:
+            try:
+                queried = self.gw.get_order(self.symbol, str(order_id), market_type=market_type)
+                queried_data = queried.get("data", {}) if isinstance(queried, dict) else {}
+                if isinstance(queried_data, dict):
+                    data = queried_data
+                    status = str(data.get("status", "")).upper()
+            except Exception:
+                pass
+        if status not in {"FILLED", "CLOSED"}:
+            if status in {"CANCELED", "CANCELLED", "REJECTED", "EXPIRED"}:
+                return False, 0.0, 0.0, "FAILED"
+            return False, 0.0, 0.0, "PENDING"
+        try:
+            filled_qty = float(data.get("executedQty", data.get("quantity", data.get("origQty", requested_qty))))
+            fill_price = float(data.get("avgPrice", data.get("price", 0.0)))
+        except (TypeError, ValueError):
+            return False, 0.0, 0.0, "PENDING"
+        if filled_qty + max(1e-12, requested_qty * 1e-8) < requested_qty or fill_price <= 0:
+            return False, filled_qty, fill_price, "PENDING"
+        return True, min(filled_qty, requested_qty), fill_price, "FILLED"
+
+    def _record_open_position(self, side, quantity, price, margin, reason, decision, native_sl_price, signals):
+        """Persist a confirmed opening fill and its authoritative journal entry."""
+        actual_margin = quantity * price / (self.leverage if "SWAP" in self.mode else 1)
+        j_entry = self.journal_mgr.on_trade_open(
+            symbol=self.symbol,
+            market_type="SWAP" if "SWAP" in self.mode else "SPOT",
+            side=side,
+            entry_price=price,
+            amount_btc=quantity,
+            margin_used=actual_margin,
+            leverage=self.leverage,
+            raw_reason=reason,
+            snapshot_dict={
+                "price": price,
+                "rsi": signals.get("rsi", 50.0),
+                "ema21": signals.get("ema21", price),
+                "ema50": signals.get("ema50", price),
+                "atr": price * 0.015,
+            },
+            stop_loss_pct=self.margin_sl_threshold,
+            trailing_pullback_pct=self.margin_pullback_threshold,
+        )
+        if j_entry and hasattr(j_entry, "review"):
+            j_entry.review.strategy_evaluation = decision
+            self.journal_mgr._save_db()
+            self.journal_mgr._write_entry_markdown(j_entry)
+        self.cash -= actual_margin
+        self.position = {
+            "side": side,
+            "amount": quantity,
+            "amount_btc": quantity,
+            "entry_price": price,
+            "margin_used": actual_margin,
+            "highest_pnl_pct": 0.0,
+            "entry_time": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "entry_why": reason,
+            "ai_decision": decision,
+            "journal_id": j_entry.journal_id if j_entry else "",
+            "native_sl_price": native_sl_price,
+        }
+        self.save_state()
+
+    def _resolve_pending_order(self) -> bool:
+        """Resolve a previously accepted order without submitting a duplicate."""
+        pending = self.pending_order or {}
+        if pending.get("action") == "JOURNAL_CLOSE":
+            return self._finish_confirmed_close()
+        order_id = pending.get("order_id")
+        if not order_id:
+            return False
+        market_type = "SWAP" if "SWAP" in self.mode else "SPOT"
+        try:
+            response = self.gw.get_order(self.symbol, str(order_id), market_type=market_type)
+        except Exception:
+            return False
+        order_data = response.get("data", {}) if isinstance(response, dict) else {}
+        order_status = str(order_data.get("status", "")).upper() if isinstance(order_data, dict) else ""
+        if order_status in {"CANCELED", "CANCELLED", "REJECTED", "EXPIRED"}:
+            self.pending_order = None
+            self.save_state()
+            return False
+        if pending.get("action") == "CLOSE":
+            # A confirmed exchange close is finalized using the returned fill.
+            filled, _, price, _ = self._confirm_market_fill(response, float(pending["quantity"]), market_type)
+            if not filled:
+                return False
+            self.pending_order = None
+            return self._close_position(price, pending.get("reason", "待確認市價平倉"), exchange_already_closed=True)
+        filled, qty, price, _ = self._confirm_market_fill(response, float(pending["quantity"]), market_type)
+        if not filled:
+            return False
+        # Persist a confirmed fill as a position so the normal risk loop takes over.
+        self.pending_order = None
+        self._record_open_position(
+            pending["candidate_signal"], qty, price, float(pending["margin"]),
+            pending["candidate_reason"], pending["ai_decision_text"],
+            float(pending.get("native_sl_price", 0.0)), pending.get("signals", {}),
+        )
+        return True
+
+    def reconcile_with_exchange(self, active_exchange_positions: Optional[list] = None) -> Optional[bool]:
         """Reconcile local state with exchange positions (essential for reconnecting after network drops).
 
         If local engine records an OPEN position but exchange has 0 amount (e.g. native SL executed on exchange),
@@ -467,12 +654,11 @@ class UnifiedAutopilotEngine:
             try:
                 m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
                 if m_type == "SWAP":
-                    res = self.gw.client.fetch_positions(self.symbol)
-                    active_exchange_positions = res.get("data", [])
+                    active_exchange_positions = self.gw.get_positions(self.symbol)
                 else:
                     return False
             except Exception:
-                return False
+                return None
 
         has_active_position = False
         for p in active_exchange_positions:
@@ -486,8 +672,7 @@ class UnifiedAutopilotEngine:
             # Position was liquidated / closed on exchange (e.g. by native SL) while client was offline!
             t = self.gw.fetch_ticker(self.symbol, market_type="SWAP" if "SWAP" in self.mode else "SPOT")
             cur_p = t.get("price", self.position.get("entry_price", 0.0))
-            self._close_position(cur_p, reason="交易所原生硬停損觸發平倉 (斷網保底生效)")
-            return True
+            return self._close_position(cur_p, reason="交易所原生硬停損觸發平倉 (斷網保底生效)", exchange_already_closed=True)
 
         return False
 
@@ -521,6 +706,7 @@ class UnifiedAutopilotEngine:
             "cash": round(self.cash, 2),
             "leverage": self.leverage,
             "position": self.position,
+            "pending_order": self.pending_order,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         with open(self.state_file, "w", encoding="utf-8") as f:
@@ -532,10 +718,11 @@ class UnifiedAutopilotEngine:
             try:
                 with open(self.state_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    # Notice: Always start in STANDBY upon fresh reload unless previously explicitly armed
-                    self.status = data.get("status", AutopilotState.STANDBY)
+                    # A process restart always requires explicit manual re-arming.
+                    self.status = AutopilotState.STANDBY
                     self.cash = data.get("cash", self.capital)
                     self.position = data.get("position", self.position)
+                    self.pending_order = data.get("pending_order")
             except Exception:
                 pass
 

@@ -123,6 +123,18 @@ class TestAutonomousOrchestrationBDDScenarios:
             margin = 50.0
             qty = (margin * 10) / entry_price
             engine.cash = 50.0
+            open_res = engine.gw.create_order(
+                symbol="BTC/USDT",
+                side="BUY",
+                order_type="MARKET",
+                size=qty,
+                market_type="SWAP",
+                position_side="LONG",
+                leverage=10,
+                stop_loss_price=entry_price * 0.985,
+                simulation_price=entry_price,
+            )
+            assert open_res["result"] is True
 
             j_entry = jm.on_trade_open(
                 symbol="BTC/USDT",

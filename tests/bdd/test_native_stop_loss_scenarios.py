@@ -202,6 +202,7 @@ class TestNativeStopLossAndDisconnectionBDDScenarios:
                 position_side="LONG",
                 leverage=3,
                 stop_loss_price=76000.0,
+                simulation_price=77000.0,
             )
             # Add a pending mock conditional order
             engine.gw._simulated_orders.append({
@@ -229,3 +230,95 @@ class TestNativeStopLossAndDisconnectionBDDScenarios:
             pending_orders = [o for o in engine.gw._simulated_orders if o.get("status") in ["PENDING", "NEW"]]
             assert len(pending_orders) == 0, "平倉後交易所遺留之條件單必須全部被取消"
             assert engine.position["side"] == "NONE"
+
+    def test_scenario_restart_requires_manual_rearm_and_keeps_position(self):
+        """A persisted ARMED state must never auto-arm a restarted process."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            state_file = tmp_path / "autopilot_state.json"
+            jm = TradeJournalManager(db_path=str(tmp_path / "journal.json"), journals_dir=str(tmp_path / "journals"))
+            engine = UnifiedAutopilotEngine(
+                mode="SWAP_3X", capital=100.0, state_file=state_file, journal_mgr=jm, dry_run=True,
+            )
+            engine.arm()
+            engine.position = {
+                "side": "LONG", "amount_btc": 0.01, "entry_price": 100.0,
+                "margin_used": 1.0, "highest_pnl_pct": 0.0, "journal_id": "",
+            }
+            engine.save_state()
+
+            restarted = UnifiedAutopilotEngine(
+                mode="SWAP_3X", capital=100.0, state_file=state_file, journal_mgr=jm, dry_run=True,
+            )
+            assert restarted.status == AutopilotState.STANDBY
+            assert restarted.position["side"] == "LONG"
+            assert restarted.position["amount_btc"] == pytest.approx(0.01)
+
+    def test_scenario_position_query_error_is_not_treated_as_flat(self):
+        """An unavailable exchange position endpoint must not close local state."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            jm = TradeJournalManager(db_path=str(tmp_path / "journal.json"), journals_dir=str(tmp_path / "journals"))
+            engine = UnifiedAutopilotEngine(
+                mode="SWAP_3X", capital=100.0, state_file=tmp_path / "state.json",
+                journal_mgr=jm, dry_run=False,
+            )
+            entry = jm.on_trade_open(
+                symbol="BTC/USDT", market_type="SWAP", side="LONG", entry_price=100.0,
+                amount_btc=0.01, margin_used=1.0, leverage=3, raw_reason="BDD 對帳測試",
+            )
+            engine.position = {
+                "side": "LONG", "amount_btc": 0.01, "entry_price": 100.0,
+                "margin_used": 1.0, "highest_pnl_pct": 0.0, "journal_id": entry.journal_id,
+            }
+            result = engine.reconcile_with_exchange()
+            assert result is None
+            assert engine.position["side"] == "LONG"
+            assert jm.get_entry(entry.journal_id).status == "OPEN"
+
+    def test_scenario_live_success_response_without_result_is_normalized(self):
+        """BingX's code/data response is normalized and its fill details retained."""
+        engine = UnifiedAutopilotEngine(mode="SWAP_3X", dry_run=False)
+        with patch.object(
+            engine.gw.client,
+            "create_swap_order",
+            return_value={
+                "code": 0,
+                "data": {"orderId": "live-123", "status": "FILLED", "executedQty": "0.01", "avgPrice": "100"},
+            },
+        ):
+            response = engine.gw.create_order(
+                symbol="BTC/USDT", side="BUY", order_type="MARKET", size=0.01,
+                market_type="SWAP", position_side="LONG", leverage=3,
+            )
+        assert response["result"] is True
+        assert response["data"]["orderId"] == "live-123"
+        assert engine._confirm_market_fill(response, 0.01, "SWAP") == (True, 0.01, 100.0, "FILLED")
+
+    def test_scenario_failed_close_keeps_open_position_and_disk_journal(self):
+        """A rejected close must not be written as a completed trade."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            jm = TradeJournalManager(db_path=str(tmp_path / "journal.json"), journals_dir=str(tmp_path / "journals"))
+            engine = UnifiedAutopilotEngine(
+                mode="SWAP_3X", capital=100.0, state_file=tmp_path / "state.json",
+                journal_mgr=jm, dry_run=True,
+            )
+            entry = jm.on_trade_open(
+                symbol="BTC/USDT", market_type="SWAP", side="LONG", entry_price=100.0,
+                amount_btc=0.01, margin_used=1.0, leverage=3, raw_reason="BDD 平倉失敗測試",
+            )
+            engine.position = {
+                "side": "LONG", "amount_btc": 0.01, "entry_price": 100.0,
+                "margin_used": 1.0, "highest_pnl_pct": 0.0, "journal_id": entry.journal_id,
+            }
+            engine.save_state()
+
+            assert engine._close_position(110.0, "測試平倉") is False
+            assert engine.position["side"] == "LONG"
+            assert jm.get_entry(entry.journal_id).status == "OPEN"
+            restarted = UnifiedAutopilotEngine(
+                mode="SWAP_3X", capital=100.0, state_file=tmp_path / "state.json",
+                journal_mgr=jm, dry_run=True,
+            )
+            assert restarted.position["side"] == "LONG"
