@@ -11,7 +11,9 @@ Key Safety Guarantees:
 
 import json
 import os
+import threading
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
@@ -455,6 +457,20 @@ class UnifiedAutopilotEngine:
         self.closed_trades: list[Dict[str, Any]] = []
         self.pending_order: Optional[Dict[str, Any]] = None
         self.event_bus: Optional[Any] = None
+
+        # Concurrency: step() may be driven by the CLI loop, WebSocket/watchdog threads
+        # and dashboard callbacks. All state transitions are serialized by this lock.
+        self._step_lock = threading.RLock()
+
+        # Throttles for per-tick side effects (REST reconciliation and journal disk I/O)
+        self.reconcile_interval_sec = 10.0
+        self.journal_update_interval_sec = 5.0
+        self._last_reconcile_ts = 0.0
+        self._last_reconcile_ok = True
+        self._last_journal_update_ts = 0.0
+        self._traj_high: Optional[float] = None
+        self._traj_low: Optional[float] = None
+
         from packages.core.event_bus import InMemoryKlineRollingCache
 
         self._kline_cache = InMemoryKlineRollingCache(
@@ -462,8 +478,78 @@ class UnifiedAutopilotEngine:
             refresh_interval_sec=60.0,
         )
         self.load_state()
+        # Control commands issued before this process started are stale and must be ignored.
+        self._control_seq_seen = int(self._read_control().get("seq", 0) or 0)
         if event_bus is not None:
             self.attach_event_bus(event_bus)
+
+    # ----------------- Exchange-backed detection -----------------
+
+    @property
+    def is_exchange_backed(self) -> bool:
+        """True when orders reach a real exchange (live or BingX VST), even if the engine was built with dry_run=True."""
+        if not self.dry_run:
+            return True
+        return getattr(self.gw, "is_dry_run", True) is False
+
+    # ----------------- Cross-process control channel -----------------
+
+    @property
+    def control_file(self) -> Path:
+        """Side-car command file read by a running engine process on every step."""
+        return self.state_file.with_name(f"{self.state_file.stem}.control.json")
+
+    def _read_control(self) -> Dict[str, Any]:
+        try:
+            with open(self.control_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def send_control_command(self, command: str) -> int:
+        """Broadcast ARM / STANDBY / EMERGENCY_CLOSE to any running engine sharing this state file."""
+        command = command.upper()
+        if command not in ("ARM", "STANDBY", "EMERGENCY_CLOSE"):
+            raise ValueError(f"Unsupported control command: {command}")
+        seq = int(self._read_control().get("seq", 0) or 0) + 1
+        payload = {
+            "seq": seq,
+            "command": command,
+            "issued_at": datetime.now(timezone.utc).isoformat(),
+            "issuer_pid": os.getpid(),
+        }
+        self.control_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = self.control_file.with_name(f"{self.control_file.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False)
+        os.replace(tmp_path, self.control_file)
+        # The issuing instance has already applied the command locally.
+        self._control_seq_seen = seq
+        return seq
+
+    def _apply_external_controls(self, cur_price: Optional[float] = None) -> Optional[str]:
+        """Apply the newest unseen control command written by another process (CLI / dashboard)."""
+        ctl = self._read_control()
+        try:
+            seq = int(ctl.get("seq", 0) or 0)
+        except (TypeError, ValueError):
+            return None
+        if seq <= self._control_seq_seen:
+            return None
+        self._control_seq_seen = seq
+        command = str(ctl.get("command", "")).upper()
+        if command == "STANDBY":
+            self.status = AutopilotState.STANDBY
+            self.save_state()
+        elif command == "ARM":
+            self.status = AutopilotState.ARMED
+            self.save_state()
+        elif command == "EMERGENCY_CLOSE":
+            self._emergency_close_locked(cur_price)
+        else:
+            return None
+        return command
 
     def attach_event_bus(self, event_bus: Any) -> None:
         """Subscribe this engine to a MarketEventBus for real-time event-driven execution."""
@@ -482,46 +568,62 @@ class UnifiedAutopilotEngine:
         ev_price = float(getattr(event, "price", 0.0) or 0.0)
         if ev_price <= 0:
             return None
-        return self.step(override_price=ev_price)
+        # Never block the publisher thread (e.g. the WebSocket asyncio loop) behind an
+        # in-flight evaluation; the in-flight step already acts on a fresh price.
+        if not self._step_lock.acquire(blocking=False):
+            return None
+        try:
+            return self._step_locked(override_price=ev_price)
+        finally:
+            self._step_lock.release()
 
     def arm(self) -> str:
-        """Manually arm the autopilot to activate automatic trading."""
-        self.status = AutopilotState.ARMED
-        self.save_state()
+        """Manually arm the autopilot to activate automatic trading (also arms a running engine process)."""
+        with self._step_lock:
+            self.status = AutopilotState.ARMED
+            self._persist_status()
+            self.send_control_command("ARM")
         return "自動操盤引擎已武裝 (ARMED)！開始監控行情與執行信號。"
 
     def disarm(self) -> str:
-        """Manually disarm into standby mode (stops opening new positions)."""
-        self.status = AutopilotState.STANDBY
-        self.save_state()
+        """Manually disarm into standby mode (also disarms a running engine process)."""
+        with self._step_lock:
+            self.status = AutopilotState.STANDBY
+            self._persist_status()
+            self.send_control_command("STANDBY")
         return "自動操盤引擎已切換為待機模式 (STANDBY)。停止自動交易。"
 
+    def request_emergency_stop(self) -> str:
+        """Ask the running engine process (e.g. `just start`) to flatten its position and stand by.
+
+        Used by out-of-process controllers such as the dashboard, whose own gateway
+        instance does not hold the daemon's position.
+        """
+        with self._step_lock:
+            self.status = AutopilotState.STANDBY
+            self._persist_status()
+            self.send_control_command("EMERGENCY_CLOSE")
+        return "已送出緊急全平指令；運行中的操盤中樞將於下一個心跳平倉並切換為待機。"
+
     def emergency_close_and_stop(self) -> str:
-        """Immediately liquidate position and enter STANDBY."""
+        """Immediately liquidate this engine's position and enter STANDBY (in-process)."""
+        with self._step_lock:
+            return self._emergency_close_locked()
+
+    def _emergency_close_locked(self, cur_price: Optional[float] = None) -> str:
         self.status = AutopilotState.STANDBY
-        if self.position["side"] != "NONE":
-            t_btc = self.gw.fetch_ticker(self.symbol, market_type="SWAP" if "SWAP" in self.mode else "SPOT")
-            cur_price = t_btc.get("price", 77000.0)
+        if self.position["side"] != "NONE" and not self.pending_order:
+            if not cur_price or cur_price <= 0:
+                t_btc = self.gw.fetch_ticker(self.symbol, market_type="SWAP" if "SWAP" in self.mode else "SPOT")
+                cur_price = float(t_btc.get("price", 0.0) or 0.0) or float(self.position.get("entry_price", 0.0))
             if not self._close_position(cur_price, reason="交易員手動緊急全額平倉"):
                 self.save_state()
                 return "緊急平倉未確認；已保留持倉狀態並切換為待機，請檢查交易所訂單。"
         self.save_state()
         return "已全額平倉並切換為待機狀態。"
 
-    def step(self, override_price: Optional[float] = None) -> Dict[str, Any]:
-        """Perform a single heartbeat or real-time event-driven evaluation tick.
-
-        When STANDBY: Only refreshes tickers and computes portfolio value.
-        When ARMED: Evaluates signals, AI multiple-choice veto, entry/exit.
-        """
-        m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
-        if override_price is not None and override_price > 0:
-            cur_price = float(override_price)
-        else:
-            ticker = self.gw.fetch_ticker(self.symbol, market_type=m_type)
-            cur_price = ticker.get("price", 77000.0)
-
-        # 1. Calculate Portfolio Equity
+    def _portfolio_snapshot(self, cur_price: float) -> Tuple[str, float, float, float, float]:
+        """Return (side, qty, unrealized_pnl, pnl_pct, total_equity) without side effects."""
         side = self.position.get("side", "NONE")
         qty = self.position.get("amount_btc", 0.0)
         entry_p = self.position.get("entry_price", cur_price)
@@ -536,13 +638,74 @@ class UnifiedAutopilotEngine:
 
         pnl_pct = (unrealized_pnl / used_margin * 100) if used_margin > 0 else 0.0
         total_equity = self.cash + used_margin + unrealized_pnl
+        return side, qty, unrealized_pnl, pnl_pct, total_equity
+
+    def peek(self, override_price: Optional[float] = None) -> Dict[str, Any]:
+        """Read-only status snapshot (no order resolution, reconciliation or disk writes).
+
+        Safe to call from a separate process (e.g. `just status`) while a daemon is running.
+        """
+        m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
+        if override_price is not None and override_price > 0:
+            cur_price = float(override_price)
+        else:
+            cur_price = float(self.gw.fetch_ticker(self.symbol, market_type=m_type).get("price", 0.0) or 0.0)
+        side, _, unrealized_pnl, pnl_pct, total_equity = self._portfolio_snapshot(cur_price)
+        return {
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "status": self.status,
+            "mode": self.mode,
+            "price": cur_price,
+            "position_side": side,
+            "pnl_usdt": unrealized_pnl,
+            "pnl_pct": pnl_pct,
+            "total_equity": total_equity,
+            "pending_order": bool(self.pending_order),
+        }
+
+    def _update_journal_trajectory(self, cur_price: float) -> None:
+        """Throttle journal trajectory writes while keeping intra-interval extremes."""
+        j_id = self.position.get("journal_id")
+        if not j_id:
+            return
+        self._traj_high = cur_price if self._traj_high is None else max(self._traj_high, cur_price)
+        self._traj_low = cur_price if self._traj_low is None else min(self._traj_low, cur_price)
+        now = time.monotonic()
+        if now - self._last_journal_update_ts < self.journal_update_interval_sec:
+            return
+        self._last_journal_update_ts = now
+        high, low = self._traj_high, self._traj_low
+        self._traj_high = self._traj_low = None
+        self.journal_mgr.on_trade_update(j_id, cur_price, high_price=high, low_price=low)
+
+    def step(self, override_price: Optional[float] = None) -> Dict[str, Any]:
+        """Perform a single heartbeat or real-time event-driven evaluation tick.
+
+        When STANDBY: Only refreshes tickers and computes portfolio value.
+        When ARMED: Evaluates signals, AI multiple-choice veto, entry/exit.
+        Serialized by an internal lock so concurrent callers can never double-submit orders.
+        """
+        with self._step_lock:
+            return self._step_locked(override_price)
+
+    def _step_locked(self, override_price: Optional[float] = None) -> Dict[str, Any]:
+        m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
+        if override_price is not None and override_price > 0:
+            cur_price = float(override_price)
+        else:
+            ticker = self.gw.fetch_ticker(self.symbol, market_type=m_type)
+            cur_price = ticker.get("price", 77000.0)
+
+        # 0. Apply ARM / STANDBY / EMERGENCY_CLOSE issued by other processes (CLI, dashboard)
+        self._apply_external_controls(cur_price)
+
+        # 1. Calculate Portfolio Equity
+        side, qty, unrealized_pnl, pnl_pct, total_equity = self._portfolio_snapshot(cur_price)
 
         # If in position, update trailing peak and journal trajectory
         if side != "NONE":
             self.position["highest_pnl_pct"] = max(self.position.get("highest_pnl_pct", 0.0), pnl_pct)
-            j_id = self.position.get("journal_id")
-            if j_id:
-                self.journal_mgr.on_trade_update(j_id, cur_price)
+            self._update_journal_trajectory(cur_price)
 
         step_result = {
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
@@ -568,18 +731,25 @@ class UnifiedAutopilotEngine:
 
         # Reconcile persisted swap positions even while disarmed. Restarting in
         # STANDBY must not prevent detection of an exchange-side stop execution.
-        if side != "NONE" and not self.dry_run and "SWAP" in self.mode:
-            try:
-                reconciled = self.reconcile_with_exchange()
-            except Exception:
-                reconciled = None
-            if reconciled is None:
+        # Applies to every exchange-backed gateway (live AND BingX VST), throttled
+        # to avoid one REST position query per WebSocket tick.
+        if side != "NONE" and self.is_exchange_backed and "SWAP" in self.mode:
+            now = time.monotonic()
+            if now - self._last_reconcile_ts >= self.reconcile_interval_sec:
+                self._last_reconcile_ts = now
+                try:
+                    reconciled = self.reconcile_with_exchange()
+                except Exception:
+                    reconciled = None
+                self._last_reconcile_ok = reconciled is not None
+                if reconciled:
+                    step_result["position_side"] = self.position.get("side", "NONE")
+                    step_result["action_taken"] = "NATIVE_STOP_LOSS"
+                    step_result["message"] = "交易所原生條件單已平倉，已完成本機狀態對齊"
+                    return step_result
+            if not self._last_reconcile_ok:
                 step_result["action_taken"] = "RECONCILIATION_REQUIRED"
                 step_result["message"] = "無法確認交易所持倉，保留本機狀態並暫停交易"
-                return step_result
-            if reconciled:
-                step_result["action_taken"] = "NATIVE_STOP_LOSS"
-                step_result["message"] = "交易所原生條件單已平倉，已完成本機狀態對齊"
                 return step_result
 
         # -------------------------------------------------------------
@@ -698,19 +868,24 @@ class UnifiedAutopilotEngine:
             native_sl_price = cur_price * (1.0 + (self.price_sl_pct / 100.0))
 
         # Gateway order with Atomic Native SL attachment
-        order_res = self.gw.create_order(
-            symbol=self.symbol,
-            side="BUY" if candidate_signal == "LONG" else "SELL",
-            order_type="MARKET",
-            size=qty_to_buy,
-            market_type=m_type,
-            position_side=candidate_signal if "SWAP" in self.mode else None,
-            leverage=self.leverage,
-            stop_loss_price=native_sl_price,
-            simulation_price=cur_price,
-        )
-
-        filled, fill_qty, fill_price, resolution = self._confirm_market_fill(order_res, qty_to_buy, m_type)
+        try:
+            order_res = self.gw.create_order(
+                symbol=self.symbol,
+                side="BUY" if candidate_signal == "LONG" else "SELL",
+                order_type="MARKET",
+                size=qty_to_buy,
+                market_type=m_type,
+                position_side=candidate_signal if "SWAP" in self.mode else None,
+                leverage=self.leverage,
+                stop_loss_price=native_sl_price,
+                simulation_price=cur_price,
+            )
+            filled, fill_qty, fill_price, resolution = self._confirm_market_fill(order_res, qty_to_buy, m_type)
+        except Exception as exc:
+            # The request may or may not have reached the exchange. Park it as an
+            # untracked pending order; reconciliation decides whether a position exists.
+            order_res = {"result": False, "msg": f"開倉請求例外: {exc}"}
+            filled, fill_qty, fill_price, resolution = False, 0.0, 0.0, "PENDING"
         if filled:
             self._record_open_position(
                 candidate_signal, fill_qty, fill_price, trade_margin, candidate_reason,
@@ -719,10 +894,9 @@ class UnifiedAutopilotEngine:
             step_result["action_taken"] = "OPEN_POSITION"
             step_result["message"] = f"已成功開倉 {candidate_signal} ({fill_qty:.5f} BTC) | {ai_decision_text}"
         elif resolution == "PENDING":
-            data = order_res.get("data", {}) if isinstance(order_res, dict) else {}
             self.pending_order = {
                 "action": "OPEN",
-                "order_id": str(data.get("orderId", "")),
+                "order_id": self._extract_order_id(order_res),
                 "candidate_signal": candidate_signal,
                 "candidate_reason": candidate_reason,
                 "ai_decision_text": ai_decision_text,
@@ -754,6 +928,7 @@ class UnifiedAutopilotEngine:
         if not exchange_already_closed:
             market_type = "SWAP" if "SWAP" in self.mode else "SPOT"
             close_side = "SELL" if side == "LONG" else "BUY"
+            close_res: Any = None
             try:
                 close_res = self.gw.create_order(
                     symbol=self.symbol,
@@ -767,24 +942,22 @@ class UnifiedAutopilotEngine:
                     simulation_price=exit_price,
                 )
                 filled, filled_qty, actual_exit_price, resolution = self._confirm_market_fill(close_res, qty, market_type)
-            except Exception:
+            except Exception as exc:
+                # Network failure or exchange rejection: the close may or may not have
+                # executed. Never crash the loop; reconciliation settles the outcome.
+                close_res = {"result": False, "msg": f"平倉請求例外: {exc}"}
                 filled, filled_qty, actual_exit_price, resolution = False, 0.0, exit_price, "PENDING"
             if not filled:
                 if resolution == "PENDING":
-                    data = close_res.get("data", {}) if isinstance(close_res, dict) else {}
                     self.pending_order = {
                         "action": "CLOSE",
-                        "order_id": str(data.get("orderId", "")),
+                        "order_id": self._extract_order_id(close_res),
                         "quantity": qty,
                         "price": exit_price,
                         "reason": reason,
-                        "order_response": close_res if "close_res" in locals() else {},
+                        "order_response": close_res,
                     }
                     self.save_state()
-                return False
-            if filled_qty + max(1e-12, qty * 1e-8) < qty:
-                self.pending_order = {"action": "CLOSE", "order_id": "", "quantity": qty, "reason": reason}
-                self.save_state()
                 return False
             exit_price = actual_exit_price
 
@@ -846,6 +1019,8 @@ class UnifiedAutopilotEngine:
             "id": f"TRD_{journal_id or raw_record['exit_time'].replace(':', '').replace('-', '').replace(' ', '_')}",
             "time": raw_record["exit_time"][:16],
             "closed_at": raw_record["exit_time"],
+            "symbol": self.symbol,
+            "mode": self.mode,
             "side": raw_record["side"],
             "pnl_usdt": raw_record["pnl_usdt"],
             "pnl_pct": raw_record["pnl_pct"],
@@ -949,6 +1124,12 @@ class UnifiedAutopilotEngine:
             self.journal_mgr._save_db()
             self.journal_mgr._write_entry_markdown(j_entry)
         self.cash -= actual_margin
+        self._traj_high = self._traj_low = None
+        self._last_journal_update_ts = 0.0
+        # Grace period: the exchange position endpoint may lag a fresh fill; never
+        # reconcile a just-opened position as "flat" on the very next tick.
+        self._last_reconcile_ts = time.monotonic()
+        self._last_reconcile_ok = True
         self.position = {
             "side": side,
             "amount": quantity,
@@ -971,7 +1152,7 @@ class UnifiedAutopilotEngine:
             return self._finish_confirmed_close()
         order_id = pending.get("order_id")
         if not order_id:
-            return False
+            return self._resolve_untracked_pending(pending)
         market_type = "SWAP" if "SWAP" in self.mode else "SPOT"
         try:
             response = self.gw.get_order(self.symbol, str(order_id), market_type=market_type)
@@ -1002,6 +1183,93 @@ class UnifiedAutopilotEngine:
         )
         return True
 
+    @staticmethod
+    def _extract_order_id(response: Any) -> str:
+        """Pull the exchange order id out of a (possibly nested) order response."""
+        if not isinstance(response, dict):
+            return ""
+        data = response.get("data")
+        if not isinstance(data, dict):
+            return ""
+        order = data.get("order") if isinstance(data.get("order"), dict) else data
+        return str(order.get("orderId") or data.get("orderId") or "")
+
+    def _query_exchange_position(self, side: str) -> Tuple[Optional[bool], Dict[str, Any]]:
+        """Return (True, position) / (False, {}) for the given side, or (None, {}) when unknown."""
+        if "SWAP" not in self.mode or not hasattr(self.gw, "get_positions"):
+            return None, {}
+        try:
+            positions = self.gw.get_positions(self.symbol)
+        except Exception:
+            return None, {}
+        if not isinstance(positions, list):
+            return None, {}
+        for p in positions:
+            if not isinstance(p, dict):
+                continue
+            try:
+                amt = abs(float(p.get("positionAmt", p.get("amount", 0.0)) or 0.0))
+            except (TypeError, ValueError):
+                continue
+            if str(p.get("positionSide", p.get("side", ""))).upper() == side.upper() and amt > 0:
+                return True, p
+        return False, {}
+
+    def _resolve_untracked_pending(self, pending: Dict[str, Any]) -> bool:
+        """Settle a pending order whose exchange order id is unknown (exception / malformed ack).
+
+        Instead of waiting forever on an order that can never be queried, ask the
+        exchange whether the position exists and continue from the observed truth.
+        """
+        action = pending.get("action")
+        side = (
+            self.position.get("side", "NONE")
+            if action == "CLOSE"
+            else str(pending.get("candidate_signal", "NONE"))
+        )
+        if side not in ("LONG", "SHORT"):
+            self.pending_order = None
+            self.save_state()
+            return False
+
+        exists, exch_pos = self._query_exchange_position(side)
+        if exists is None:
+            if "SWAP" in self.mode:
+                # Exchange temporarily unreachable: keep the guard and retry next tick.
+                return False
+            # SPOT has no position endpoint; release the guard so the risk loop can retry.
+            self.pending_order = None
+            self.save_state()
+            return False
+
+        self.pending_order = None
+        if action == "CLOSE":
+            if exists:
+                # Close never executed: the regular risk loop re-evaluates and retries.
+                self.save_state()
+                return False
+            return self._close_position(
+                float(pending.get("price", self.position.get("entry_price", 0.0))),
+                pending.get("reason", "待確認市價平倉"),
+                exchange_already_closed=True,
+            )
+
+        if action == "OPEN" and exists:
+            try:
+                qty = abs(float(exch_pos.get("positionAmt", exch_pos.get("amount", 0.0))))
+                price = float(exch_pos.get("avgPrice") or exch_pos.get("entryPrice") or pending.get("price", 0.0))
+            except (TypeError, ValueError):
+                qty, price = float(pending.get("quantity", 0.0)), float(pending.get("price", 0.0))
+            self._record_open_position(
+                side, qty, price, float(pending.get("margin", 0.0)),
+                pending.get("candidate_reason", ""), pending.get("ai_decision_text", ""),
+                float(pending.get("native_sl_price", 0.0)), pending.get("signals", {}),
+            )
+            return True
+
+        self.save_state()
+        return False
+
     def reconcile_with_exchange(self, active_exchange_positions: Optional[list] = None) -> Optional[bool]:
         """Reconcile local state with exchange positions (essential for reconnecting after network drops).
 
@@ -1014,7 +1282,7 @@ class UnifiedAutopilotEngine:
         cur_side = self.position["side"]
 
         if active_exchange_positions is None:
-            if self.dry_run:
+            if not self.is_exchange_backed:
                 return False
             try:
                 m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
@@ -1087,28 +1355,101 @@ class UnifiedAutopilotEngine:
             "pending_order": self.pending_order,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
-        with open(self.state_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        self._atomic_write_state(data)
 
-    def load_state(self):
-        """Load state from disk if exists."""
+    def _atomic_write_state(self, data: Dict[str, Any]) -> None:
+        """Write the state file atomically so concurrent readers never observe a torn file."""
+        self.state_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = self.state_file.with_name(f"{self.state_file.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        for _ in range(5):
+            try:
+                os.replace(tmp_path, self.state_file)
+                return
+            except PermissionError:  # Windows: target briefly opened by a reader
+                time.sleep(0.02)
+        try:
+            with open(self.state_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+    def _persist_status(self) -> None:
+        """Persist only the status field, never overwriting position/cash owned by a running daemon."""
+        try:
+            with open(self.state_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            data = None
+        if not isinstance(data, dict):
+            self.save_state()
+            return
+        data["status"] = self.status
+        data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        self._atomic_write_state(data)
+
+    def load_state(self, restore_status: bool = False):
+        """Load state from disk if exists.
+
+        restore_status=False (default, used on process start): always boot in STANDBY.
+        restore_status=True: mirror the persisted status (read-only observers such as the dashboard).
+        """
         if self.state_file.exists():
             try:
                 with open(self.state_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     # A process restart always requires explicit manual re-arming.
-                    self.status = AutopilotState.STANDBY
+                    persisted = data.get("status", AutopilotState.STANDBY)
+                    self.status = persisted if restore_status and persisted in (
+                        AutopilotState.ARMED, AutopilotState.STANDBY, AutopilotState.PAUSED
+                    ) else AutopilotState.STANDBY
                     self.cash = data.get("cash", self.capital)
                     self.position = data.get("position", self.position)
                     self.pending_order = data.get("pending_order")
             except Exception:
                 pass
+        # Restore recent closed trades so the post-exit cooldown survives restarts
+        # and save_journal() never truncates history to trades of the current process.
+        if not self.closed_trades and self.journal_file.exists():
+            try:
+                with open(self.journal_file, "r", encoding="utf-8") as f:
+                    records = json.load(f)
+                if isinstance(records, list):
+                    # The journal file can be shared by several bots: only keep this symbol's
+                    # trades (legacy cards without a symbol are kept conservatively).
+                    self.closed_trades = [
+                        r for r in records
+                        if isinstance(r, dict) and r.get("symbol", self.symbol) == self.symbol
+                    ]
+            except Exception:
+                pass
 
     def save_journal(self):
-        """Save clean trade records to disk."""
+        """Save clean trade records to disk, merging with records written by other bots."""
         self.journal_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.journal_file, "w", encoding="utf-8") as f:
-            json.dump(self.closed_trades[:50], f, indent=2, ensure_ascii=False)
+        merged: Dict[str, Dict[str, Any]] = {}
+        try:
+            with open(self.journal_file, "r", encoding="utf-8") as f:
+                disk = json.load(f)
+            if isinstance(disk, list):
+                for r in disk:
+                    if isinstance(r, dict):
+                        merged[str(r.get("id", id(r)))] = r
+        except (OSError, ValueError):
+            pass
+        for r in self.closed_trades:
+            merged[str(r.get("id", id(r)))] = r
+        records = sorted(
+            merged.values(),
+            key=lambda r: str(r.get("closed_at") or r.get("time") or ""),
+            reverse=True,
+        )[:50]
+        tmp_path = self.journal_file.with_name(f"{self.journal_file.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(records, f, indent=2, ensure_ascii=False)
+        os.replace(tmp_path, self.journal_file)
 
     def load_journal(self) -> list[Dict[str, Any]]:
         """Load clean trade records from the authoritative TradeJournalManager."""

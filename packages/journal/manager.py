@@ -2,6 +2,7 @@
 
 import os
 import json
+import threading
 import time
 from pathlib import Path
 from datetime import datetime, timezone
@@ -83,7 +84,8 @@ class TradeJournalManager:
             "total_entries": len(self._entries),
             "entries": [e.to_dict() for e in self._entries.values()],
         }
-        tmp_path = self.db_path.with_suffix(f".{os.getpid()}.tmp")
+        # Unique per process AND thread: concurrent writers must never share a temp file.
+        tmp_path = self.db_path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
         try:
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
@@ -258,8 +260,17 @@ class TradeJournalManager:
         self._write_entry_markdown(entry)
         return entry
 
-    def on_trade_update(self, journal_id: str, current_price: float) -> Optional[TradeJournalEntry]:
-        """Update live trajectory (MFE, MAE, duration) for an open trade."""
+    def on_trade_update(
+        self,
+        journal_id: str,
+        current_price: float,
+        high_price: Optional[float] = None,
+        low_price: Optional[float] = None,
+    ) -> Optional[TradeJournalEntry]:
+        """Update live trajectory (MFE, MAE, duration) for an open trade.
+
+        high_price / low_price carry intra-interval extremes when callers throttle updates.
+        """
         self._load_db(merge=True)
         entry = self._entries.get(journal_id)
         if not entry or entry.status != "OPEN":
@@ -270,8 +281,10 @@ class TradeJournalManager:
         entry_p = entry.entry_price
         lev = entry.leverage
 
-        traj.highest_price = max(traj.highest_price, current_price)
-        traj.lowest_price = min(traj.lowest_price, current_price) if traj.lowest_price > 0 else current_price
+        hi = max(current_price, high_price) if high_price is not None else current_price
+        lo = min(current_price, low_price) if low_price is not None else current_price
+        traj.highest_price = max(traj.highest_price, hi)
+        traj.lowest_price = min(traj.lowest_price, lo) if traj.lowest_price > 0 else lo
         traj.updates_count += 1
 
         # Calculate MFE & MAE relative to margin

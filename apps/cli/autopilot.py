@@ -24,8 +24,13 @@ from packages.core.event_bus import MarketEventBus, TickerUpdateEvent
 
 
 def print_status(engine: UnifiedAutopilotEngine):
-    """Print clean terminal status summary."""
-    step_data = engine.step()
+    """Print clean terminal status summary.
+
+    Read-only: a status query runs in a separate process from the trading daemon,
+    so it must never resolve orders, reconcile, or rewrite the shared state file.
+    """
+    engine.load_state(restore_status=True)
+    step_data = engine.peek()
     status_label = "[ARMED 守護中]" if engine.status == AutopilotState.ARMED else "[STANDBY 待機中]"
     print("=" * 65)
     print(f"  量化自動操盤中樞狀態速查 {status_label}")
@@ -77,8 +82,10 @@ def main():
         return
 
     if args.disarm:
+        # disarm() persists STANDBY and broadcasts it to any running daemon via the control file.
         msg = engine.disarm()
         print(f"[系統指令] {msg}")
+        print("          若操盤中樞正在運行，將於下一個心跳 (最長 --interval 秒) 內切換為待機。")
         return
 
     print("=" * 70)
@@ -99,15 +106,17 @@ def main():
     loop_count = 0
     event_bus = MarketEventBus()
     wakeup_event = threading.Event()
-    latest_tick: dict = {"price": None}
+    latest_tick: dict = {"price": None, "ts": 0.0}
 
     def _on_bus_tick(ev: TickerUpdateEvent):
+        # Runs on the WebSocket / watchdog threads: only record the price and wake the
+        # main loop. The engine itself is driven exclusively from the main thread, so
+        # feed threads can never submit concurrent orders or block the WS event loop.
         if ev.price > 0:
             latest_tick["price"] = ev.price
+            latest_tick["ts"] = time.time()
             if engine.position.get("side", "NONE") != "NONE":
-                res = engine.on_ticker_event(ev)
-                if res and res.get("action_taken") not in ("NONE", None):
-                    wakeup_event.set()
+                wakeup_event.set()
 
     event_bus.subscribe(TickerUpdateEvent, _on_bus_tick)
     m_type = "SWAP" if "SWAP" in engine.mode else "SPOT"
@@ -121,23 +130,36 @@ def main():
         market_feed.start()
         print(f"[EventBus 已啟動] 資料源適配器: {market_feed.get_feed_status()['mode']} (WebSocket 即時監聽 + 斷線自動輪詢備援)")
 
+    coin_code = args.symbol.split('/')[0]
+    next_heartbeat = 0.0
     try:
         while True:
-            loop_count += 1
-            step = engine.step(override_price=latest_tick.get("price"))
-            state_tag = "【ARMED 運行中】" if engine.status == AutopilotState.ARMED else "【STANDBY 待機】"
-            coin_code = args.symbol.split('/')[0]
-            pnl_tag = f"持倉: {step['position_side']} | 浮盈: ${step['pnl_usdt']:+,.2f} ({step['pnl_pct']:+.2f}%)" if step['position_side'] != "NONE" else "空倉待機"
-            print(f"#{loop_count:04d} | {state_tag} {coin_code}: ${step['price']:,.2f} | 淨值: ${step['total_equity']:.2f} U | {pnl_tag} | {step['message']}")
+            # Clear before stepping so ticks arriving during the step are not lost.
+            wakeup_event.clear()
+            now = time.monotonic()
+            is_heartbeat = now >= next_heartbeat
+            if is_heartbeat:
+                loop_count += 1
+                next_heartbeat = now + max(1, args.interval)
+
+            try:
+                step = engine.step(override_price=latest_tick.get("price"))
+            except Exception as exc:
+                # Never let a single failed tick kill the daemon and orphan an open position.
+                print(f"#{loop_count:04d} | [錯誤] 本次心跳執行失敗，將於下一次心跳重試: {exc!r}")
+                step = None
+
+            if step is not None and (is_heartbeat or step.get("action_taken") not in ("NONE", None)):
+                state_tag = "【ARMED 運行中】" if engine.status == AutopilotState.ARMED else "【STANDBY 待機】"
+                pnl_tag = f"持倉: {step['position_side']} | 浮盈: ${step['pnl_usdt']:+,.2f} ({step['pnl_pct']:+.2f}%)" if step['position_side'] != "NONE" else "空倉待機"
+                print(f"#{loop_count:04d} | {state_tag} {coin_code}: ${step['price']:,.2f} | 淨值: ${step['total_equity']:.2f} U | {pnl_tag} | {step['message']}")
 
             if not args.run_loop and not args.arm:
                 # If neither run-loop nor arm was requested, perform one clean cycle inspection and exit
                 break
 
-            wakeup_event.clear()
-            for _ in range(args.interval):
-                if wakeup_event.wait(timeout=1.0):
-                    break
+            # Sleep until the next heartbeat, or wake immediately on a price tick while in position.
+            wakeup_event.wait(timeout=max(0.0, next_heartbeat - time.monotonic()))
     except KeyboardInterrupt:
         print("\n[系統關閉] 收到中斷信號，安全退出。")
     finally:

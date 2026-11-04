@@ -93,7 +93,9 @@ def render_overview_tab(
 
     with arm_col3:
         if st.button("緊急全平停機", use_container_width=True, key="btn_emergency_stop"):
-            msg = autopilot.emergency_close_and_stop()
+            # The dashboard's own gateway does not hold the daemon's position: send the
+            # command to the running autopilot process through the control channel.
+            msg = autopilot.request_emergency_stop()
             st.warning(msg)
             st.rerun()
 
