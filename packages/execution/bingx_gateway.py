@@ -8,6 +8,12 @@ from dotenv import load_dotenv
 from packages.execution.base import BaseBrokerGateway, MarketType
 from packages.execution.bingx_client import BingXClient
 from packages.execution.bingx_ws import BingXWebSocketClient
+from packages.execution.precision import (
+    decimals_from_step,
+    fallback_price_decimals,
+    floor_quantity,
+    round_price,
+)
 
 load_dotenv()
 
@@ -58,6 +64,55 @@ class BingXGateway(BaseBrokerGateway):
         self._simulated_swap_margin = 10000.0  # USDT margin balance
         self._simulated_swap_positions: Dict[str, Dict[str, Any]] = {}
         self._leverage_map: Dict[str, int] = {}
+        # (bx_symbol, market_type) -> (price_decimals, qty_decimals); None = unknown
+        self._precision_cache: Dict[tuple, tuple] = {}
+
+    # ----------------- Exchange precision -----------------
+
+    def get_precision(self, symbol: str, market_type: Optional[str] = None) -> tuple:
+        """Return (price_decimals, qty_decimals) from exchange rules, (None, None) if unknown.
+
+        Fetched once per symbol for exchange-backed gateways; the local dry-run simulator
+        never hits the network for this and uses the significant-digit fallback.
+        """
+        m_type = (market_type or self.default_market_type).upper()
+        bx_symbol = self.to_bingx_symbol(symbol)
+        key = (bx_symbol, m_type)
+        if key in self._precision_cache:
+            return self._precision_cache[key]
+        if self.is_dry_run:
+            return (None, None)
+
+        result: tuple = (None, None)
+        try:
+            if m_type == MarketType.SWAP.value:
+                data = self.client.fetch_swap_contracts(bx_symbol).get("data", [])
+                items = data if isinstance(data, list) else [data]
+                for item in items:
+                    if isinstance(item, dict) and str(item.get("symbol", "")).upper() == bx_symbol:
+                        result = (int(item["pricePrecision"]), int(item["quantityPrecision"]))
+                        break
+            else:
+                data = self.client.fetch_spot_symbols(bx_symbol).get("data", {})
+                items = data.get("symbols", []) if isinstance(data, dict) else data
+                for item in items or []:
+                    if isinstance(item, dict) and str(item.get("symbol", "")).upper() == bx_symbol:
+                        result = (decimals_from_step(item.get("tickSize")), decimals_from_step(item.get("stepSize")))
+                        break
+        except Exception:
+            return (None, None)  # transient: do not cache, retry next time
+        self._precision_cache[key] = result
+        return result
+
+    def round_price(self, symbol: str, price: float, market_type: Optional[str] = None) -> float:
+        """Round a trigger / limit price to the symbol's tick precision (any price magnitude)."""
+        price_dec, _ = self.get_precision(symbol, market_type)
+        return round_price(price, price_dec if price_dec is not None else fallback_price_decimals(price))
+
+    def floor_quantity(self, symbol: str, quantity: float, market_type: Optional[str] = None) -> float:
+        """Round an order quantity down to the symbol's step precision."""
+        _, qty_dec = self.get_precision(symbol, market_type)
+        return floor_quantity(quantity, qty_dec)
 
     @property
     def exchange_name(self) -> str:
@@ -304,7 +359,8 @@ class BingXGateway(BaseBrokerGateway):
         bx_symbol = self.to_bingx_symbol(symbol)
         side_clean = side.upper()
         type_clean = order_type.upper()
-        pos_side = position_side.upper()
+        # SPOT callers legitimately pass position_side=None (no hedge side on spot).
+        pos_side = (position_side or "LONG").upper()
 
         actual_leverage = leverage or self._leverage_map.get(bx_symbol, 1)
 
@@ -424,17 +480,19 @@ class BingXGateway(BaseBrokerGateway):
                 return {"result": True, "code": 0, "data": order_record}
 
             # Live or VST Swap Execution via BingX REST API with Atomic Native SL/TP
-            clean_size = round(size, 4)
+            clean_size = self.floor_quantity(symbol, size, MarketType.SWAP.value)
+            if clean_size <= 0:
+                return {"result": False, "code": 400, "msg": f"Order quantity {size} rounds to zero at exchange precision"}
             response = self.client.create_swap_order(
                 symbol=bx_symbol,
                 side=side_clean,
                 position_side=pos_side,
                 order_type=type_clean,
                 quantity=clean_size,
-                price=price,
+                price=self.round_price(symbol, price, MarketType.SWAP.value) if price else price,
                 client_order_id=client_order_id,
-                stop_loss_price=stop_loss_price,
-                take_profit_price=take_profit_price,
+                stop_loss_price=self.round_price(symbol, stop_loss_price, MarketType.SWAP.value) if stop_loss_price else stop_loss_price,
+                take_profit_price=self.round_price(symbol, take_profit_price, MarketType.SWAP.value) if take_profit_price else take_profit_price,
             )
             return self._normalize_order_response(response)
 
@@ -488,12 +546,15 @@ class BingXGateway(BaseBrokerGateway):
             return {"result": True, "code": 0, "data": order_record}
 
         # Live SPOT Execution
+        spot_qty = self.floor_quantity(symbol, size, MarketType.SPOT.value)
+        if spot_qty <= 0:
+            return {"result": False, "code": 400, "msg": f"Order quantity {size} rounds to zero at exchange precision"}
         response = self.client.create_order(
             symbol=bx_symbol,
             side=side_clean,
             order_type=type_clean,
-            quantity=size,
-            price=price,
+            quantity=spot_qty,
+            price=self.round_price(symbol, price, MarketType.SPOT.value) if price else price,
             client_order_id=client_order_id,
         )
         return self._normalize_order_response(response)
@@ -568,19 +629,25 @@ class BingXGateway(BaseBrokerGateway):
         old_sl_order_id: Optional[str] = None,
         market_type: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Cancel previous stop-loss order (if any) and place a new STOP_MARKET order on exchange (Break-Even Sync)."""
+        """Place a new STOP_MARKET order on exchange, then cancel the previous one (Break-Even Sync).
+
+        The new stop is placed FIRST so the position is never left without exchange-side
+        protection; the old stop is only cancelled once the replacement is confirmed.
+        """
         m_type = (market_type or self.default_market_type).upper()
         bx_symbol = self.to_bingx_symbol(symbol)
         pos_side = position_side.upper()
-        clean_stop = round(stop_price, 2)
+        clean_stop = self.round_price(symbol, stop_price, m_type)
 
-        if old_sl_order_id:
-            try:
-                self.cancel_order(symbol, str(old_sl_order_id), market_type=m_type)
-            except Exception:
-                pass
+        def _cancel_old() -> None:
+            if old_sl_order_id:
+                try:
+                    self.cancel_order(symbol, str(old_sl_order_id), market_type=m_type)
+                except Exception:
+                    pass
 
         if self.is_dry_run or m_type != MarketType.SWAP.value:
+            _cancel_old()
             pos_key = f"{bx_symbol}_{pos_side}"
             if pos_key in self._simulated_swap_positions:
                 self._simulated_swap_positions[pos_key]["stopLossPrice"] = clean_stop
@@ -605,11 +672,14 @@ class BingXGateway(BaseBrokerGateway):
                 symbol=bx_symbol,
                 position_side=pos_side,
                 stop_price=clean_stop,
-                quantity=round(quantity, 4),
+                quantity=self.floor_quantity(symbol, quantity, m_type),
             )
-            return self._normalize_order_response(resp)
+            normalized = self._normalize_order_response(resp)
         except Exception as e:
             return {"result": False, "msg": str(e)}
+        if normalized.get("result"):
+            _cancel_old()
+        return normalized
 
     def get_open_orders(self, symbol: str, market_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """Retrieve open orders."""

@@ -4,7 +4,7 @@ from packages.execution.base import BaseBrokerGateway, MarketType
 from packages.execution.paper_broker import PaperBroker
 from packages.execution.pionex_client import PionexClient
 from packages.execution.pionex_gateway import PionexGateway
-from packages.execution.bingx_client import BingXClient
+from packages.execution.bingx_client import BingXAmbiguousRequestError, BingXClient
 from packages.execution.bingx_gateway import BingXGateway
 from packages.execution.bingx_ws import BingXWebSocketClient
 from packages.execution.market_feed import (
@@ -19,6 +19,7 @@ __all__ = [
     "PaperBroker",
     "PionexClient",
     "PionexGateway",
+    "BingXAmbiguousRequestError",
     "BingXClient",
     "BingXGateway",
     "BingXWebSocketClient",

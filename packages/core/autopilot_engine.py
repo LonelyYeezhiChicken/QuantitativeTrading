@@ -10,6 +10,7 @@ Key Safety Guarantees:
 """
 
 import json
+import math
 import os
 import threading
 import time
@@ -22,6 +23,7 @@ import pandas as pd
 
 from packages.execution import BingXGateway, MarketType
 from packages.execution.base import BaseBrokerGateway
+from packages.execution.precision import round_price
 from packages.models.base import BaseTradingModel
 from packages.models.advanced_strategies import SwapMultiRegimeModel, SpotMomentumPullbackModel
 from packages.models.ollama_agent import OllamaDecisionAgent
@@ -298,31 +300,52 @@ def sync_breakeven_stop_loss(
     else:
         be_floor_margin_pct = 0.25
 
+    # Do not hammer the exchange while a previous sync attempt keeps failing.
+    retry_after = float(pos.get("breakeven_sync_retry_after", 0.0) or 0.0)
+    if retry_after and time.time() < retry_after:
+        return None
+
     be_price_offset_pct = max(0.10, be_floor_margin_pct / max(leverage, 1))
-    if side == "LONG":
-        be_stop_price = round(entry_price * (1.0 + be_price_offset_pct / 100.0), 2)
-        if cur_price <= be_stop_price:
-            return None
+    raw_be_price = entry_price * (1.0 + be_price_offset_pct / 100.0) if side == "LONG" else entry_price * (1.0 - be_price_offset_pct / 100.0)
+    # Round with exchange precision (or a magnitude-aware fallback): a fixed 2-decimal
+    # rounding collapses the break-even offset to the entry price on sub-$10 symbols.
+    if gw is not None and hasattr(gw, "round_price"):
+        try:
+            be_stop_price = float(gw.round_price(symbol, raw_be_price, market_type))
+        except Exception:
+            be_stop_price = round_price(raw_be_price)
     else:
-        be_stop_price = round(entry_price * (1.0 - be_price_offset_pct / 100.0), 2)
-        if cur_price >= be_stop_price:
-            return None
+        be_stop_price = round_price(raw_be_price)
+    if side == "LONG" and cur_price <= be_stop_price:
+        return None
+    if side == "SHORT" and cur_price >= be_stop_price:
+        return None
 
     if gw is not None and hasattr(gw, "update_stop_loss_order"):
-        res = gw.update_stop_loss_order(
-            symbol=symbol,
-            position_side=side,
-            stop_price=be_stop_price,
-            quantity=qty,
-            old_sl_order_id=pos.get("sl_order_id"),
-            market_type=market_type,
-        )
-        if isinstance(res, dict):
-            data = res.get("data", {})
-            order_dict = data.get("order", data) if isinstance(data, dict) else {}
-            new_sl_id = order_dict.get("orderId") if isinstance(order_dict, dict) else None
-            if new_sl_id:
-                pos["sl_order_id"] = str(new_sl_id)
+        try:
+            res = gw.update_stop_loss_order(
+                symbol=symbol,
+                position_side=side,
+                stop_price=be_stop_price,
+                quantity=qty,
+                old_sl_order_id=pos.get("sl_order_id"),
+                market_type=market_type,
+            )
+        except Exception as exc:
+            res = {"result": False, "msg": str(exc)}
+        if not (isinstance(res, dict) and res.get("result")):
+            # The cloud stop was NOT moved: keep breakeven_synced False so it is retried,
+            # and never report a protection that does not exist on the exchange.
+            pos["breakeven_sync_error"] = str(res.get("msg", "unknown error") if isinstance(res, dict) else res)
+            pos["breakeven_sync_retry_after"] = time.time() + 30.0
+            return None
+        data = res.get("data", {})
+        order_dict = data.get("order", data) if isinstance(data, dict) else {}
+        new_sl_id = order_dict.get("orderId") if isinstance(order_dict, dict) else None
+        if new_sl_id:
+            pos["sl_order_id"] = str(new_sl_id)
+        pos.pop("breakeven_sync_error", None)
+        pos.pop("breakeven_sync_retry_after", None)
 
     pos["native_sl_price"] = be_stop_price
     pos["breakeven_synced"] = True
@@ -614,8 +637,7 @@ class UnifiedAutopilotEngine:
         self.status = AutopilotState.STANDBY
         if self.position["side"] != "NONE" and not self.pending_order:
             if not cur_price or cur_price <= 0:
-                t_btc = self.gw.fetch_ticker(self.symbol, market_type="SWAP" if "SWAP" in self.mode else "SPOT")
-                cur_price = float(t_btc.get("price", 0.0) or 0.0) or float(self.position.get("entry_price", 0.0))
+                cur_price = self._fetch_valid_price() or float(self.position.get("entry_price", 0.0))
             if not self._close_position(cur_price, reason="交易員手動緊急全額平倉"):
                 self.save_state()
                 return "緊急平倉未確認；已保留持倉狀態並切換為待機，請檢查交易所訂單。"
@@ -645,12 +667,12 @@ class UnifiedAutopilotEngine:
 
         Safe to call from a separate process (e.g. `just status`) while a daemon is running.
         """
-        m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
-        if override_price is not None and override_price > 0:
-            cur_price = float(override_price)
+        cur_price = self._fetch_valid_price(override_price)
+        if cur_price <= 0:
+            side, unrealized_pnl, pnl_pct = self.position.get("side", "NONE"), 0.0, 0.0
+            total_equity = self.cash + self.position.get("margin_used", 0.0)
         else:
-            cur_price = float(self.gw.fetch_ticker(self.symbol, market_type=m_type).get("price", 0.0) or 0.0)
-        side, _, unrealized_pnl, pnl_pct, total_equity = self._portfolio_snapshot(cur_price)
+            side, _, unrealized_pnl, pnl_pct, total_equity = self._portfolio_snapshot(cur_price)
         return {
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
             "status": self.status,
@@ -688,16 +710,43 @@ class UnifiedAutopilotEngine:
         with self._step_lock:
             return self._step_locked(override_price)
 
+    def _fetch_valid_price(self, override_price: Optional[float] = None) -> float:
+        """Return a usable market price, or 0.0 when none is available.
+
+        Gateways report 0.0 when every ticker source fails; that value must never be
+        treated as a real price (a LONG would read as -100% and be stop-lossed).
+        """
+        if override_price is not None and math.isfinite(override_price) and override_price > 0:
+            return float(override_price)
+        m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
+        try:
+            ticker = self.gw.fetch_ticker(self.symbol, market_type=m_type)
+            price = float(ticker.get("price") or 0.0) if isinstance(ticker, dict) else 0.0
+        except Exception:
+            price = 0.0
+        return price if math.isfinite(price) and price > 0 else 0.0
+
     def _step_locked(self, override_price: Optional[float] = None) -> Dict[str, Any]:
         m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
-        if override_price is not None and override_price > 0:
-            cur_price = float(override_price)
-        else:
-            ticker = self.gw.fetch_ticker(self.symbol, market_type=m_type)
-            cur_price = ticker.get("price", 77000.0)
+        cur_price = self._fetch_valid_price(override_price)
 
         # 0. Apply ARM / STANDBY / EMERGENCY_CLOSE issued by other processes (CLI, dashboard)
         self._apply_external_controls(cur_price)
+
+        if cur_price <= 0:
+            side = self.position.get("side", "NONE")
+            return {
+                "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+                "status": self.status,
+                "mode": self.mode,
+                "price": 0.0,
+                "position_side": side,
+                "pnl_usdt": 0.0,
+                "pnl_pct": 0.0,
+                "total_equity": self.cash + self.position.get("margin_used", 0.0),
+                "action_taken": "PRICE_UNAVAILABLE",
+                "message": "無法取得有效行情報價，本次心跳不評估任何進出場 (交易所原生停損持續生效)",
+            }
 
         # 1. Calculate Portfolio Equity
         side, qty, unrealized_pnl, pnl_pct, total_equity = self._portfolio_snapshot(cur_price)
@@ -867,9 +916,12 @@ class UnifiedAutopilotEngine:
         else:
             native_sl_price = cur_price * (1.0 + (self.price_sl_pct / 100.0))
 
-        # Gateway order with Atomic Native SL attachment
+        # Gateway order with Atomic Native SL attachment. A unique clientOrderId lets the
+        # exchange reject an accidental resend and makes the order traceable.
+        entry_client_oid = f"auto-open-{uuid.uuid4().hex[:24]}"
         try:
             order_res = self.gw.create_order(
+                client_order_id=entry_client_oid,
                 symbol=self.symbol,
                 side="BUY" if candidate_signal == "LONG" else "SELL",
                 order_type="MARKET",
@@ -897,6 +949,7 @@ class UnifiedAutopilotEngine:
             self.pending_order = {
                 "action": "OPEN",
                 "order_id": self._extract_order_id(order_res),
+                "client_order_id": entry_client_oid,
                 "candidate_signal": candidate_signal,
                 "candidate_reason": candidate_reason,
                 "ai_decision_text": ai_decision_text,
@@ -1303,8 +1356,7 @@ class UnifiedAutopilotEngine:
 
         if not has_active_position:
             # Position was liquidated / closed on exchange (e.g. by native SL) while client was offline!
-            t = self.gw.fetch_ticker(self.symbol, market_type="SWAP" if "SWAP" in self.mode else "SPOT")
-            cur_p = t.get("price", self.position.get("entry_price", 0.0))
+            cur_p = self._fetch_valid_price() or float(self.position.get("entry_price", 0.0))
             return self._close_position(cur_p, reason="交易所原生硬停損觸發平倉 (斷網保底生效)", exchange_already_closed=True)
 
         return False
