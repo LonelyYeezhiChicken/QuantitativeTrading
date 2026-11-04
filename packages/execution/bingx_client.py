@@ -7,6 +7,28 @@ import re
 import time
 from typing import Any, Dict, List, Optional
 import requests
+from urllib3.exceptions import ConnectTimeoutError, NewConnectionError
+
+
+class BingXAmbiguousRequestError(RuntimeError):
+    """A non-idempotent request (order placement / cancel) failed after it may have reached the exchange.
+
+    Retrying it on the fallback domain could submit a duplicate order, so the caller must
+    reconcile against exchange state instead of resending blindly.
+    """
+
+
+def _failed_before_sending(exc: Exception) -> bool:
+    """True only when the request provably never reached the server (connect phase failure)."""
+    if isinstance(exc, requests.exceptions.ConnectTimeout):
+        return True
+    if isinstance(exc, requests.exceptions.ReadTimeout):
+        return False
+    if isinstance(exc, requests.exceptions.ConnectionError):
+        reason = exc.args[0] if exc.args else None
+        inner = getattr(reason, "reason", reason)
+        return isinstance(inner, (NewConnectionError, ConnectTimeoutError))
+    return False
 
 
 class BingXClient:
@@ -91,6 +113,9 @@ class BingXClient:
         """Execute HTTP request with multi-domain fallback and optional HMAC authentication.
 
         Domain priority: open-api.bingx.com -> open-api.bingx.pro.
+        Only GET requests fail over after an ambiguous error (read timeout, connection
+        reset). POST / DELETE fail over only when the request provably never left this
+        machine; otherwise BingXAmbiguousRequestError is raised to avoid duplicate orders.
         """
         method = method.upper()
         req_params = dict(params) if params else {}
@@ -155,6 +180,10 @@ class BingXClient:
 
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
                 last_exception = e
+                if method != "GET" and not _failed_before_sending(e):
+                    raise BingXAmbiguousRequestError(
+                        f"BingX {method} {path} outcome unknown (request may have executed): {e}"
+                    ) from e
                 if is_last:
                     raise RuntimeError(f"All BingX domains failed. Last error: {e}") from e
                 continue
@@ -353,6 +382,30 @@ class BingXClient:
             is_private=False,
         )
 
+    def fetch_swap_contracts(self, symbol: Optional[str] = None) -> Dict[str, Any]:
+        """Fetch perpetual swap contract specs (pricePrecision, quantityPrecision, minimums).
+
+        GET /openApi/swap/v2/quote/contracts
+        """
+        return self.request(
+            method="GET",
+            path="/openApi/swap/v2/quote/contracts",
+            params={"symbol": symbol} if symbol else None,
+            is_private=False,
+        )
+
+    def fetch_spot_symbols(self, symbol: Optional[str] = None) -> Dict[str, Any]:
+        """Fetch spot trading rules (tickSize, stepSize).
+
+        GET /openApi/spot/v1/common/symbols
+        """
+        return self.request(
+            method="GET",
+            path="/openApi/spot/v1/common/symbols",
+            params={"symbol": symbol} if symbol else None,
+            is_private=False,
+        )
+
     def get_swap_balance(self) -> Dict[str, Any]:
         """Fetch perpetual swap account balance, equity, and margin info.
 
@@ -423,10 +476,11 @@ class BingXClient:
             params.setdefault("timeInForce", "GTC")
 
         # Atomic Stop-Loss attachment on order entry (ensures SL exists on exchange even if local client disconnects immediately)
+        # Prices are expected to be pre-rounded to the contract pricePrecision by the gateway.
         if stop_loss_price is not None and stop_loss_price > 0:
             params["stopLoss"] = json.dumps({
                 "type": "STOP_MARKET",
-                "stopPrice": round(stop_loss_price, 2),
+                "stopPrice": stop_loss_price,
                 "workingType": "MARK_PRICE",
             }, separators=(",", ":"))
 
@@ -434,7 +488,7 @@ class BingXClient:
         if take_profit_price is not None and take_profit_price > 0:
             params["takeProfit"] = json.dumps({
                 "type": "TAKE_PROFIT_MARKET",
-                "stopPrice": round(take_profit_price, 2),
+                "stopPrice": take_profit_price,
                 "workingType": "MARK_PRICE",
             }, separators=(",", ":"))
 
@@ -464,7 +518,7 @@ class BingXClient:
             "side": side,
             "positionSide": position_side.upper(),
             "type": "STOP_MARKET",
-            "stopPrice": round(stop_price, 2),
+            "stopPrice": stop_price,
             "quantity": quantity,
             "closePosition": "true",
             "workingType": working_type,

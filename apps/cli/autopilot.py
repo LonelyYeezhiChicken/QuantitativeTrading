@@ -22,6 +22,9 @@ if hasattr(sys.stdout, "reconfigure"):
 from packages.core.autopilot_engine import UnifiedAutopilotEngine, AutopilotState
 from packages.core.event_bus import MarketEventBus, TickerUpdateEvent
 
+# A pushed price older than this is considered stale and is not used for risk decisions.
+MAX_TICK_AGE_SEC = 15.0
+
 
 def print_status(engine: UnifiedAutopilotEngine):
     """Print clean terminal status summary.
@@ -142,8 +145,12 @@ def main():
                 loop_count += 1
                 next_heartbeat = now + max(1, args.interval)
 
+            # Only trust a feed price that is fresh; a dead feed must not freeze the price
+            # the risk loop sees. Stale -> None -> the engine queries REST itself.
+            tick_age = time.time() - float(latest_tick.get("ts") or 0.0)
+            fresh_price = latest_tick.get("price") if tick_age <= MAX_TICK_AGE_SEC else None
             try:
-                step = engine.step(override_price=latest_tick.get("price"))
+                step = engine.step(override_price=fresh_price)
             except Exception as exc:
                 # Never let a single failed tick kill the daemon and orphan an open position.
                 print(f"#{loop_count:04d} | [錯誤] 本次心跳執行失敗，將於下一次心跳重試: {exc!r}")

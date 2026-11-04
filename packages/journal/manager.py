@@ -16,6 +16,7 @@ from packages.journal.models import (
     ReviewNote,
 )
 from packages.journal.analyzer import JournalAnalyzer
+from packages.execution.precision import round_price
 
 
 class TradeJournalManager:
@@ -253,7 +254,7 @@ class TradeJournalManager:
         entry = self._entries.get(journal_id)
         if not entry or entry.status != "OPEN":
             return None
-        entry.risk_plan.stop_loss_price = round(new_stop_price, 2)
+        entry.risk_plan.stop_loss_price = round_price(new_stop_price)
         entry.risk_plan.stop_loss_pct = round(new_stop_loss_pct, 2)
         entry.risk_plan.max_loss_usdt = round(new_max_loss_usdt, 2)
         self._save_db(updated_entry=entry)

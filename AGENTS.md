@@ -131,6 +131,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 | `tests/bdd/structural_entry_and_breakeven_shield.feature` | `test_structural_entry_and_breakeven_scenarios.py` | 結構化順勢進場過濾（雙均線排列、48h 斐波那契黃金口袋、超賣止跌勾頭防接刀、最大均線乖離 `<=0.45%` 防追高、平倉後 15 分鐘冷卻期）與三階段保本推移鎖利護盾（含雲端 `STOP_MARKET` 套保同步） |
 | `tests/bdd/event_bus_and_hybrid_market_feed.feature` | `test_event_bus_scenarios.py` | 跨交易所統一 `MarketEventBus`、WebSocket 毫秒級推播出場、`PollingMarketFeedAdapter` 無 WS 交易所輪詢適配、斷線自動 Fallback 與 `InMemoryKlineRollingCache` 零額外 API 即時指標合成 |
 | `tests/bdd/autopilot_runtime_safety.feature` | `test_autopilot_runtime_safety_scenarios.py` | 執行期安全（平倉例外不崩潰並由對帳結算、無訂單編號待確認單不凍結、VST 模擬盤強制對帳、`*.control.json` 跨進程 ARM/STANDBY/緊急全平控制通道、`step()` 互斥鎖單一平倉、冷卻期跨重啟保留、`peek()` 唯讀狀態查詢） |
+| `tests/bdd/execution_safety_and_precision.feature` | `test_execution_safety_scenarios.py` | 下單執行安全（現貨 `position_side=None` 不崩潰、無效/零報價 `PRICE_UNAVAILABLE` 防護、下單 POST 僅於確定未送出時切換備援網域 `BingXAmbiguousRequestError`、開倉唯一 `clientOrderId`、依交易所 `pricePrecision`/`quantityPrecision` 取整、保本同步失敗不誤標、先掛新停損再撤舊單） |
 
 > [!IMPORTANT]
 > **日誌單一真實來源 (Single Source of Truth) 與真實 BDD 驗證準則**：
@@ -141,7 +142,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 ```bash
 just test
 ```
-**當前基準**：全套 99 項單元與 BDD 測試 **100% PASS**。
+**當前基準**：全套 107 項單元與 BDD 測試 **100% PASS**。
 
 ---
 
@@ -151,7 +152,7 @@ just test
 # 1. 虛擬環境建立與同步
 just sync
 
-# 2. 執行全套自動化測試 (99 項規格 100% PASS)
+# 2. 執行全套自動化測試 (107 項規格 100% PASS)
 just test
 
 # 3. 啟動 BingX 官方 VST 模擬盤操盤中樞 (訂單直接顯示在手機 BingX App 模擬倉)
