@@ -19,6 +19,8 @@ from typing import Dict, Any, Optional, Tuple
 import pandas as pd
 
 from packages.execution import BingXGateway, MarketType
+from packages.execution.base import BaseBrokerGateway
+from packages.models.base import BaseTradingModel
 from packages.models.advanced_strategies import SwapMultiRegimeModel, SpotMomentumPullbackModel
 from packages.models.ollama_agent import OllamaDecisionAgent
 from packages.journal import TradeJournalManager
@@ -48,6 +50,9 @@ class UnifiedAutopilotEngine:
         price_tp_pct: Optional[float] = None,
         price_pullback_pct: Optional[float] = None,
         use_vst: bool = False,
+        gateway: Optional[BaseBrokerGateway] = None,
+        strategy: Optional[BaseTradingModel] = None,
+        ai_agent: Optional[Any] = None,
     ):
         self.symbol = symbol
         self.capital = capital
@@ -86,22 +91,22 @@ class UnifiedAutopilotEngine:
             journals_dir=str(root_dir / "journals"),
         )
 
-        # Hardware & Gateways
-        self.gw = BingXGateway(
+        # Hardware & Gateways (Supports Dependency Injection)
+        self.gw = gateway or BingXGateway(
             dry_run=self.dry_run,
             use_vst=self.use_vst,
             enable_ws=True,
             default_market_type=MarketType.SWAP.value if "SWAP" in self.mode else MarketType.SPOT.value,
         )
-        self.ai_agent = OllamaDecisionAgent(model=ollama_model)
+        self.ai_agent = ai_agent or OllamaDecisionAgent(model=ollama_model)
 
-        # Champion Strategy Models & Adaptive Volatility Risk Math
+        # Strategy Models (Supports Dependency Injection) & Adaptive Volatility Risk Math
         if "SWAP" in self.mode:
             try:
                 self.gw.set_leverage(self.symbol, self.leverage)
             except Exception:
                 pass
-            self.strategy = SwapMultiRegimeModel(ema_span=21)
+            self.strategy = strategy or SwapMultiRegimeModel(ema_span=21)
             self.price_sl_pct = price_sl_pct if price_sl_pct is not None else 1.5
             self.price_tp_pct = price_tp_pct if price_tp_pct is not None else (2.0 if self.leverage >= 10 else 1.0)
             self.price_pullback_pct = price_pullback_pct if price_pullback_pct is not None else (0.5 if self.leverage >= 10 else 0.33)
@@ -109,7 +114,7 @@ class UnifiedAutopilotEngine:
             self.margin_tp_threshold = self.price_tp_pct * self.leverage
             self.margin_pullback_threshold = self.price_pullback_pct * self.leverage
         else:
-            self.strategy = SpotMomentumPullbackModel(ema_span=21)
+            self.strategy = strategy or SpotMomentumPullbackModel(ema_span=21)
             self.price_sl_pct = price_sl_pct if price_sl_pct is not None else 2.0
             self.price_tp_pct = price_tp_pct if price_tp_pct is not None else 1.5
             self.price_pullback_pct = price_pullback_pct if price_pullback_pct is not None else 0.4

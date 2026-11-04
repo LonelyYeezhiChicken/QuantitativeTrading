@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-04 03:46:16 UTC",
+  "updated_at": "2026-11-04 04:07:20 UTC",
   "total_entries": 10,
   "entries": [
     {
@@ -497,12 +497,12 @@
         "max_loss_usdt": 7.5
       },
       "trajectory": {
-        "highest_price": 76527.0,
+        "highest_price": 76615.2,
         "lowest_price": 76206.5,
-        "mfe_pct": 21.02838996673512,
+        "mfe_pct": 26.815297907658604,
         "mae_pct": 0.0,
-        "duration_seconds": 843,
-        "updates_count": 15
+        "duration_seconds": 2107,
+        "updates_count": 36
       },
       "review": {
         "thesis": "短線 RSI 達 27.4，進入超賣極值區，具備高性價比的均值回歸反彈條件。\n【系統觸發信號】：合約短線超賣反彈訊號 (RSI=27.4 < 35)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,143.10) 預留正常價格呼吸空間。",

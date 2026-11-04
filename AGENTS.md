@@ -124,6 +124,9 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 | `tests/bdd/native_stop_loss_and_disconnect_resilience.feature` | `test_native_stop_loss_scenarios.py` | 原生硬停損條件單原子性附加、本機斷網雙網域切換容災、連線恢復狀態自動對齊、平倉撤單 |
 | `tests/bdd/autonomous_coin_and_leverage_orchestration.feature` | `test_autonomous_orchestration_scenarios.py` | 極簡全自動操盤（指定幣種與槓桿自動選拔現貨/合約多體制策略、自適應 ATR 停損與全自動循環生命週期） |
 | `tests/bdd/bingx_vst_exchange_simulation.feature` | `test_bingx_vst_scenarios.py` | BingX 官方 VST 交易所模擬盤（路由切換、雙向槓桿配置、真實 VST 下單與持倉同步） |
+| `tests/bdd/zero_data_leakage.feature` | `test_zero_data_leakage_scenarios.py` | 零資料外洩原則（未來擾動歷史因子不變、標籤未來位移 shift、Purged CV 緩衝） |
+| `tests/bdd/broker_gateway_polymorphism.feature` | `test_broker_gateway_polymorphism_scenarios.py` | 經紀商抽象網關多型契約（PaperBroker 實作 BaseBrokerGateway、里氏替換、資金防呆） |
+| `tests/bdd/strategy_contract_polymorphism.feature` | `test_strategy_contract_scenarios.py` | 策略模型統一契約與依賴注入（BaseTradingModel 數值邊界、Autopilot 策略熱插拔） |
 
 > [!IMPORTANT]
 > **日誌單一真實來源 (Single Source of Truth) 與真實 BDD 驗證準則**：
@@ -134,7 +137,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 ```bash
 just test
 ```
-**當前基準**：全套 62 項單元與 BDD 測試 **100% PASS**。
+**當前基準**：全套 74 項單元與 BDD 測試 **100% PASS**。
 
 ---
 
@@ -144,7 +147,7 @@ just test
 # 1. 虛擬環境建立與同步
 just sync
 
-# 2. 執行全套自動化測試 (62 項規格 100% PASS)
+# 2. 執行全套自動化測試 (74 項規格 100% PASS)
 just test
 
 # 3. 啟動 BingX 官方 VST 模擬盤操盤中樞 (訂單直接顯示在手機 BingX App 模擬倉)
