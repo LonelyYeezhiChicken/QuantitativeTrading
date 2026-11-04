@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-03 17:55:24 UTC",
-  "total_entries": 4,
+  "updated_at": "2026-11-04 01:44:20 UTC",
+  "total_entries": 8,
   "entries": [
     {
       "journal_id": "SPOT_20261103_124013_LONG",
@@ -160,18 +160,18 @@
       "symbol": "BTC/USDT",
       "market_type": "SWAP",
       "side": "LONG",
-      "status": "OPEN",
+      "status": "CLOSED",
       "entry_time": "2026-11-03 17:49:24 UTC",
-      "exit_time": "",
+      "exit_time": "2026-11-03 20:58:48 UTC",
       "entry_price": 77687.0,
-      "exit_price": 0.0,
+      "exit_price": 77907.3,
       "amount_btc": 0.03218041628586507,
       "margin_used": 50.0,
       "leverage": 50,
       "notional_value": 2500.0,
-      "pnl_usdt": 0.0,
-      "pnl_pct": 0.0,
-      "realized_r_multiple": 0.0,
+      "pnl_usdt": 7.089345707776169,
+      "pnl_pct": 14.178691415552338,
+      "realized_r_multiple": 0.9452460943701558,
       "liquidation_price": 76288.634,
       "snapshot": {
         "price": 77687.0,
@@ -191,15 +191,219 @@
         "max_loss_usdt": 7.5
       },
       "trajectory": {
-        "highest_price": 77694.5,
-        "lowest_price": 77652.3,
-        "mfe_pct": 0.48270624428797615,
-        "mae_pct": -2.233320890238849,
-        "duration_seconds": 360,
-        "updates_count": 7
+        "highest_price": 77907.3,
+        "lowest_price": 77497.1,
+        "mfe_pct": 14.178691415552338,
+        "mae_pct": -12.22212210537118,
+        "duration_seconds": 11364,
+        "updates_count": 190
       },
       "review": {
         "thesis": "價格呈現順勢多頭排列，技術面維持支撐，配合策略信號觸發進場。\n【系統觸發信號】：雙均線多頭排列強勢動能突破 (RSI=69.3, 站上EMA21/EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,165.31) 預留正常價格呼吸空間。",
+        "exit_reason": "- 出場執行點：`$77,907.30` (相較進場均價 `$77,687.00`)。\n- 觸發機制：1h RSI 極端超買 (RSI=81.8 >= 75, 獲利 +14.18%)。\n- 信號反轉或手動平倉退出，結算總盈虧 `$+7.09 USDT`。",
+        "strategy_evaluation": "- **風險控制執行**：預期最大承受風險 `$7.50 USDT`，實際實現盈虧 `$+7.09 USDT` (實際 R 倍數: `+0.95R`)。\n- **部位耐受性 (MAE/MFE)**：持倉期間最大不利回撤為 `-12.22%`，最大有利獲利為 `+14.18%`。\n- **執行效率優秀**：獲利離場點位與盤中最高點貼近，動態停利回撤參數設定得宜。",
+        "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_20261103_235408_LONG",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "LONG",
+      "status": "CLOSED",
+      "entry_time": "2026-11-03 23:54:08 UTC",
+      "exit_time": "2026-11-03 23:59:08 UTC",
+      "entry_price": 77670.0,
+      "exit_price": 77407.9,
+      "amount_btc": 0.032187459765675296,
+      "margin_used": 50.0,
+      "leverage": 50,
+      "notional_value": 2500.0,
+      "pnl_usdt": -8.436333204583683,
+      "pnl_pct": -16.872666409167365,
+      "realized_r_multiple": -1.1248444272778244,
+      "liquidation_price": 76271.94,
+      "snapshot": {
+        "price": 77670.0,
+        "rsi": 71.79266343291857,
+        "ema21": 77503.34037359737,
+        "atr": 1165.05,
+        "bid": 77670.0,
+        "ask": 77676.9,
+        "bias_pct": 0.21503541086005276
+      },
+      "risk_plan": {
+        "stop_loss_price": 77436.99,
+        "stop_loss_pct": 15.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 5.0,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 7.5
+      },
+      "trajectory": {
+        "highest_price": 77670.0,
+        "lowest_price": 77407.9,
+        "mfe_pct": 0.0,
+        "mae_pct": -16.872666409167365,
+        "duration_seconds": 300,
+        "updates_count": 6
+      },
+      "review": {
+        "thesis": "價格呈現順勢多頭排列，技術面維持支撐，配合策略信號觸發進場。\n【系統觸發信號】：雙均線多頭排列強勢動能突破 (RSI=71.8, 站上EMA21/EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,165.05) 預留正常價格呼吸空間。",
+        "exit_reason": "- 出場執行點：`$77,407.90` (相較進場均價 `$77,670.00`)。\n- 觸發機制：嚴格保證金停損觸發 (虧損達 -16.87%, 截斷合約風險)。\n- 信號反轉或手動平倉退出，結算總盈虧 `$-8.44 USDT`。",
+        "strategy_evaluation": "- **風險控制執行**：預期最大承受風險 `$7.50 USDT`，實際實現盈虧 `$-8.44 USDT` (實際 R 倍數: `-1.12R`)。\n- **部位耐受性 (MAE/MFE)**：持倉期間最大不利回撤為 `-16.87%`，最大有利獲利為 `+0.00%`。\n- **停損保護驗證**：嚴格執行既定風控計畫，不抱持僥倖扛單心理，符合正期望值交易原則。",
+        "pedagogical_takeaway": "1. **【停損是做生意的必要成本】**：金融交易沒有百分之百勝率。嚴格接受一筆小虧損，是為了保留本金參與下一筆具備統計優勢的交易。\n2. **【避免凹單與報復性交易】**：量化系統在止損觸發後即刻冷靜進入觀望，絕不情緒化立即追空或反向重倉。這是一般人工主觀交易者最常虧損的盲點，值得深切借鑑。\n3. **【進場過濾機制精進】**：可檢視進場當下的成交量能是否背離，未來可加入多週期共振確認以進一步提升過濾假突破之能力。",
+        "quality_score": 2
+      }
+    },
+    {
+      "journal_id": "SWAP_20261104_001009_LONG",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "LONG",
+      "status": "CLOSED",
+      "entry_time": "2026-11-04 00:10:09 UTC",
+      "exit_time": "2026-11-04 00:18:10 UTC",
+      "entry_price": 77521.5,
+      "exit_price": 77271.6,
+      "amount_btc": 0.03224911798662307,
+      "margin_used": 50.0,
+      "leverage": 50,
+      "notional_value": 2500.0,
+      "pnl_usdt": -8.059054584856916,
+      "pnl_pct": -16.118109169713833,
+      "realized_r_multiple": -1.0745406113142555,
+      "liquidation_price": 76126.113,
+      "snapshot": {
+        "price": 77521.5,
+        "rsi": 61.66557832253832,
+        "ema21": 77482.30699912956,
+        "atr": 1162.8225,
+        "bid": 77521.4,
+        "ask": 77527.4,
+        "bias_pct": 0.05058316199965104
+      },
+      "risk_plan": {
+        "stop_loss_price": 77288.9355,
+        "stop_loss_pct": 15.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 5.0,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 7.5
+      },
+      "trajectory": {
+        "highest_price": 77521.5,
+        "lowest_price": 77271.6,
+        "mfe_pct": 0.0,
+        "mae_pct": -16.118109169713833,
+        "duration_seconds": 481,
+        "updates_count": 9
+      },
+      "review": {
+        "thesis": "RSI 處於 61.7 動能健康區間，且市價 ($77,521.50) 穩定收在 EMA21 ($77,482.31) 之上 (乖離率 +0.05%)，顯示多頭動能延續。\n【系統觸發信號】：雙均線多頭排列強勢動能突破 (RSI=61.7, 站上EMA21/EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,162.82) 預留正常價格呼吸空間。",
+        "exit_reason": "- 出場執行點：`$77,271.60` (相較進場均價 `$77,521.50`)。\n- 觸發機制：嚴格保證金停損觸發 (虧損達 -16.12%, 截斷合約風險)。\n- 信號反轉或手動平倉退出，結算總盈虧 `$-8.06 USDT`。",
+        "strategy_evaluation": "- **風險控制執行**：預期最大承受風險 `$7.50 USDT`，實際實現盈虧 `$-8.06 USDT` (實際 R 倍數: `-1.07R`)。\n- **部位耐受性 (MAE/MFE)**：持倉期間最大不利回撤為 `-16.12%`，最大有利獲利為 `+0.00%`。\n- **停損保護驗證**：嚴格執行既定風控計畫，不抱持僥倖扛單心理，符合正期望值交易原則。",
+        "pedagogical_takeaway": "1. **【停損是做生意的必要成本】**：金融交易沒有百分之百勝率。嚴格接受一筆小虧損，是為了保留本金參與下一筆具備統計優勢的交易。\n2. **【避免凹單與報復性交易】**：量化系統在止損觸發後即刻冷靜進入觀望，絕不情緒化立即追空或反向重倉。這是一般人工主觀交易者最常虧損的盲點，值得深切借鑑。\n3. **【進場過濾機制精進】**：可檢視進場當下的成交量能是否背離，未來可加入多週期共振確認以進一步提升過濾假突破之能力。",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_20261104_003512_SHORT",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "SHORT",
+      "status": "CLOSED",
+      "entry_time": "2026-11-04 00:35:12 UTC",
+      "exit_time": "2026-11-04 00:55:14 UTC",
+      "entry_price": 76896.4,
+      "exit_price": 77145.1,
+      "amount_btc": 0.03251127491013884,
+      "margin_used": 50.0,
+      "leverage": 50,
+      "notional_value": 2500.0,
+      "pnl_usdt": -8.085554070151908,
+      "pnl_pct": -16.171108140303815,
+      "realized_r_multiple": -1.0780738760202544,
+      "liquidation_price": 78280.5352,
+      "snapshot": {
+        "price": 76896.4,
+        "rsi": 44.3516308671439,
+        "ema21": 77423.7915445841,
+        "atr": 1153.446,
+        "bid": 76896.7,
+        "ask": 76904.7,
+        "bias_pct": -0.6811750420158852
+      },
+      "risk_plan": {
+        "stop_loss_price": 77127.08919999999,
+        "stop_loss_pct": 15.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 5.0,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 7.5
+      },
+      "trajectory": {
+        "highest_price": 77145.1,
+        "lowest_price": 76865.4,
+        "mfe_pct": 2.015699044428608,
+        "mae_pct": -16.171108140303815,
+        "duration_seconds": 1202,
+        "updates_count": 21
+      },
+      "review": {
+        "thesis": "市價 ($76,896.40) 跌破 EMA21 ($77,423.79) (乖離率 -0.68%)，且 RSI 偏弱，顯示空方趨勢加劇。\n【系統觸發信號】：均線跌破空頭順勢開空 (RSI=44.4, 跌破EMA21)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,153.45) 預留正常價格呼吸空間。",
+        "exit_reason": "- 出場執行點：`$77,145.10` (相較進場均價 `$76,896.40`)。\n- 觸發機制：嚴格保證金停損觸發 (虧損達 -16.17%, 截斷合約風險)。\n- 信號反轉或手動平倉退出，結算總盈虧 `$-8.09 USDT`。",
+        "strategy_evaluation": "- **風險控制執行**：預期最大承受風險 `$7.50 USDT`，實際實現盈虧 `$-8.09 USDT` (實際 R 倍數: `-1.08R`)。\n- **部位耐受性 (MAE/MFE)**：持倉期間最大不利回撤為 `-16.17%`，最大有利獲利為 `+2.02%`。\n- **停損保護驗證**：嚴格執行既定風控計畫，不抱持僥倖扛單心理，符合正期望值交易原則。",
+        "pedagogical_takeaway": "1. **【停損是做生意的必要成本】**：金融交易沒有百分之百勝率。嚴格接受一筆小虧損，是為了保留本金參與下一筆具備統計優勢的交易。\n2. **【避免凹單與報復性交易】**：量化系統在止損觸發後即刻冷靜進入觀望，絕不情緒化立即追空或反向重倉。這是一般人工主觀交易者最常虧損的盲點，值得深切借鑑。\n3. **【進場過濾機制精進】**：可檢視進場當下的成交量能是否背離，未來可加入多週期共振確認以進一步提升過濾假突破之能力。",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_20261104_010416_SHORT",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "SHORT",
+      "status": "OPEN",
+      "entry_time": "2026-11-04 01:04:16 UTC",
+      "exit_time": "",
+      "entry_price": 76963.9,
+      "exit_price": 0.0,
+      "amount_btc": 0.0324827613985258,
+      "margin_used": 50.0,
+      "leverage": 50,
+      "notional_value": 2500.0,
+      "pnl_usdt": 0.0,
+      "pnl_pct": 0.0,
+      "realized_r_multiple": 0.0,
+      "liquidation_price": 78349.2502,
+      "snapshot": {
+        "price": 76963.9,
+        "rsi": 47.66596236057194,
+        "ema21": 77413.86724996268,
+        "atr": 1154.4585,
+        "bid": 76963.8,
+        "ask": 76972.7,
+        "bias_pct": -0.5812488975777235
+      },
+      "risk_plan": {
+        "stop_loss_price": 77194.79169999999,
+        "stop_loss_pct": 15.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 5.0,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 7.5
+      },
+      "trajectory": {
+        "highest_price": 77122.6,
+        "lowest_price": 76837.6,
+        "mfe_pct": 8.205145529266861,
+        "mae_pct": -10.310028467892845,
+        "duration_seconds": 2404,
+        "updates_count": 41
+      },
+      "review": {
+        "thesis": "市價 ($76,963.90) 跌破 EMA21 ($77,413.87) (乖離率 -0.58%)，且 RSI 偏弱，顯示空方趨勢加劇。\n【系統觸發信號】：均線跌破空頭順勢開空 (RSI=47.7, 跌破EMA21)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,154.46) 預留正常價格呼吸空間。",
         "exit_reason": "持倉中，持續依據風控計畫動態監控中",
         "strategy_evaluation": "部位建倉符合量化規則，等待市場驗證假說",
         "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",

@@ -2,7 +2,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.14%2B-blue.svg)](https://www.python.org/)
 [![Architecture](https://img.shields.io/badge/architecture-Modular%20Multi--Package-blueviolet.svg)]()
-[![BDD Tests](https://img.shields.io/badge/BDD%20Tests-59%20Passed%20(100%25)-brightgreen.svg)]()
+[![BDD Tests](https://img.shields.io/badge/BDD%20Tests-62%20Passed%20(100%25)-brightgreen.svg)]()
 [![Data Leakage](https://img.shields.io/badge/Data%20Leakage-Zero%20Lookahead%20Bias-success.svg)]()
 [![Trading Modes](https://img.shields.io/badge/execution-Spot%20%7C%20Swap%20(Futures)-orange.svg)]()
 [![CI Workflow](https://github.com/LonelyYeezhiChicken/QuantitativeTrading/actions/workflows/ci.yml/badge.svg)](https://github.com/LonelyYeezhiChicken/QuantitativeTrading/actions/workflows/ci.yml)
@@ -91,6 +91,10 @@ QuantitativeTrading/
 - **雲端原子性硬停損防護**：單一 API 請求直接向交易所掛上條件單，斷網亦能保證永不穿倉。
 - **本地 Ollama AI 選擇題審查與極簡三問覆盤**：開倉前嚴格審查，平倉後自動產出精簡真實覆盤筆記。
 
+### 7. BingX 官方 VST 交易所模擬盤 (Official VST Exchange Simulation)
+- **直接與手機 BingX App 同步**：透過 `--vst` 參數直接連接官方模擬交易端點（`open-api-vst.bingx.com`），掛單、成交、持倉與條件單即時呈現在手機 App 模擬倉。
+- **真金切換前無痛驗證**：消耗交易所免費贈送之 VST 虛擬幣（零財務風險），徹底驗證整套量化下單、追蹤停利與停損流程，確認無誤後一鍵切換真金實盤。
+
 ---
 
 ## 統一任務調度 (Task Runner)
@@ -99,13 +103,14 @@ QuantitativeTrading/
 
 | 指令 | 說明 |
 | :--- | :--- |
+| **`just vst`** | **啟動 BingX 官方 VST 模擬盤操盤中樞（訂單直接出現在手機 BingX App 模擬倉）** |
 | **`just start`** | 啟動全自動量化操盤中樞（預設 BTC 3x 100U，可帶 `--symbol ETH/USDT --leverage 10`） |
 | **`just standby`** | 將操盤中樞切換為待機模式（停止開新倉） |
 | **`just status`** | 即時查詢操盤中樞持倉、未實現損益與最新精簡交易覆盤 |
 | **`just journal`** | 查看最新一筆交易之深度技術快照與覆盤筆記（或指定 ID） |
 | **`just gui`** | 啟動 Streamlit 視覺化金融控制台（瀏覽器開啟 `http://localhost:8501`） |
 | **`just menu`** | 啟動免指令純數字終端互動選單（輸入 `0~8` 一鍵執行） |
-| **`just test`** | 執行全套 59 個單元與 BDD 行為驅動測試（100% PASS） |
+| **`just test`** | 執行全套 62 個單元與 BDD 行為驅動測試（100% PASS） |
 | **`just bingx`** | 執行 BingX 官方 OpenAPI 現貨與合約雙軌連線與認證診斷 |
 | **`just pionex`** | 測試派網 (Pionex) OpenAPI 連線與即時行情 |
 | **`just typesafe`** | 執行 TypeSafe AI (Jev) 短線決策模型診斷 |

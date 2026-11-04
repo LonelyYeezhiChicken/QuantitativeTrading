@@ -31,6 +31,10 @@ backtest *args:
 start *args:
     .venv\Scripts\python.exe -u apps/cli/autopilot.py --arm --run-loop {{args}}
 
+# 啟動 BingX 官方 VST 模擬交易操盤中樞 (訂單直接顯示在 BingX App 模擬倉)
+vst *args:
+    .venv\Scripts\python.exe -u apps/cli/autopilot.py --arm --run-loop --vst {{args}}
+
 # 切換操盤中樞為待機狀態 (停止開新倉)
 standby *args:
     .venv\Scripts\python.exe apps/cli/autopilot.py --disarm {{args}}

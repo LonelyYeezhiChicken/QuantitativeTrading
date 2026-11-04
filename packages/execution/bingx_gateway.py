@@ -25,16 +25,18 @@ class BingXGateway(BaseBrokerGateway):
         api_secret: Optional[str] = None,
         base_urls: Optional[List[str]] = None,
         dry_run: bool = True,  # Default to True for maximum safety
+        use_vst: bool = False, # True to route to BingX official VST simulation server
         default_market_type: str = MarketType.SPOT.value,
         enable_ws: bool = True,
     ):
         self.api_key = api_key or os.getenv("BINGX_API_KEY", "")
         self.api_secret = api_secret or os.getenv("BINGX_API_SECRET", "")
         self._dry_run = dry_run
+        self._use_vst = use_vst or (os.getenv("BINGX_USE_VST", "false").lower() in ("true", "1"))
         self._default_market_type = default_market_type.upper()
         self._enable_ws = enable_ws
         self._ws_client: Optional[BingXWebSocketClient] = None
-        if enable_ws:
+        if enable_ws and not self._use_vst:
             try:
                 self._ws_client = BingXWebSocketClient.get_instance()
             except Exception:
@@ -44,6 +46,7 @@ class BingXGateway(BaseBrokerGateway):
             api_key=self.api_key,
             api_secret=self.api_secret,
             base_urls=base_urls,
+            use_vst=self._use_vst,
         )
 
         # In-memory simulated SPOT state
@@ -61,8 +64,14 @@ class BingXGateway(BaseBrokerGateway):
         return "BingX"
 
     @property
+    def is_vst(self) -> bool:
+        """True if operating against BingX official VST simulation server."""
+        return self._use_vst
+
+    @property
     def is_dry_run(self) -> bool:
-        return self._dry_run
+        """True if operating in purely local simulated mode (no external network orders)."""
+        return self._dry_run and not self._use_vst
 
     @property
     def default_market_type(self) -> str:
@@ -186,11 +195,17 @@ class BingXGateway(BaseBrokerGateway):
             if self.is_dry_run or not self.api_key:
                 return self._simulated_swap_margin
 
-            # Live Swap Balance
+            # Live/VST Swap Balance
             try:
                 resp = self.client.get_swap_balance()
-                data = resp.get("data", {})
-                if isinstance(data, dict):
+                data = resp.get("data", [])
+                target_asset = "VST" if self.is_vst else asset_clean
+                if isinstance(data, list):
+                    for item in data:
+                        coin = item.get("asset") or item.get("coin", "")
+                        if str(coin).upper() == target_asset:
+                            return float(item.get("availableMargin", item.get("balance", 0.0)))
+                elif isinstance(data, dict):
                     balance_info = data.get("balance", data)
                     return float(balance_info.get("availableMargin", balance_info.get("balance", 0.0)))
             except Exception:
@@ -221,7 +236,7 @@ class BingXGateway(BaseBrokerGateway):
 
         if not self.is_dry_run and self.api_key:
             try:
-                resp = self.client.set_swap_leverage(symbol=bx_symbol, leverage=leverage)
+                resp = self.client.set_swap_leverage(symbol=bx_symbol, leverage=leverage, side="ALL")
                 return resp.get("code") == 0
             except Exception:
                 return False
@@ -339,18 +354,22 @@ class BingXGateway(BaseBrokerGateway):
                 self._simulated_orders.append(order_record)
                 return {"result": True, "code": 0, "data": order_record}
 
-            # Live Swap Execution via BingX REST API with Atomic Native SL/TP
-            return self.client.create_swap_order(
+            # Live or VST Swap Execution via BingX REST API with Atomic Native SL/TP
+            clean_size = round(size, 4)
+            res = self.client.create_swap_order(
                 symbol=bx_symbol,
                 side=side_clean,
                 position_side=pos_side,
                 order_type=type_clean,
-                quantity=size,
+                quantity=clean_size,
                 price=price,
                 client_order_id=client_order_id,
                 stop_loss_price=stop_loss_price,
                 take_profit_price=take_profit_price,
             )
+            if isinstance(res, dict):
+                res["result"] = (res.get("code") == 0)
+            return res
 
         # ----------------- 2. SPOT Execution -----------------
         if self.is_dry_run:
@@ -445,6 +464,7 @@ class BingXGateway(BaseBrokerGateway):
 
     def get_open_orders(self, symbol: str, market_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """Retrieve open orders."""
+        m_type = (market_type or self.default_market_type).upper()
         bx_symbol = self.to_bingx_symbol(symbol)
 
         if self.is_dry_run:
@@ -452,6 +472,16 @@ class BingXGateway(BaseBrokerGateway):
                 o for o in self._simulated_orders
                 if o.get("symbol") == bx_symbol and o.get("status") in ["NEW", "PENDING", "PARTIALLY_FILLED"]
             ]
+
+        if m_type == MarketType.SWAP.value:
+            try:
+                resp = self.client.request("GET", "/openApi/swap/v2/trade/openOrders", params={"symbol": bx_symbol}, is_private=True)
+                data = resp.get("data", {})
+                if isinstance(data, dict):
+                    return data.get("orders", [])
+                return data if isinstance(data, list) else []
+            except Exception:
+                return []
 
         resp = self.client.get_open_orders(symbol=bx_symbol)
         data = resp.get("data", [])

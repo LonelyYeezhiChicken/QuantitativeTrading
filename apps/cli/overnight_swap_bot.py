@@ -314,6 +314,7 @@ def main():
     parser.add_argument("--price-sl-pct", type=float, default=1.33, help="Stop loss price distance in pct (default 1.33 pct)")
     parser.add_argument("--price-tp-pct", type=float, default=1.0, help="Take profit target price distance in pct (default 1.0 pct)")
     parser.add_argument("--price-pullback-pct", type=float, default=0.33, help="Trailing pullback price distance in pct (default 0.33 pct)")
+    parser.add_argument("--vst", action="store_true", help="Route orders to BingX official VST simulation server (appears on BingX App)")
     args = parser.parse_args()
 
     # If leverage is high (e.g. >= 10x), adapt defaults if user left them at conservative baseline
@@ -344,11 +345,12 @@ def main():
     log_msg("=" * 65)
     log_msg("  Antigravity (AGY) 永續合約 (SWAP) 過夜自動操盤守護進程啟動")
     log_msg(f"  執行名稱: {bot_name} | 輪詢週期: 每 {args.interval} 秒 | 市場: BingX 永續合約 BTC-USDT")
+    log_msg(f"  環境通道: {'BingX 官方 VST 模擬伺服器 (open-api-vst.bingx.com)' if args.vst else '本機沙盒演練 (Local Paper)'}")
     log_msg(f"  保證金本金: ${args.capital:.2f} USDT | 槓桿設定: {args.leverage}x | 價格停損: -{price_sl:.2f}% (保證金 -{price_sl*args.leverage:.1f}%)")
     log_msg(f"  停止方式: 隨時按 Ctrl+C 或建立標誌檔案 {STOP_FLAG_FILE.name} 即可優雅結算退出")
     log_msg("=" * 65)
 
-    gw = BingXGateway(dry_run=True, default_market_type=MarketType.SWAP.value)
+    gw = BingXGateway(dry_run=not args.vst, use_vst=args.vst, default_market_type=MarketType.SWAP.value)
     loop_count = 0
 
     target_margin_sl = price_sl * args.leverage

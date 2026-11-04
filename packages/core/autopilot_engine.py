@@ -47,11 +47,13 @@ class UnifiedAutopilotEngine:
         price_sl_pct: Optional[float] = None,
         price_tp_pct: Optional[float] = None,
         price_pullback_pct: Optional[float] = None,
+        use_vst: bool = False,
     ):
         self.symbol = symbol
         self.capital = capital
         self.enable_ai_veto = enable_ai_veto
         self.dry_run = dry_run
+        self.use_vst = use_vst or (os.getenv("BINGX_USE_VST", "false").lower() in ("true", "1"))
 
         # Auto-derive mode & leverage
         if mode:
@@ -87,6 +89,7 @@ class UnifiedAutopilotEngine:
         # Hardware & Gateways
         self.gw = BingXGateway(
             dry_run=self.dry_run,
+            use_vst=self.use_vst,
             enable_ws=True,
             default_market_type=MarketType.SWAP.value if "SWAP" in self.mode else MarketType.SPOT.value,
         )

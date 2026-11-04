@@ -58,6 +58,7 @@ def main():
     parser.add_argument("--disarm", action="store_true", help="Disarm to standby and exit")
     parser.add_argument("--run-loop", action="store_true", help="Run 24/7 continuous autonomous monitoring loop")
     parser.add_argument("--no-ai", action="store_true", help="Disable local Ollama AI veto guard")
+    parser.add_argument("--vst", action="store_true", help="Route orders to BingX official VST simulation server (appears on BingX App)")
     args = parser.parse_args()
 
     engine = UnifiedAutopilotEngine(
@@ -66,6 +67,7 @@ def main():
         capital=args.capital,
         mode=args.mode,
         enable_ai_veto=not args.no_ai,
+        use_vst=args.vst,
     )
 
     if args.status:

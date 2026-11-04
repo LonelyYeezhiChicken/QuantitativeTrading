@@ -123,6 +123,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 | `tests/bdd/trade_journal.feature` | `test_journal_scenarios.py` | 權威交易日誌生命週期 (開倉快照、軌跡監控、平倉歸因、Markdown 與 INDEX.md 生成) |
 | `tests/bdd/native_stop_loss_and_disconnect_resilience.feature` | `test_native_stop_loss_scenarios.py` | 原生硬停損條件單原子性附加、本機斷網雙網域切換容災、連線恢復狀態自動對齊、平倉撤單 |
 | `tests/bdd/autonomous_coin_and_leverage_orchestration.feature` | `test_autonomous_orchestration_scenarios.py` | 極簡全自動操盤（指定幣種與槓桿自動選拔現貨/合約多體制策略、自適應 ATR 停損與全自動循環生命週期） |
+| `tests/bdd/bingx_vst_exchange_simulation.feature` | `test_bingx_vst_scenarios.py` | BingX 官方 VST 交易所模擬盤（路由切換、雙向槓桿配置、真實 VST 下單與持倉同步） |
 
 > [!IMPORTANT]
 > **日誌單一真實來源 (Single Source of Truth) 與真實 BDD 驗證準則**：
@@ -133,7 +134,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 ```bash
 just test
 ```
-**當前基準**：全套 59 項單元與 BDD 測試 **100% PASS**。
+**當前基準**：全套 62 項單元與 BDD 測試 **100% PASS**。
 
 ---
 
@@ -143,10 +144,15 @@ just test
 # 1. 虛擬環境建立與同步
 just sync
 
-# 2. 執行全套自動化測試 (59 項規格 100% PASS)
+# 2. 執行全套自動化測試 (62 項規格 100% PASS)
 just test
 
-# 3. 啟動全自動量化操盤中樞 (指定幣種與槓桿，其餘策略風控全自動，預設 BTC 3x 100U)
+# 3. 啟動 BingX 官方 VST 模擬盤操盤中樞 (訂單直接顯示在手機 BingX App 模擬倉)
+just vst
+# 亦可自由指定任意標的與槓桿倍數 (例如 10 倍槓桿比特幣 VST 模擬盤)
+just vst --symbol BTC/USDT --leverage 10
+
+# 4. 啟動全自動量化操盤中樞 (指定幣種與槓桿，其餘策略風控全自動，預設 BTC 3x 100U)
 just start
 # 亦可自由指定任意標的與槓桿倍數 (例如 10 倍槓桿比特幣，或 5 倍槓桿以太幣)
 just start --symbol BTC/USDT --leverage 10

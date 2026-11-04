@@ -23,6 +23,10 @@ class BingXClient:
         "https://open-api.bingx.com",
         "https://open-api.bingx.pro",
     ]
+    VST_BASE_URLS = [
+        "https://open-api-vst.bingx.com",
+        "https://open-api-vst.bingx.pro",
+    ]
 
     FORBIDDEN_PARAM_CHARS = re.compile(r"[&=?#\r\n]")
 
@@ -32,10 +36,13 @@ class BingXClient:
         api_secret: str = "",
         base_urls: Optional[List[str]] = None,
         timeout: int = 10,
+        use_vst: bool = False,
     ):
         self.api_key = api_key.strip()
         self.api_secret = api_secret.strip()
-        self.base_urls = [u.rstrip("/") for u in (base_urls or self.BASE_URLS)]
+        self.use_vst = use_vst
+        target_urls = base_urls or (self.VST_BASE_URLS if use_vst else self.BASE_URLS)
+        self.base_urls = [u.rstrip("/") for u in target_urls]
         self.timeout = timeout
         self.session = requests.Session()
 
@@ -489,15 +496,18 @@ class BingXClient:
             is_private=True,
         )
 
-    def set_swap_leverage(self, symbol: str, leverage: int, side: str = "BOTH") -> Dict[str, Any]:
+    def set_swap_leverage(self, symbol: str, leverage: int, side: str = "ALL") -> Dict[str, Any]:
         """Set leverage for a perpetual swap contract.
 
         POST /openApi/swap/v2/trade/leverage
         """
+        s = side.upper()
+        if s == "BOTH":
+            s = "ALL"
         return self.request(
             method="POST",
             path="/openApi/swap/v2/trade/leverage",
-            params={"symbol": symbol, "leverage": leverage, "side": side},
+            params={"symbol": symbol, "leverage": leverage, "side": s},
             is_private=True,
         )
 
