@@ -2,7 +2,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.14%2B-blue.svg)](https://www.python.org/)
 [![Architecture](https://img.shields.io/badge/architecture-Modular%20Multi--Package-blueviolet.svg)]()
-[![BDD Tests](https://img.shields.io/badge/BDD%20Tests-78%20Passed%20(100%25)-brightgreen.svg)]()
+[![BDD Tests](https://img.shields.io/badge/BDD%20Tests-99%20Passed%20(100%25)-brightgreen.svg)]()
 [![Data Leakage](https://img.shields.io/badge/Data%20Leakage-Zero%20Lookahead%20Bias-success.svg)]()
 [![Trading Modes](https://img.shields.io/badge/execution-Spot%20%7C%20Swap%20(Futures)-orange.svg)]()
 [![CI Workflow](https://github.com/LonelyYeezhiChicken/QuantitativeTrading/actions/workflows/ci.yml/badge.svg)](https://github.com/LonelyYeezhiChicken/QuantitativeTrading/actions/workflows/ci.yml)
@@ -111,7 +111,7 @@ QuantitativeTrading/
 | **`just journal`** | 查看最新一筆交易之深度技術快照與覆盤筆記（或指定 ID） |
 | **`just gui`** | 啟動 Streamlit 視覺化金融控制台（瀏覽器開啟 `http://localhost:8501`） |
 | **`just menu`** | 啟動免指令純數字終端互動選單（輸入 `0~8` 一鍵執行） |
-| **`just test`** | 執行全套 78 個單元與 BDD 行為驅動測試（100% PASS） |
+| **`just test`** | 執行全套 99 個單元與 BDD 行為驅動測試（100% PASS） |
 | **`just bingx`** | 執行 BingX 官方 OpenAPI 現貨與合約雙軌連線與認證診斷 |
 | **`just pionex`** | 測試派網 (Pionex) OpenAPI 連線與即時行情 |
 | **`just typesafe`** | 執行 TypeSafe AI (Jev) 短線決策模型診斷 |

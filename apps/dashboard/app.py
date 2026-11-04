@@ -209,7 +209,9 @@ def main():
     if "autopilot" not in st.session_state:
         st.session_state["autopilot"] = UnifiedAutopilotEngine()
     autopilot: UnifiedAutopilotEngine = st.session_state["autopilot"]
-    autopilot.load_state()
+    # The dashboard is an observer: mirror the daemon's persisted status instead of
+    # forcing STANDBY on every rerun (which made the ARM button impossible to keep on).
+    autopilot.load_state(restore_status=True)
 
     # ----------------- Compact Trader Top Header Bar -----------------
     header_c1, header_c2 = st.columns([3, 1])
