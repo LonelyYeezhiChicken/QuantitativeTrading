@@ -83,6 +83,7 @@ def compute_structural_indicators_from_ohlc(
         in_bull_gp = bool(bull_bot <= cur_price <= bull_top)
         in_bear_gp = bool(bear_bot <= cur_price <= bear_top)
 
+    bias_pct = ((cur_price - ema21) / ema21 * 100.0) if ema21 > 0 else 0.0
     return {
         "price": cur_price,
         "bid": bid if bid is not None else cur_price,
@@ -91,6 +92,7 @@ def compute_structural_indicators_from_ohlc(
         "ema21": ema21,
         "ema50": ema50,
         "atr": atr,
+        "bias_pct": round(bias_pct, 4),
         "prev_close": prev_close,
         "swing_high_48": swing_high_48,
         "swing_low_48": swing_low_48,
@@ -99,14 +101,59 @@ def compute_structural_indicators_from_ohlc(
     }
 
 
+def _parse_utc_timestamp(ts_str: str) -> Optional[datetime]:
+    """Parse UTC timestamp strings like '2026-11-04 05:49:00 UTC' or ISO-8601 into aware datetime."""
+    if not ts_str or not isinstance(ts_str, str):
+        return None
+    cleaned = ts_str.strip()
+    if cleaned.endswith(" UTC"):
+        cleaned_no_tz = cleaned[:-4].strip()
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+            try:
+                return datetime.strptime(cleaned_no_tz, fmt).replace(tzinfo=timezone.utc)
+            except ValueError:
+                pass
+    try:
+        dt = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except ValueError:
+        return None
+
+
 def evaluate_structural_entry(
     mode: str,
     cur_price: float,
     signals: Dict[str, Any],
+    max_ema21_bias_pct: float = 0.45,
+    history: Optional[list[Dict[str, Any]]] = None,
+    now_utc: Optional[datetime] = None,
+    cooldown_minutes: int = 15,
 ) -> Tuple[Optional[str], str]:
     """Evaluate entry signal using macro trend alignment (EMA21 vs EMA50),
-    48h Fibonacci Golden Pocket (0.50~0.65), and anti-falling-knife confirmation.
+    48h Fibonacci Golden Pocket (0.50~0.65), anti-falling-knife confirmation,
+    Max EMA21 Bias anti-chasing filter (<= +0.45%), and Post-Exit Cooldown (15 min).
     """
+    # 0. Post-Exit Cooldown Guard (prevent immediate emotional/spike rechasing right after closing a trade)
+    if history and cooldown_minutes > 0:
+        ref_now = now_utc if now_utc is not None else datetime.now(timezone.utc)
+        latest_closed_dt: Optional[datetime] = None
+        for item in (history[-1], history[0]):
+            if isinstance(item, dict):
+                ts_str = str(item.get("closed_at") or item.get("exit_time") or item.get("time") or "")
+                parsed = _parse_utc_timestamp(ts_str)
+                if parsed is not None and (latest_closed_dt is None or parsed > latest_closed_dt):
+                    latest_closed_dt = parsed
+        if latest_closed_dt is not None:
+            elapsed_sec = (ref_now - latest_closed_dt).total_seconds()
+            if 0.0 <= elapsed_sec < (cooldown_minutes * 60.0):
+                elapsed_min = elapsed_sec / 60.0
+                return (
+                    None,
+                    f"平倉後冷卻保護中 (距上次出場 {elapsed_min:.1f} 分鐘 < {cooldown_minutes} 分鐘，禁止原地追單)",
+                )
+
     rsi = float(signals.get("rsi", 50.0))
     ema21 = float(signals.get("ema21", cur_price))
     ema50 = float(signals.get("ema50", ema21))
@@ -114,6 +161,7 @@ def evaluate_structural_entry(
     in_bull_gp = bool(signals.get("in_bull_golden_pocket", False))
     in_bear_gp = bool(signals.get("in_bear_golden_pocket", False))
 
+    ema21_bias_pct = ((cur_price - ema21) / ema21 * 100.0) if ema21 > 0 else 0.0
     is_bull_macro = ema21 >= (ema50 * 0.999)
     is_bear_macro = ema21 < (ema50 * 0.9995)
     is_candle_rebound = cur_price > prev_close
@@ -121,28 +169,40 @@ def evaluate_structural_entry(
     if "SWAP" in mode.upper():
         # 1. Bullish Fibonacci Golden Pocket (0.50 ~ 0.65) Structural Support
         if in_bull_gp and is_bull_macro and is_candle_rebound and 35.0 <= rsi <= 58.0:
+            if ema21_bias_pct > max_ema21_bias_pct:
+                return None, f"均線正乖離過大禁止追高 (Bias=+{ema21_bias_pct:.2f}% > +{max_ema21_bias_pct:.2f}%，等待回踩貼近EMA21)"
             return "LONG", f"斐波那契黃金口袋支撐回踩確認 (RSI={rsi:.1f}, 48h 0.5~0.65 結構區止跌)"
-        # 2. Bullish Trend Pullback (requires EMA21 >= EMA50 macro trend alignment)
+        # 2. Bullish Trend Pullback (requires EMA21 >= EMA50 macro trend alignment & low bias <= +0.45%)
         if cur_price >= ema21 and is_bull_macro and 45.0 <= rsi <= 58.0:
-            return "LONG", f"雙均線順勢回踩多頭動量確認 (RSI={rsi:.1f}, 價穩EMA21>=EMA50)"
-        # 3. Strong Dual-EMA Momentum Continuation
+            if ema21_bias_pct > max_ema21_bias_pct:
+                return None, f"均線正乖離過大禁止追高 (Bias=+{ema21_bias_pct:.2f}% > +{max_ema21_bias_pct:.2f}%，等待回踩貼近EMA21)"
+            return "LONG", f"雙均線順勢回踩多頭動量確認 (RSI={rsi:.1f}, Bias={ema21_bias_pct:+.2f}%, 價穩EMA21>=EMA50)"
+        # 3. Strong Dual-EMA Momentum Continuation (strictly capped by max_ema21_bias_pct to avoid buying top wicks)
         if cur_price >= ema21 and cur_price >= ema50 and is_bull_macro and 58.0 < rsi <= 70.0:
-            return "LONG", f"雙均線多頭排列強勢動能突破 (RSI={rsi:.1f}, 站上EMA21/EMA50)"
+            if ema21_bias_pct > max_ema21_bias_pct:
+                return None, f"均線正乖離過大禁止追高 (Bias=+{ema21_bias_pct:.2f}% > +{max_ema21_bias_pct:.2f}%，等待回踩貼近EMA21)"
+            return "LONG", f"雙均線多頭排列強勢動能突破 (RSI={rsi:.1f}, Bias={ema21_bias_pct:+.2f}%, 站上EMA21/EMA50)"
         # 4. Confirmed Oversold Reversal (requires cur_price > prev_close to avoid catching a falling knife)
         if rsi < 35.0 and is_candle_rebound:
             return "LONG", f"短線超賣止跌勾頭反彈確認 (RSI={rsi:.1f}<35, 現價高於前收)"
         # 5. Bearish Fibonacci Golden Pocket Rejection
         if in_bear_gp and is_bear_macro and (cur_price < prev_close) and 42.0 <= rsi <= 62.0:
             return "SHORT", f"斐波那契空方黃金口袋壓力受阻 (RSI={rsi:.1f}, 48h 0.5~0.65 反彈受壓)"
-        # 6. Bearish Breakdown Short (strictly requires EMA21 < EMA50 macro bearish structure)
+        # 6. Bearish Breakdown Short (strictly requires EMA21 < EMA50 macro bearish structure & not over-extended crash)
         if cur_price < ema21 * 0.995 and is_bear_macro and 38.0 <= rsi <= 48.0:
+            if ema21_bias_pct < -1.20:
+                return None, f"均線負乖離過大禁止追空 (Bias={ema21_bias_pct:.2f}% < -1.20%，等待反彈靠近EMA21)"
             return "SHORT", f"雙均線空頭排列破位順勢開空 (RSI={rsi:.1f}, 跌破EMA21<EMA50)"
     else:
         # Spot Structural Entry Rules (Long-Only)
         if in_bull_gp and is_bull_macro and is_candle_rebound and rsi <= 58.0:
+            if ema21_bias_pct > max_ema21_bias_pct:
+                return None, f"均線正乖離過大禁止追高 (Bias=+{ema21_bias_pct:.2f}% > +{max_ema21_bias_pct:.2f}%，等待回踩貼近EMA21)"
             return "LONG", f"現貨斐波那契黃金口袋支撐低接 (RSI={rsi:.1f}, 48h 0.5~0.65 結構支撐)"
         if cur_price >= ema21 * 0.998 and is_bull_macro and rsi <= 55.0:
-            return "LONG", f"現貨順勢均線支撐回踩確認 (RSI={rsi:.1f}, 貼近EMA21>=EMA50)"
+            if ema21_bias_pct > max_ema21_bias_pct:
+                return None, f"均線正乖離過大禁止追高 (Bias=+{ema21_bias_pct:.2f}% > +{max_ema21_bias_pct:.2f}%，等待回踩貼近EMA21)"
+            return "LONG", f"現貨順勢均線支撐回踩確認 (RSI={rsi:.1f}, Bias={ema21_bias_pct:+.2f}%, 貼近EMA21>=EMA50)"
         if rsi < 38.0 and is_candle_rebound:
             return "LONG", f"現貨短線超賣止跌勾頭低接 (RSI={rsi:.1f}<38, 現價高於前收)"
 
@@ -565,11 +625,17 @@ class UnifiedAutopilotEngine:
         signals = self._compute_market_signals(cur_price)
         rsi = signals["rsi"]
 
-        # Strategy Candidate Decision (Structural Entry Filter + Fibonacci Golden Pocket + Anti-Knife)
-        candidate_signal, candidate_reason = evaluate_structural_entry(self.mode, cur_price, signals)
+        # Strategy Candidate Decision (Structural Entry Filter + Fibonacci Golden Pocket + Anti-Knife + Anti-Chase + Cooldown)
+        candidate_signal, candidate_reason = evaluate_structural_entry(
+            self.mode, cur_price, signals, history=self.closed_trades
+        )
 
         if not candidate_signal:
-            step_result["message"] = f"無開倉信號 (RSI={rsi:.1f}, 市價=${cur_price:,.2f})，等待標準型態"
+            step_result["message"] = (
+                candidate_reason
+                if candidate_reason
+                else f"無開倉信號 (RSI={rsi:.1f}, 市價=${cur_price:,.2f})，等待標準型態"
+            )
             return step_result
 
         # C. Local Ollama AI Veto Sanity Check (Multiple Choice: EXECUTE vs VETO)
@@ -747,6 +813,7 @@ class UnifiedAutopilotEngine:
         clean_journal_card = {
             "id": f"TRD_{journal_id or raw_record['exit_time'].replace(':', '').replace('-', '').replace(' ', '_')}",
             "time": raw_record["exit_time"][:16],
+            "closed_at": raw_record["exit_time"],
             "side": raw_record["side"],
             "pnl_usdt": raw_record["pnl_usdt"],
             "pnl_pct": raw_record["pnl_pct"],

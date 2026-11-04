@@ -442,7 +442,9 @@ def main():
             # ================= SWAP DECISION ENGINE =================
             trade_margin = min(50.0, avail_margin)
             if side == "NONE":
-                candidate_side, candidate_reason = evaluate_structural_entry("SWAP", price, sig)
+                candidate_side, candidate_reason = evaluate_structural_entry(
+                    "SWAP", price, sig, history=state.get("history", [])
+                )
                 if candidate_side:
                     execute_swap_open(
                         state,
@@ -456,6 +458,8 @@ def main():
                         price_sl_pct=price_sl,
                         price_pullback_pct=price_pullback,
                     )
+                elif candidate_reason:
+                    log_msg(f"[進場過濾] {candidate_reason}")
 
             else:
                 exit_action, exit_reason = evaluate_three_stage_exit(

@@ -296,9 +296,13 @@ def main():
 
             # ================= STRATEGY DECISION ENGINE =================
             if pos["side"] == "NONE":
-                candidate_side, candidate_reason = evaluate_structural_entry("SPOT", price, sig)
+                candidate_side, candidate_reason = evaluate_structural_entry(
+                    "SPOT", price, sig, history=state.get("history", [])
+                )
                 if candidate_side == "LONG":
                     execute_buy(state, price, trade_usdt=50.0, reason=candidate_reason, sig=sig)
+                elif candidate_reason:
+                    log_msg(f"[進場過濾] {candidate_reason}")
 
             elif pos["side"] == "LONG":
                 gain_pct = ((price - entry_p) / entry_p) * 100 if entry_p > 0 else 0.0

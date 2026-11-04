@@ -276,3 +276,90 @@ class TestStructuralEntryAndBreakevenBDDScenarios:
         assert updated_entry is not None
         assert updated_entry.risk_plan.stop_loss_price == pytest.approx(new_sl_price, rel=1e-4)
         assert updated_entry.risk_plan.max_loss_usdt == 0.0
+
+    def test_scenario_max_ema21_bias_blocks_overextended_top_chasing(self):
+        """Scenario: 均線正乖離率超過 +0.45% 時禁止追高突破並強制等待回踩貼近 EMA21 (防針尖追高護欄)."""
+        # Given 市場處於雙均線多頭排列 (EMA21 為 77320、EMA50 為 76800) 且 RSI 為 59.5 位於動能區間
+        # When 最新市價急拉至 78114 使 EMA21 正乖離率高達 +1.03% (重現 055114_LONG 針尖追高情境)
+        overextended_signals = {
+            "price": 78114.0,
+            "rsi": 59.5,
+            "ema21": 77320.65,
+            "ema50": 76800.0,
+            "prev_close": 77900.0,
+            "in_bull_golden_pocket": False,
+            "in_bear_golden_pocket": False,
+        }
+        sig_chase, chase_reason = evaluate_structural_entry("SWAP", 78114.0, overextended_signals)
+        # Then 系統應拒絕發出 "LONG" 開倉訊號並回傳均線正乖離過大禁止追高之原因
+        assert sig_chase is None
+        assert "乖離" in chase_reason and "追高" in chase_reason
+
+        # And 當市價回踩收斂至 77450 (EMA21 正乖離率降至 +0.17% 小於 +0.45%) 且 RSI 為 59.0 時
+        pullback_signals = {
+            "price": 77450.0,
+            "rsi": 59.0,
+            "ema21": 77320.65,
+            "ema50": 76800.0,
+            "prev_close": 77380.0,
+            "in_bull_golden_pocket": False,
+            "in_bear_golden_pocket": False,
+        }
+        sig_ok, ok_reason = evaluate_structural_entry("SWAP", 77450.0, pullback_signals)
+        # Then 系統應核准發出 "LONG" 順勢進場訊號
+        assert sig_ok == "LONG"
+        assert "多頭排列" in ok_reason or "順勢" in ok_reason
+
+    def test_scenario_post_exit_cooldown_prevents_immediate_rechase(self):
+        """Scenario: 平倉出場後 15 分鐘冷卻期內禁止原地重新追單 (Post-Exit Cooldown Guard)."""
+        from datetime import datetime, timezone
+
+        # Given 帳戶剛在 "2026-11-04 05:49:00 UTC" 因動態移動停利於 77764 平倉出場一筆 "LONG" 部位
+        recent_history = [
+            {
+                "closed_at": "2026-11-04 05:49:00 UTC",
+                "side": "LONG",
+                "entry_price": 77278.2,
+                "exit_price": 77764.0,
+                "pnl_usdt": 15.72,
+                "pnl_pct": 31.43,
+                "reason": "動態移動停利 (高點 +36.71% 回撤 5.28%, 鎖定 +31.43%)",
+            }
+        ]
+        valid_signals = {
+            "price": 77420.0,
+            "rsi": 54.0,
+            "ema21": 77320.0,
+            "ema50": 76800.0,
+            "prev_close": 77350.0,
+            "in_bull_golden_pocket": False,
+            "in_bear_golden_pocket": False,
+        }
+
+        # When 僅間隔 2 分鐘 ("2026-11-04 05:51:00 UTC"，未滿 15 分鐘冷卻期) 市場出現多頭候選訊號
+        now_2min_later = datetime(2026, 11, 4, 5, 51, 0, tzinfo=timezone.utc)
+        sig_cooldown, cooldown_reason = evaluate_structural_entry(
+            "SWAP",
+            77420.0,
+            valid_signals,
+            history=recent_history,
+            now_utc=now_2min_later,
+            cooldown_minutes=15,
+        )
+        # Then 系統應啟動平倉後冷卻保護並拒絕立即重新開倉
+        assert sig_cooldown is None
+        assert "冷卻" in cooldown_reason
+
+        # And 當時間推進至 "2026-11-04 06:06:00 UTC" (已滿 15 分鐘冷卻期) 且市價貼近 EMA21 出現合格訊號時
+        now_17min_later = datetime(2026, 11, 4, 6, 6, 0, tzinfo=timezone.utc)
+        sig_after_cooldown, reason_after = evaluate_structural_entry(
+            "SWAP",
+            77420.0,
+            valid_signals,
+            history=recent_history,
+            now_utc=now_17min_later,
+            cooldown_minutes=15,
+        )
+        # Then 系統應解除冷卻限制並核准發出 "LONG" 開倉訊號
+        assert sig_after_cooldown == "LONG"
+        assert "順勢" in reason_after
