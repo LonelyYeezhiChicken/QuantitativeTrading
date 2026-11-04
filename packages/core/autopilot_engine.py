@@ -97,6 +97,10 @@ class UnifiedAutopilotEngine:
 
         # Champion Strategy Models & Adaptive Volatility Risk Math
         if "SWAP" in self.mode:
+            try:
+                self.gw.set_leverage(self.symbol, self.leverage)
+            except Exception:
+                pass
             self.strategy = SwapMultiRegimeModel(ema_span=21)
             self.price_sl_pct = price_sl_pct if price_sl_pct is not None else 1.5
             self.price_tp_pct = price_tp_pct if price_tp_pct is not None else (2.0 if self.leverage >= 10 else 1.0)

@@ -351,6 +351,10 @@ def main():
     log_msg("=" * 65)
 
     gw = BingXGateway(dry_run=not args.vst, use_vst=args.vst, default_market_type=MarketType.SWAP.value)
+    try:
+        gw.set_leverage("BTC/USDT", args.leverage)
+    except Exception as e:
+        log_msg(f"[槓桿設定警示] {e}")
     loop_count = 0
 
     target_margin_sl = price_sl * args.leverage

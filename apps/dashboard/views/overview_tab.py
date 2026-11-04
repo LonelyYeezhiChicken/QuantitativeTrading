@@ -127,6 +127,73 @@ def discover_active_bot_instances(btc_p: float) -> list[dict]:
         except Exception:
             pass
 
+    # 3. Autopilot bots (autopilot_*.json)
+    for f in sorted(data_dir.glob("autopilot_*.json")):
+        if "journal" in f.name:
+            continue
+        try:
+            with open(f, "r", encoding="utf-8") as fp:
+                st_data = json.load(fp)
+            pos = st_data.get("position", {})
+            side = pos.get("side", "NONE")
+            qty = pos.get("amount", pos.get("amount_btc", 0.0))
+            cost = pos.get("entry_price", btc_p)
+            margin = pos.get("margin_used", 50.0)
+            avail = st_data.get("cash", 50.0)
+            init_cap = st_data.get("capital", 100.0)
+            lev = st_data.get("leverage", 10)
+            m_mode = st_data.get("mode", "SWAP_10X")
+            is_swap = "SWAP" in m_mode
+            liq_p = cost * (1.0 - (0.9 / lev)) if (is_swap and side == "LONG") else (cost * (1.0 + (0.9 / lev)) if is_swap and side == "SHORT" else 0.0)
+
+            if side == "LONG":
+                upnl = (btc_p - cost) * qty
+            elif side == "SHORT":
+                upnl = (cost - btc_p) * qty
+            else:
+                upnl = 0.0
+            equity = avail + (margin if side != "NONE" else 0.0) + upnl
+            upnl_pct = (upnl / margin * 100.0) if (margin > 0 and side != "NONE") else 0.0
+
+            if not is_swap:
+                b_color = "#58a6ff"
+                t_label = "全自動現貨中樞 (SPOT 1x)"
+                risk_info = "動態回踩動量 | 原生硬止損 (-2.0%)"
+            elif lev <= 3:
+                b_color = "#a371f7"
+                t_label = f"全自動合約中樞 (SWAP {lev}x)"
+                risk_info = "多體制順勢突破 | 移動停利 | 雲端原生硬停損"
+            else:
+                b_color = "#f0883e" if lev <= 10 else "#f85149"
+                t_label = f"全自動高槓桿中樞 (SWAP {lev}x)"
+                risk_info = f"自適應槓桿停損 (-{round(15.0/lev, 2)}%) | 移動鎖利 | 雲端原生硬停損"
+
+            instances.append({
+                "id": f.stem,
+                "file": f,
+                "title": t_label,
+                "short_title": f"AUTO {lev}x",
+                "market_type": "SWAP" if is_swap else "SPOT",
+                "leverage": lev,
+                "border_color": b_color,
+                "title_color": b_color,
+                "side": side,
+                "qty": qty,
+                "cost": cost,
+                "mkt_val": qty * btc_p,
+                "upnl": upnl,
+                "upnl_pct": upnl_pct,
+                "avail": avail,
+                "equity": equity,
+                "init_cap": init_cap,
+                "liq_price": liq_p,
+                "risk_desc": risk_info,
+                "stop_flag": ROOT_DIR / "data" / "autopilot_stop.flag",
+                "stop_btn_label": f"切換待機 ({lev}x)",
+            })
+        except Exception:
+            pass
+
     return instances
 
 
