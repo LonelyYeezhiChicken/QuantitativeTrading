@@ -81,7 +81,7 @@ def load_state(capital: float = 100.0, leverage: int = 3) -> dict:
         except Exception:
             pass
 
-    return {
+    st = {
         "initial_capital": capital,
         "available_margin": capital,
         "market_type": "SWAP",
@@ -99,6 +99,11 @@ def load_state(capital: float = 100.0, leverage: int = 3) -> dict:
         },
         "history": [],
     }
+    try:
+        save_state(st)
+    except Exception:
+        pass
+    return st
 
 
 def save_state(state: dict):
@@ -466,6 +471,11 @@ def main():
 
         except Exception as e:
             log_msg(f"[例外警告] 合約輪詢異常 (自動重試中): {e}")
+
+        try:
+            save_state(state)
+        except Exception:
+            pass
 
         for _ in range(args.interval):
             if not RUNNING or STOP_FLAG_FILE.exists():

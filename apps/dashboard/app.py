@@ -122,6 +122,67 @@ def get_unified_journal_entries(jm: TradeJournalManager, btc_p: float) -> tuple[
     return entries, total_realized_pnl, total_unrealized_pnl
 
 
+# ----------------- Dynamic Auto-Updating Fragments -----------------
+@st.fragment(run_every=3)
+def _render_overview_3s(gw, jm, autopilot):
+    render_overview_tab(
+        gw=gw,
+        jm=jm,
+        autopilot=autopilot,
+        load_bot_states_fn=load_bot_states,
+        get_unified_journal_entries_fn=get_unified_journal_entries,
+    )
+
+
+@st.fragment(run_every=5)
+def _render_overview_5s(gw, jm, autopilot):
+    render_overview_tab(
+        gw=gw,
+        jm=jm,
+        autopilot=autopilot,
+        load_bot_states_fn=load_bot_states,
+        get_unified_journal_entries_fn=get_unified_journal_entries,
+    )
+
+
+@st.fragment(run_every=10)
+def _render_overview_10s(gw, jm, autopilot):
+    render_overview_tab(
+        gw=gw,
+        jm=jm,
+        autopilot=autopilot,
+        load_bot_states_fn=load_bot_states,
+        get_unified_journal_entries_fn=get_unified_journal_entries,
+    )
+
+
+@st.fragment(run_every=None)
+def _render_overview_manual(gw, jm, autopilot):
+    render_overview_tab(
+        gw=gw,
+        jm=jm,
+        autopilot=autopilot,
+        load_bot_states_fn=load_bot_states,
+        get_unified_journal_entries_fn=get_unified_journal_entries,
+    )
+
+
+@st.fragment(run_every=5)
+def _render_journal_live(jm, gw):
+    t_btc = gw.fetch_ticker("BTC/USDT", market_type="SPOT")
+    btc_p = t_btc.get("price", 77400.0)
+    entries, _, _ = get_unified_journal_entries(jm, btc_p)
+    render_journal_tab(jm=jm, entries=entries)
+
+
+@st.fragment(run_every=None)
+def _render_journal_manual(jm, gw):
+    t_btc = gw.fetch_ticker("BTC/USDT", market_type="SPOT")
+    btc_p = t_btc.get("price", 77400.0)
+    entries, _, _ = get_unified_journal_entries(jm, btc_p)
+    render_journal_tab(jm=jm, entries=entries)
+
+
 def main():
     # ----------------- Page Configuration -----------------
     st.set_page_config(
@@ -165,8 +226,19 @@ def main():
         st.markdown(f"{ws_badge} &nbsp;|&nbsp; {mode_badge} &nbsp;|&nbsp; {auto_badge} &nbsp;|&nbsp; <span style=\"color:#8b949e;\">模組化解耦架構</span>", unsafe_allow_html=True)
 
     with header_c2:
-        if st.button("即時刷新數據", use_container_width=True):
-            st.rerun()
+        btn_col, sel_col = st.columns([1, 1])
+        with btn_col:
+            if st.button("即時刷新", use_container_width=True):
+                st.rerun()
+        with sel_col:
+            refresh_rate = st.selectbox(
+                "自動更新頻率",
+                [3, 5, 10, 0],
+                format_func=lambda s: f"自動: 每 {s}s" if s > 0 else "關閉自動更新",
+                index=0,
+                key="auto_refresh_rate",
+                label_visibility="collapsed",
+            )
 
     # ----------------- Primary Navigation Tabs -----------------
     tab_overview, tab_journal, tab_bots, tab_research = st.tabs([
@@ -176,22 +248,28 @@ def main():
         "研究與回測",
     ])
 
-    # 1. Overview Tab
+    # 1. Overview Tab (Native Real-Time Auto-Refresh Fragment)
     with tab_overview:
-        entries, btc_p = render_overview_tab(
-            gw=gw,
-            jm=jm,
-            autopilot=autopilot,
-            load_bot_states_fn=load_bot_states,
-            get_unified_journal_entries_fn=get_unified_journal_entries,
-        )
+        if refresh_rate == 3:
+            _render_overview_3s(gw, jm, autopilot)
+        elif refresh_rate == 5:
+            _render_overview_5s(gw, jm, autopilot)
+        elif refresh_rate == 10:
+            _render_overview_10s(gw, jm, autopilot)
+        else:
+            _render_overview_manual(gw, jm, autopilot)
 
-    # 2. Journal Tab
+    # 2. Journal Tab (Native Real-Time Auto-Refresh Fragment)
     with tab_journal:
-        render_journal_tab(jm=jm, entries=entries)
+        if refresh_rate > 0:
+            _render_journal_live(jm, gw)
+        else:
+            _render_journal_manual(jm, gw)
 
-    # 3. Bots & Manual Trading Tab
+    # 3. Bots & Manual Trading Tab (Protected from auto-rerun during order input)
     with tab_bots:
+        t_btc = gw.fetch_ticker("BTC/USDT", market_type="SPOT")
+        btc_p = t_btc.get("price", 77400.0)
         render_trading_tab(gw=gw, broker=broker, dm=dm, btc_p=btc_p)
 
     # 4. Research & Backtest Tab

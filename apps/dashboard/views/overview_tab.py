@@ -207,6 +207,15 @@ def render_overview_tab(
     """Render the main executive overview tab with fully dynamic multi-bot discovery."""
     journal_stats = jm.get_summary_stats()
 
+    # Dynamic live timestamp banner
+    now_str = pd.Timestamp.now().strftime("%H:%M:%S")
+    st.markdown(f"""
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span style="font-size: 13px; color: #8b949e;">🟢 即時串流監控 (動態更新) | 台北時間: <b style="color:#58a6ff;">{now_str}</b></span>
+        <span style="font-size: 12px; color: #3fb950; background: rgba(63, 185, 80, 0.15); padding: 2px 8px; border-radius: 4px; font-weight: bold;">LIVE HEARTBEAT</span>
+    </div>
+    """, unsafe_allow_html=True)
+
     # Fetch real-time market tickers via Gateway
     t_btc = gw.fetch_ticker("BTC/USDT", market_type=MarketType.SPOT.value)
     t_eth = gw.fetch_ticker("ETH/USDT", market_type=MarketType.SPOT.value)
@@ -389,15 +398,25 @@ def render_overview_tab(
             cols = st.columns(len(row_bots))
             for col, b in zip(cols, row_bots):
                 with col:
-                    liq_str = f"${b['liq_price']:,.2f}" if b['liq_price'] > 0 else "現貨無強平"
-                    pnl_color = "text-green" if b['upnl'] >= 0 else "text-red"
+                    is_none = (b['side'] == "NONE")
+                    if is_none:
+                        status_str = '<b style="color: #8b949e;">空倉待機中 (NONE)</b>'
+                        cost_str = "進場均價: <b>--</b> | 強平價: <b>--</b>"
+                        pnl_str = '未實現盈虧: <b style="color: #8b949e;">$0.00 U (0.00%)</b>'
+                    else:
+                        liq_str = f"${b['liq_price']:,.2f}" if b['liq_price'] > 0 else "現貨無強平"
+                        pnl_color = "text-green" if b['upnl'] >= 0 else "text-red"
+                        status_str = f"<b>{b['side']}</b> ({b['qty']:.6f} BTC, {b['leverage']}x 槓桿)"
+                        cost_str = f"進場均價: <b>${b['cost']:,.2f}</b> | 強平價: <b>{liq_str}</b>"
+                        pnl_str = f'未實現盈虧: <span class="{pnl_color}"><b>${b["upnl"]:+,.2f} U ({b["upnl_pct"]:+.2f}%)</b></span>'
+
                     st.markdown(f"""
                     <div class="stat-card" style="border-left: 4px solid {b['border_color']};">
                         <div class="stat-title" style="color: {b['title_color']}; font-weight: bold;">{b['title']}</div>
                         <div style="font-size: 15px; margin-bottom: 8px;">
-                            持倉狀態: <b>{b['side']}</b> ({b['qty']:.6f} BTC, {b['leverage']}x 槓桿)<br>
-                            進場均價: <b>${b['cost']:,.2f}</b> | 強平價: <b>{liq_str}</b><br>
-                            未實現盈虧: <span class="{pnl_color}"><b>${b['upnl']:+,.2f} U ({b['upnl_pct']:+.2f}%)</b></span><br>
+                            持倉狀態: {status_str}<br>
+                            {cost_str}<br>
+                            {pnl_str}<br>
                             可用資金: <b>${b['avail']:.2f} U</b> | 單元權益: <b>${b['equity']:.2f} USDT</b>
                         </div>
                         <div class="stat-sub">風控規則: {b['risk_desc']}</div>
