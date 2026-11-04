@@ -250,7 +250,7 @@ def execute_swap_open(
 
 
 def execute_swap_close(state: dict, price: float, reason: str, gw: BingXGateway = None):
-    """Execute autonomous simulated swap close position and finalize trade journal."""
+    """Execute autonomous swap close position on exchange first, then finalize local state and journal."""
     pos = state["position"]
     if pos["side"] == "NONE":
         return
@@ -259,6 +259,27 @@ def execute_swap_close(state: dict, price: float, reason: str, gw: BingXGateway 
     entry_p = pos["entry_price"]
     qty = pos["amount_btc"]
     margin = pos["margin_used"]
+
+    # 1. Submit market close order to exchange gateway first
+    if gw:
+        close_side = "SELL" if side == "LONG" else "BUY"
+        try:
+            close_res = gw.create_order(
+                symbol="BTC/USDT",
+                side=close_side,
+                order_type="MARKET",
+                size=qty,
+                market_type=MarketType.SWAP.value,
+                position_side=side,
+                leverage=pos.get("leverage", 3),
+            )
+            if not getattr(gw, "is_dry_run", True) and isinstance(close_res, dict) and not close_res.get("result"):
+                log_msg(f"[平倉攔截] 交易所市價平倉未成功 ({close_res.get('msg', '未知錯誤')})，保留本地持倉待下次重試")
+                return
+        except Exception as e:
+            log_msg(f"[平倉異常] 網關平倉單發送異常: {e}")
+            if not getattr(gw, "is_dry_run", True):
+                return
 
     if side == "LONG":
         pnl = (price - entry_p) * qty
@@ -289,7 +310,11 @@ def execute_swap_close(state: dict, price: float, reason: str, gw: BingXGateway 
     # Cancel native conditional stop orders on exchange upon closing
     if gw:
         try:
-            gw.cancel_all_orders("BTC/USDT", market_type=MarketType.SWAP.value)
+            sl_order_id = pos.get("sl_order_id")
+            if sl_order_id:
+                gw.cancel_order("BTC/USDT", str(sl_order_id), market_type=MarketType.SWAP.value)
+            else:
+                gw.cancel_all_orders("BTC/USDT", market_type=MarketType.SWAP.value)
         except Exception as e:
             log_msg(f"[撤單警告] 取消雲端掛單失敗: {e}")
 

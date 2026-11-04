@@ -76,8 +76,9 @@ class UnifiedAutopilotEngine:
                 self.mode = f"SWAP_{leverage}X"
 
         root_dir = Path(__file__).resolve().parent.parent.parent
+        prod_data_dir = (root_dir / "data").resolve()
         if state_file:
-            self.state_file = state_file
+            self.state_file = Path(state_file)
         else:
             clean_sym = self.symbol.replace("/", "_").replace("-", "_")
             if self.mode == "SWAP_3X" and self.symbol == "BTC/USDT" and capital == 100.0:
@@ -85,10 +86,19 @@ class UnifiedAutopilotEngine:
             else:
                 self.state_file = root_dir / "data" / f"autopilot_{clean_sym}_{self.mode.lower()}_{int(capital)}u.json"
 
-        self.journal_file = root_dir / "data" / "autopilot_journal.json"
+        state_parent = self.state_file.resolve().parent
+        if state_parent != prod_data_dir:
+            self.journal_file = state_parent / "autopilot_journal.json"
+            default_db_path = state_parent / "trade_journal_db.json"
+            default_journals_dir = state_parent / "journals"
+        else:
+            self.journal_file = root_dir / "data" / "autopilot_journal.json"
+            default_db_path = root_dir / "data" / "trade_journal_db.json"
+            default_journals_dir = root_dir / "journals"
+
         self.journal_mgr = journal_mgr or TradeJournalManager(
-            db_path=str(root_dir / "data" / "trade_journal_db.json"),
-            journals_dir=str(root_dir / "journals"),
+            db_path=str(default_db_path),
+            journals_dir=str(default_journals_dir),
         )
 
         # Hardware & Gateways (Supports Dependency Injection)

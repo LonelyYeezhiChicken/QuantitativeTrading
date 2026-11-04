@@ -34,9 +34,14 @@ def test_high_leverage_10x_risk_and_order_execution(tmp_path, monkeypatch):
     flag_file = tmp_path / "swap_10x_test_stop.flag"
 
     import apps.cli.overnight_swap_bot as bot_mod
+    test_jm = TradeJournalManager(
+        db_path=str(tmp_path / "test_journal_db.json"),
+        journals_dir=str(tmp_path / "journals"),
+    )
     monkeypatch.setattr(bot_mod, "STATE_FILE", state_file)
     monkeypatch.setattr(bot_mod, "LOG_FILE", log_file)
     monkeypatch.setattr(bot_mod, "STOP_FLAG_FILE", flag_file)
+    monkeypatch.setattr(bot_mod, "journal_mgr", test_jm)
 
     gw = BingXGateway(dry_run=True, default_market_type=MarketType.SWAP.value)
     state = bot_mod.load_state(capital=100.0, leverage=10)
@@ -85,8 +90,7 @@ def test_high_leverage_10x_risk_and_order_execution(tmp_path, monkeypatch):
     assert journal_id is not None
     assert "SWAP_" in journal_id
 
-    jm = TradeJournalManager()
-    entry = jm.get_entry(journal_id)
+    entry = test_jm.get_entry(journal_id)
     assert entry is not None
     assert entry.leverage == 10
     assert entry.notional_value == pytest.approx(500.0, rel=1e-2)

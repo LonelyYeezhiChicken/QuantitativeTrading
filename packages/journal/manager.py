@@ -2,6 +2,7 @@
 
 import os
 import json
+import time
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
@@ -17,7 +18,7 @@ from packages.journal.analyzer import JournalAnalyzer
 
 
 class TradeJournalManager:
-    """Central manager handling persistence, lifecycle updates, and pedagogical journal rendering."""
+    """Central manager handling persistence, multi-process concurrency, lifecycle updates, and markdown rendering."""
 
     def __init__(
         self,
@@ -34,33 +35,75 @@ class TradeJournalManager:
         self.entries_dir.mkdir(parents=True, exist_ok=True)
 
         self._entries: Dict[str, TradeJournalEntry] = {}
-        self._load_db()
+        self._load_db(merge=False)
 
-    def _load_db(self):
-        """Load trade journal database from disk."""
+    def _load_db(self, merge: bool = True):
+        """Load trade journal database from disk and optionally merge with in-memory entries."""
         if not self.db_path.exists():
-            self._entries = {}
+            if not merge:
+                self._entries = {}
             return
         try:
             with open(self.db_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                self._entries = {
-                    item["journal_id"]: TradeJournalEntry.from_dict(item)
-                    for item in data.get("entries", [])
-                    if "journal_id" in item
-                }
+            disk_entries = {
+                item["journal_id"]: TradeJournalEntry.from_dict(item)
+                for item in data.get("entries", [])
+                if "journal_id" in item
+            }
+            if not merge or not self._entries:
+                self._entries = disk_entries
+            else:
+                for jid, d_entry in disk_entries.items():
+                    if jid not in self._entries:
+                        self._entries[jid] = d_entry
+                    else:
+                        mem_entry = self._entries[jid]
+                        # Prefer CLOSED status or strictly higher trajectory updates_count
+                        if (d_entry.status == "CLOSED" and mem_entry.status != "CLOSED") or (
+                            d_entry.status == mem_entry.status
+                            and d_entry.trajectory.updates_count > mem_entry.trajectory.updates_count
+                        ):
+                            mem_entry.status = d_entry.status
+                            mem_entry.trajectory = d_entry.trajectory
+                            mem_entry.outcome = d_entry.outcome
+                            mem_entry.lesson = d_entry.lesson
         except Exception:
-            self._entries = {}
+            if not merge:
+                self._entries = {}
 
-    def _save_db(self):
-        """Save trade journal database to disk."""
+    def _save_db(self, updated_entry: Optional[TradeJournalEntry] = None):
+        """Synchronize with disk entries and atomically save trade journal database."""
+        self._load_db(merge=True)
+        if updated_entry is not None:
+            self._entries[updated_entry.journal_id] = updated_entry
+
         data = {
             "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
             "total_entries": len(self._entries),
             "entries": [e.to_dict() for e in self._entries.values()],
         }
-        with open(self.db_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        tmp_path = self.db_path.with_suffix(f".{os.getpid()}.tmp")
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            replaced = False
+            for _ in range(5):
+                try:
+                    os.replace(tmp_path, self.db_path)
+                    replaced = True
+                    break
+                except PermissionError:
+                    time.sleep(0.02)
+            if not replaced:
+                with open(self.db_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+        finally:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except Exception:
+                    pass
 
     def on_trade_open(
         self,
@@ -79,14 +122,32 @@ class TradeJournalManager:
         custom_id: Optional[str] = None,
     ) -> TradeJournalEntry:
         """Record the initiation of a trade with market snapshot, risk rules, and thesis."""
+        self._load_db(merge=True)
         now_utc = datetime.now(timezone.utc)
         entry_time = entry_time_str or now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
+
         time_tag = now_utc.strftime("%Y%m%d_%H%M%S")
+        if entry_time_str:
+            try:
+                parsed_dt = datetime.strptime(entry_time_str, "%Y-%m-%d %H:%M:%S UTC")
+                time_tag = parsed_dt.strftime("%Y%m%d_%H%M%S")
+            except Exception:
+                pass
 
         if custom_id:
             journal_id = custom_id
         else:
-            journal_id = f"{market_type.upper()}_{time_tag}_{side.upper()}"
+            base_id = f"{market_type.upper()}_{time_tag}_{side.upper()}"
+            journal_id = base_id
+            if journal_id in self._entries:
+                lev_id = f"{market_type.upper()}_{leverage}X_{time_tag}_{side.upper()}"
+                if lev_id not in self._entries:
+                    journal_id = lev_id
+                else:
+                    seq = 2
+                    while f"{lev_id}_{seq}" in self._entries:
+                        seq += 1
+                    journal_id = f"{lev_id}_{seq}"
 
         snapshot_dict = snapshot_dict or {}
         price = snapshot_dict.get("price", entry_price)
@@ -173,13 +234,14 @@ class TradeJournalManager:
         )
 
         self._entries[journal_id] = entry
-        self._save_db()
+        self._save_db(updated_entry=entry)
         self._write_entry_markdown(entry)
         self._render_index()
         return entry
 
     def on_trade_update(self, journal_id: str, current_price: float) -> Optional[TradeJournalEntry]:
         """Update live trajectory (MFE, MAE, duration) for an open trade."""
+        self._load_db(merge=True)
         entry = self._entries.get(journal_id)
         if not entry or entry.status != "OPEN":
             return entry
@@ -212,7 +274,7 @@ class TradeJournalManager:
         except Exception:
             pass
 
-        self._save_db()
+        self._save_db(updated_entry=entry)
         self._write_entry_markdown(entry)
         return entry
 
@@ -224,6 +286,7 @@ class TradeJournalManager:
         exit_time_str: Optional[str] = None,
     ) -> Optional[TradeJournalEntry]:
         """Finalize trade, synthesize pedagogical review, generate complete markdown card."""
+        self._load_db(merge=True)
         entry = self._entries.get(journal_id)
         if not entry:
             return None
@@ -254,7 +317,7 @@ class TradeJournalManager:
         entry.review = review
         entry.realized_r_multiple = r_mult
 
-        self._save_db()
+        self._save_db(updated_entry=entry)
         self._write_entry_markdown(entry)
         self._render_index()
         return entry
@@ -309,6 +372,7 @@ class TradeJournalManager:
 
     def get_summary_stats(self) -> Dict[str, Any]:
         """Calculate statistical summaries across all trades."""
+        self._load_db(merge=True)
         closed = [e for e in self._entries.values() if e.status == "CLOSED"]
         total_closed = len(closed)
         wins = [e for e in closed if e.pnl_usdt > 0]
@@ -343,6 +407,7 @@ class TradeJournalManager:
         limit: Optional[int] = None,
     ) -> List[TradeJournalEntry]:
         """Query entries with optional filters."""
+        self._load_db(merge=True)
         res = list(self._entries.values())
         if market_type:
             res = [e for e in res if e.market_type == market_type.upper()]
@@ -355,4 +420,5 @@ class TradeJournalManager:
 
     def get_entry(self, journal_id: str) -> Optional[TradeJournalEntry]:
         """Fetch single entry by ID."""
+        self._load_db(merge=True)
         return self._entries.get(journal_id)

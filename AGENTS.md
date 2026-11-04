@@ -127,6 +127,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 | `tests/bdd/zero_data_leakage.feature` | `test_zero_data_leakage_scenarios.py` | 零資料外洩原則（未來擾動歷史因子不變、標籤未來位移 shift、Purged CV 緩衝） |
 | `tests/bdd/broker_gateway_polymorphism.feature` | `test_broker_gateway_polymorphism_scenarios.py` | 經紀商抽象網關多型契約（PaperBroker 實作 BaseBrokerGateway、里氏替換、資金防呆） |
 | `tests/bdd/strategy_contract_polymorphism.feature` | `test_strategy_contract_scenarios.py` | 策略模型統一契約與依賴注入（BaseTradingModel 數值邊界、Autopilot 策略熱插拔） |
+| `tests/bdd/multiprocess_journal_and_swap_lifecycle.feature` | `test_multiprocess_and_lifecycle_scenarios.py` | 多進程日誌並發安全合併、同秒開倉防碰撞、測試日誌自動隔離、守護進程平倉反向市價單驗證 |
 
 > [!IMPORTANT]
 > **日誌單一真實來源 (Single Source of Truth) 與真實 BDD 驗證準則**：
@@ -137,7 +138,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 ```bash
 just test
 ```
-**當前基準**：全套 74 項單元與 BDD 測試 **100% PASS**。
+**當前基準**：全套 78 項單元與 BDD 測試 **100% PASS**。
 
 ---
 
@@ -147,7 +148,7 @@ just test
 # 1. 虛擬環境建立與同步
 just sync
 
-# 2. 執行全套自動化測試 (74 項規格 100% PASS)
+# 2. 執行全套自動化測試 (78 項規格 100% PASS)
 just test
 
 # 3. 啟動 BingX 官方 VST 模擬盤操盤中樞 (訂單直接顯示在手機 BingX App 模擬倉)

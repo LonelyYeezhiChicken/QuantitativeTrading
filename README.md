@@ -2,7 +2,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.14%2B-blue.svg)](https://www.python.org/)
 [![Architecture](https://img.shields.io/badge/architecture-Modular%20Multi--Package-blueviolet.svg)]()
-[![BDD Tests](https://img.shields.io/badge/BDD%20Tests-62%20Passed%20(100%25)-brightgreen.svg)]()
+[![BDD Tests](https://img.shields.io/badge/BDD%20Tests-78%20Passed%20(100%25)-brightgreen.svg)]()
 [![Data Leakage](https://img.shields.io/badge/Data%20Leakage-Zero%20Lookahead%20Bias-success.svg)]()
 [![Trading Modes](https://img.shields.io/badge/execution-Spot%20%7C%20Swap%20(Futures)-orange.svg)]()
 [![CI Workflow](https://github.com/LonelyYeezhiChicken/QuantitativeTrading/actions/workflows/ci.yml/badge.svg)](https://github.com/LonelyYeezhiChicken/QuantitativeTrading/actions/workflows/ci.yml)
@@ -40,19 +40,20 @@ QuantitativeTrading/
 ├── start_dashboard.bat          # 雙擊一鍵啟動視覺化控制台 (Windows 環境)
 │
 ├── packages/                    # 領域核心套件庫 (Core Domain Packages)
-│   ├── core/                    # 風險控制核心 (ATR 停損停利、凱利資金管理模型)
+│   ├── core/                    # 風控核心、自動操盤中樞 (UnifiedAutopilotEngine) 與狀態倉庫 (BotStateRepository)
 │   ├── data/                    # 行情採集與儲存 (CCXT 連線、Parquet 列式資料清洗)
 │   ├── features/                # 78+ Alpha 技術因子、無前視偏差 (Leakage-Free) 特徵流水線
-│   ├── models/                  # 雙預測 AI 引擎 (LightGBM 時序迴歸 + TypeSafe AI Jev 決策引擎)
+│   ├── models/                  # 多元預測與決策引擎 (LightGBM, TypeSafe AI Jev, Ollama, 多體制與斐波那契策略)
 │   ├── backtest/                # 摩擦成本撮合引擎、績效指標統計與年度滾動複利回測模組
-│   └── execution/               # 經紀商網關層 (BaseBrokerGateway, BingX, Pionex, PaperBroker)
+│   ├── execution/               # 經紀商抽象網關層 (BaseBrokerGateway, BingX, Pionex, PaperBroker)
+│   └── journal/                 # 權威交易日誌、多進程並發持久化與自主學習覆盤引擎 (TradeJournalManager)
 │
 ├── apps/                        # 應用層 (Application Endpoints)
 │   ├── dashboard/               # Streamlit 金融互動視覺化儀表板 (Plotly K 線與權益曲線)
 │   └── cli/                     # 純數字免指令終端控制台與各模組獨立診斷工具
 │
 └── tests/                       # 行為驅動測試矩陣 (BDD & Unit Tests)
-    ├── bdd/                     # Gherkin 規格書與 Given-When-Then 步驟 (59 項全數通過)
+    ├── bdd/                     # 17 套 Gherkin 規格書與 Given-When-Then 步驟 (全數 100% 通過)
     └── ...                      # 前視偏差防護、雙網域容災、保證金計算等單元測試
 ```
 
@@ -110,7 +111,7 @@ QuantitativeTrading/
 | **`just journal`** | 查看最新一筆交易之深度技術快照與覆盤筆記（或指定 ID） |
 | **`just gui`** | 啟動 Streamlit 視覺化金融控制台（瀏覽器開啟 `http://localhost:8501`） |
 | **`just menu`** | 啟動免指令純數字終端互動選單（輸入 `0~8` 一鍵執行） |
-| **`just test`** | 執行全套 62 個單元與 BDD 行為驅動測試（100% PASS） |
+| **`just test`** | 執行全套 78 個單元與 BDD 行為驅動測試（100% PASS） |
 | **`just bingx`** | 執行 BingX 官方 OpenAPI 現貨與合約雙軌連線與認證診斷 |
 | **`just pionex`** | 測試派網 (Pionex) OpenAPI 連線與即時行情 |
 | **`just typesafe`** | 執行 TypeSafe AI (Jev) 短線決策模型診斷 |
