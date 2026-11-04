@@ -8,6 +8,7 @@ from packages.journal.models import (
     TradeJournalEntry,
 )
 from packages.journal.manager import TradeJournalManager
+from packages.journal.report_generator import QuantReportGenerator
 
 __all__ = [
     "MarketSnapshot",
@@ -16,4 +17,5 @@ __all__ = [
     "ReviewNote",
     "TradeJournalEntry",
     "TradeJournalManager",
+    "QuantReportGenerator",
 ]

@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-04 06:09:45 UTC",
+  "updated_at": "2026-11-04 09:00:53 UTC",
   "total_entries": 18,
   "entries": [
     {
@@ -570,16 +570,16 @@
       "side": "LONG",
       "status": "CLOSED",
       "entry_time": "2026-11-04 03:03:23 UTC",
-      "exit_time": "",
+      "exit_time": "2026-11-04 05:59:06 UTC",
       "entry_price": 75974.75,
-      "exit_price": 0.0,
+      "exit_price": 77771.39,
       "amount_btc": 0.0006581133863553352,
       "margin_used": 50.0,
       "leverage": 1,
       "notional_value": 50.0,
-      "pnl_usdt": 0.0,
-      "pnl_pct": 0.0,
-      "realized_r_multiple": 0.0,
+      "pnl_usdt": 1.182392834461449,
+      "pnl_pct": 2.364785668922898,
+      "realized_r_multiple": 1.0,
       "liquidation_price": 0.0,
       "snapshot": {
         "price": 75974.75,
@@ -608,10 +608,10 @@
       },
       "review": {
         "thesis": "RSI 處於 50.0 動能健康區間，且市價 ($75,974.75) 穩定收在 EMA21 ($75,974.75) 之上 (乖離率 +0.00%)，顯示多頭動能延續。\n【系統觸發信號】：SPOT 1x 守護進程活躍持倉同步\n【交易架構】：SPOT 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,139.62) 預留正常價格呼吸空間。",
-        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
-        "strategy_evaluation": "部位建倉符合量化規則，等待市場驗證假說",
-        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
-        "quality_score": 3
+        "exit_reason": "- 出場執行點：`$77,771.39` (相較進場均價 `$75,974.75`)。\n- 觸發機制：動態移動停利 (最高獲利 +2.82% 回撤 0.46%, 鎖定 +2.36%)。\n- 信號反轉或手動平倉退出，結算總盈虧 `$+1.18 USDT`。",
+        "strategy_evaluation": "- **風險控制執行**：預期最大承受風險 `$0.00 USDT`，實際實現盈虧 `$+1.18 USDT` (實際 R 倍數: `+1.00R`)。\n- **部位耐受性 (MAE/MFE)**：持倉期間最大不利回撤為 `0.00%`，最大有利獲利為 `+2.82%`。\n- **執行效率優秀**：獲利離場點位與盤中最高點貼近，動態停利回撤參數設定得宜。",
+        "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
+        "quality_score": 4
       }
     },
     {
@@ -619,18 +619,18 @@
       "symbol": "BTC/USDT",
       "market_type": "SWAP",
       "side": "LONG",
-      "status": "OPEN",
+      "status": "CLOSED",
       "entry_time": "2026-11-04 03:02:57 UTC",
-      "exit_time": "",
+      "exit_time": "2026-11-04 07:29:11 UTC",
       "entry_price": 75870.5,
-      "exit_price": 0.0,
+      "exit_price": 78279.2,
       "amount_btc": 0.006590176682636862,
       "margin_used": 50.0,
       "leverage": 10,
       "notional_value": 500.0,
-      "pnl_usdt": 0.0,
-      "pnl_pct": 0.0,
-      "realized_r_multiple": 0.0,
+      "pnl_usdt": 15.87375857546739,
+      "pnl_pct": 31.74751715093478,
+      "realized_r_multiple": 1.0,
       "liquidation_price": 69042.155,
       "snapshot": {
         "price": 75870.5,
@@ -650,19 +650,19 @@
         "max_loss_usdt": 0.0
       },
       "trajectory": {
-        "highest_price": 78096.6,
+        "highest_price": 78160.9,
         "lowest_price": 75870.5,
-        "mfe_pct": 29.340784626435912,
+        "mfe_pct": 30.18828134782286,
         "mae_pct": 0.0,
-        "duration_seconds": 11186,
-        "updates_count": 99
+        "duration_seconds": 15974,
+        "updates_count": 173
       },
       "review": {
         "thesis": "RSI 處於 50.0 動能健康區間，且市價 ($75,870.50) 穩定收在 EMA21 ($75,870.50) 之上 (乖離率 +0.00%)，顯示多頭動能延續。\n【系統觸發信號】：SWAP 10x 守護進程活躍持倉同步\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,138.06) 預留正常價格呼吸空間。",
-        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
-        "strategy_evaluation": "部位建倉符合量化規則，等待市場驗證假說",
-        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
-        "quality_score": 3
+        "exit_reason": "- 出場執行點：`$78,279.20` (相較進場均價 `$75,870.50`)。\n- 觸發機制：MANUAL_CLOSE (使用者指示全部收單平倉)。\n- 信號反轉或手動平倉退出，結算總盈虧 `$+15.87 USDT`。",
+        "strategy_evaluation": "- **風險控制執行**：預期最大承受風險 `$0.00 USDT`，實際實現盈虧 `$+15.87 USDT` (實際 R 倍數: `+1.00R`)。\n- **部位耐受性 (MAE/MFE)**：持倉期間最大不利回撤為 `0.00%`，最大有利獲利為 `+30.19%`。\n- **執行效率優秀**：獲利離場點位與盤中最高點貼近，動態停利回撤參數設定得宜。",
+        "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
+        "quality_score": 4
       }
     },
     {
@@ -672,16 +672,16 @@
       "side": "LONG",
       "status": "CLOSED",
       "entry_time": "2026-11-04 02:18:51 UTC",
-      "exit_time": "",
+      "exit_time": "2026-11-04 05:57:10 UTC",
       "entry_price": 76453.81846692927,
-      "exit_price": 0.0,
+      "exit_price": 77818.6,
       "amount_btc": 0.003923937430669568,
       "margin_used": 100.0,
       "leverage": 3,
       "notional_value": 300.0,
-      "pnl_usdt": 0.0,
-      "pnl_pct": 0.0,
-      "realized_r_multiple": 0.0,
+      "pnl_usdt": 5.355317342302866,
+      "pnl_pct": 5.355317342302866,
+      "realized_r_multiple": 1.0,
       "liquidation_price": 53517.672926850486,
       "snapshot": {
         "price": 76453.81846692927,
@@ -710,10 +710,10 @@
       },
       "review": {
         "thesis": "RSI 處於 50.0 動能健康區間，且市價 ($76,453.82) 穩定收在 EMA21 ($76,453.82) 之上 (乖離率 +0.00%)，顯示多頭動能延續。\n【系統觸發信號】：SWAP 3x 守護進程活躍持倉同步\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,146.81) 預留正常價格呼吸空間。",
-        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
-        "strategy_evaluation": "部位建倉符合量化規則，等待市場驗證假說",
-        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
-        "quality_score": 3
+        "exit_reason": "- 出場執行點：`$77,818.60` (相較進場均價 `$76,453.82`)。\n- 觸發機制：動態移動停利 (最高獲利 +6.38% 回撤 1.03%, 鎖定 +5.36%)。\n- 信號反轉或手動平倉退出，結算總盈虧 `$+5.36 USDT`。",
+        "strategy_evaluation": "- **風險控制執行**：預期最大承受風險 `$0.00 USDT`，實際實現盈虧 `$+5.36 USDT` (實際 R 倍數: `+1.00R`)。\n- **部位耐受性 (MAE/MFE)**：持倉期間最大不利回撤為 `0.00%`，最大有利獲利為 `+6.38%`。\n- **執行效率優秀**：獲利離場點位與盤中最高點貼近，動態停利回撤參數設定得宜。",
+        "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
+        "quality_score": 4
       }
     },
     {
@@ -721,18 +721,18 @@
       "symbol": "BTC/USDT",
       "market_type": "SWAP",
       "side": "LONG",
-      "status": "OPEN",
+      "status": "CLOSED",
       "entry_time": "2026-11-04 04:54:01 UTC",
-      "exit_time": "",
+      "exit_time": "2026-11-04 07:29:11 UTC",
       "entry_price": 77278.2,
-      "exit_price": 0.0,
+      "exit_price": 78279.2,
       "amount_btc": 0.032350649989259586,
       "margin_used": 50.0,
       "leverage": 50,
       "notional_value": 2500.0,
-      "pnl_usdt": 0.0,
-      "pnl_pct": 0.0,
-      "realized_r_multiple": 0.0,
+      "pnl_usdt": 32.38300063924885,
+      "pnl_pct": 64.7660012784977,
+      "realized_r_multiple": 4.3177334185665135,
       "liquidation_price": 75887.1924,
       "snapshot": {
         "price": 77278.2,
@@ -756,15 +756,15 @@
         "lowest_price": 77247.2,
         "mfe_pct": 30.403140859906724,
         "mae_pct": -2.0057402993340943,
-        "duration_seconds": 2949,
+        "duration_seconds": 9310,
         "updates_count": 50
       },
       "review": {
         "thesis": "價格呈現順勢多頭排列，技術面維持支撐，配合策略信號觸發進場。\n【系統觸發信號】：均線上方多頭動量確認 (RSI=48.5, 站穩EMA21)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,159.17) 預留正常價格呼吸空間。",
-        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
-        "strategy_evaluation": "部位建倉符合量化規則，等待市場驗證假說",
-        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
-        "quality_score": 3
+        "exit_reason": "- 出場執行點：`$78,279.20` (相較進場均價 `$77,278.20`)。\n- 觸發機制：MANUAL_CLOSE (使用者指示全部收單平倉)。\n- 信號反轉或手動平倉退出，結算總盈虧 `$+32.38 USDT`。",
+        "strategy_evaluation": "- **風險控制執行**：預期最大承受風險 `$7.50 USDT`，實際實現盈虧 `$+32.38 USDT` (實際 R 倍數: `+4.32R`)。\n- **部位耐受性 (MAE/MFE)**：持倉期間最大不利回撤為 `-2.01%`，最大有利獲利為 `+30.40%`。\n- **執行效率優秀**：獲利離場點位與盤中最高點貼近，動態停利回撤參數設定得宜。",
+        "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
+        "quality_score": 5
       }
     },
     {
@@ -823,18 +823,18 @@
       "symbol": "BTC/USDT",
       "market_type": "SWAP",
       "side": "LONG",
-      "status": "OPEN",
+      "status": "CLOSED",
       "entry_time": "2026-11-04 06:00:16 UTC",
-      "exit_time": "",
+      "exit_time": "2026-11-04 07:29:11 UTC",
       "entry_price": 77739.0,
-      "exit_price": 0.0,
+      "exit_price": 78279.2,
       "amount_btc": 0.032158890646908245,
       "margin_used": 50.0,
       "leverage": 50,
       "notional_value": 2500.0,
-      "pnl_usdt": 0.0,
-      "pnl_pct": 0.0,
-      "realized_r_multiple": 0.0,
+      "pnl_usdt": 17.37223272745974,
+      "pnl_pct": 34.74446545491948,
+      "realized_r_multiple": 1.0,
       "liquidation_price": 76339.698,
       "snapshot": {
         "price": 77739.0,
@@ -846,27 +846,27 @@
         "bias_pct": 0.5208793949894536
       },
       "risk_plan": {
-        "stop_loss_price": 77505.783,
-        "stop_loss_pct": 15.0,
+        "stop_loss_price": 77816.74,
+        "stop_loss_pct": 0.0,
         "take_profit_type": "TRAILING",
         "trailing_pullback_pct": 5.0,
         "planned_rr_ratio": 2.0,
-        "max_loss_usdt": 7.5
+        "max_loss_usdt": 0.0
       },
       "trajectory": {
-        "highest_price": 77891.5,
-        "lowest_price": 77739.0,
-        "mfe_pct": 9.808461647307015,
-        "mae_pct": 0.0,
-        "duration_seconds": 569,
-        "updates_count": 17
+        "highest_price": 78189.4,
+        "lowest_price": 77734.6,
+        "mfe_pct": 28.968728694734576,
+        "mae_pct": -0.28299823769241816,
+        "duration_seconds": 5335,
+        "updates_count": 321
       },
       "review": {
         "thesis": "RSI 處於 56.5 動能健康區間，且市價 ($77,739.00) 穩定收在 EMA21 ($77,336.17) 之上 (乖離率 +0.52%)，顯示多頭動能延續。\n【系統觸發信號】：雙均線順勢回踩多頭動量確認 (RSI=56.5, 價穩EMA21>=EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($497.65) 預留正常價格呼吸空間。",
-        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
-        "strategy_evaluation": "部位建倉符合量化規則，等待市場驗證假說",
-        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
-        "quality_score": 3
+        "exit_reason": "- 出場執行點：`$78,279.20` (相較進場均價 `$77,739.00`)。\n- 觸發機制：MANUAL_CLOSE (使用者指示全部收單平倉)。\n- 信號反轉或手動平倉退出，結算總盈虧 `$+17.37 USDT`。",
+        "strategy_evaluation": "- **風險控制執行**：預期最大承受風險 `$0.00 USDT`，實際實現盈虧 `$+17.37 USDT` (實際 R 倍數: `+1.00R`)。\n- **部位耐受性 (MAE/MFE)**：持倉期間最大不利回撤為 `-0.28%`，最大有利獲利為 `+28.97%`。\n- **執行效率優秀**：獲利離場點位與盤中最高點貼近，動態停利回撤參數設定得宜。",
+        "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
+        "quality_score": 4
       }
     },
     {
@@ -874,18 +874,18 @@
       "symbol": "BTC/USDT",
       "market_type": "SWAP",
       "side": "LONG",
-      "status": "OPEN",
+      "status": "CLOSED",
       "entry_time": "2026-11-04 06:00:10 UTC",
-      "exit_time": "",
+      "exit_time": "2026-11-04 07:29:11 UTC",
       "entry_price": 77728.8,
-      "exit_price": 0.0,
+      "exit_price": 78279.2,
       "amount_btc": 0.0019297866427887731,
       "margin_used": 50.0,
       "leverage": 3,
       "notional_value": 150.0,
-      "pnl_usdt": 0.0,
-      "pnl_pct": 0.0,
-      "realized_r_multiple": 0.0,
+      "pnl_usdt": 1.0621545681909295,
+      "pnl_pct": 2.124309136381859,
+      "realized_r_multiple": 0.5324083048576087,
       "liquidation_price": 54410.159999999996,
       "snapshot": {
         "price": 77728.8,
@@ -905,18 +905,18 @@
         "max_loss_usdt": 1.9950000000000003
       },
       "trajectory": {
-        "highest_price": 77879.1,
+        "highest_price": 78161.2,
         "lowest_price": 77728.8,
-        "mfe_pct": 0.5800938648223165,
+        "mfe_pct": 1.6688794886837086,
         "mae_pct": 0.0,
-        "duration_seconds": 548,
-        "updates_count": 10
+        "duration_seconds": 5341,
+        "updates_count": 85
       },
       "review": {
         "thesis": "RSI 處於 56.4 動能健康區間，且市價 ($77,728.80) 穩定收在 EMA21 ($77,335.89) 之上 (乖離率 +0.51%)，顯示多頭動能延續。\n【系統觸發信號】：雙均線順勢回踩多頭動量確認 (RSI=56.4, 價穩EMA21>=EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($497.43) 預留正常價格呼吸空間。",
-        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
-        "strategy_evaluation": "部位建倉符合量化規則，等待市場驗證假說",
-        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
+        "exit_reason": "- 出場執行點：`$78,279.20` (相較進場均價 `$77,728.80`)。\n- 觸發機制：MANUAL_CLOSE (使用者指示全部收單平倉)。\n- 信號反轉或手動平倉退出，結算總盈虧 `$+1.06 USDT`。",
+        "strategy_evaluation": "- **風險控制執行**：預期最大承受風險 `$2.00 USDT`，實際實現盈虧 `$+1.06 USDT` (實際 R 倍數: `+0.53R`)。\n- **部位耐受性 (MAE/MFE)**：持倉期間最大不利回撤為 `0.00%`，最大有利獲利為 `+1.67%`。\n- **執行效率優秀**：獲利離場點位與盤中最高點貼近，動態停利回撤參數設定得宜。",
+        "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
         "quality_score": 3
       }
     }

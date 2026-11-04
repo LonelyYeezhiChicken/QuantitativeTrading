@@ -99,6 +99,14 @@ journal *args:
 journal-list *args:
     .venv\Scripts\python.exe apps/cli/trade_journal_viewer.py --list {{args}}
 
+# 產出量化操盤日報 (08:00 早報 / 18:00 晚報，前重後輕結構)
+report *args:
+    .venv\Scripts\python.exe apps/cli/generate_report.py --type daily {{args}}
+
+# 產出量化操盤週報 (每週一 7 日績效賽馬榜與調參建議)
+weekly *args:
+    .venv\Scripts\python.exe apps/cli/generate_report.py --type weekly {{args}}
+
 # 測試派網 (Pionex) OpenAPI 連線與即時報價
 pionex *args:
     .venv\Scripts\python.exe apps/cli/test_pionex.py {{args}}

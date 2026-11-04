@@ -346,6 +346,9 @@ def main():
             latest_ev = ws_tick_box.get("event")
             sig = fetch_market_signals(gw, "BTC/USDT", kline_cache=kline_cache, override_event=latest_ev)
             price = sig["price"]
+            if not price or price <= 0:
+                log_msg("[報價警示] 暫時無法取得有效報價 (PRICE_UNAVAILABLE)，跳過本輪決策")
+                continue
             rsi = sig["rsi"]
             ema21 = sig["ema21"]
             pos = state["position"]

@@ -127,7 +127,7 @@ class BotStateRepository:
 
         # 3. Autopilot bots (autopilot_*.json)
         for f in sorted(data_dir.glob("autopilot_*.json")):
-            if "journal" in f.name:
+            if "journal" in f.name or f.name.endswith(".control.json"):
                 continue
             try:
                 with open(f, "r", encoding="utf-8") as fp:
@@ -187,9 +187,12 @@ class BotStateRepository:
                     "liq_price": liq_p,
                     "risk_desc": risk_info,
                     "stop_flag": data_dir / "autopilot_stop.flag",
-                    "stop_btn_label": f"切換待機 ({lev}x)",
+                    "control_file": f.with_suffix(".control.json"),
+                    "status": st_data.get("status", "STANDBY"),
+                    "stop_btn_label": f"切換待機 ({lev}x)" if st_data.get("status") == "ARMED" else f"啟動操盤 ({lev}x)",
                 })
             except Exception:
                 pass
 
+        instances.sort(key=lambda b: (0 if b.get("market_type") == "SPOT" else 1, int(b.get("leverage", 1)), str(b.get("id", ""))))
         return instances

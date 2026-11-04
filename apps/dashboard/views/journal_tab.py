@@ -125,6 +125,32 @@ def render_journal_tab(jm: TradeJournalManager, entries: list[dict]):
         with st.expander("【原始 Markdown 覆盤卡片原始碼 (Raw Markdown Entry)】", expanded=False):
             st.code(sel_entry.to_markdown(), language="markdown")
 
+    # Collapsible Daily & Weekly Reports section
+    with st.expander("📊 量化操盤日報 (08:00/18:00) 與 週一週報檢視", expanded=False):
+        from packages.journal.report_generator import QuantReportGenerator
+        r_gen = QuantReportGenerator(journal_mgr=jm)
+        r_col1, r_col2 = st.columns(2)
+        with r_col1:
+            if st.button("立即產出最新日報", key="btn_gen_daily_rep", use_container_width=True):
+                cur_p = entries[0]["cur_price"] if entries else 78000.0
+                r_gen.generate_daily_report(current_price=float(cur_p or 78000.0))
+                st.rerun()
+            daily_files = sorted(r_gen.daily_dir.glob("*.md"), reverse=True)
+            if daily_files:
+                st.markdown(daily_files[0].read_text(encoding="utf-8"))
+            else:
+                st.caption("尚無已產出的日報。")
+        with r_col2:
+            if st.button("立即產出最新週報", key="btn_gen_weekly_rep", use_container_width=True):
+                cur_p = entries[0]["cur_price"] if entries else 78000.0
+                r_gen.generate_weekly_report(current_price=float(cur_p or 78000.0))
+                st.rerun()
+            weekly_files = sorted(r_gen.weekly_dir.glob("*.md"), reverse=True)
+            if weekly_files:
+                st.markdown(weekly_files[0].read_text(encoding="utf-8"))
+            else:
+                st.caption("尚無已產出的週報。")
+
     # Collapsible technical inspection for deep exploration
     with st.expander("展開完整日誌資料庫彙總表 (所有歷史紀錄)", expanded=False):
         db_entries = jm.get_entries()

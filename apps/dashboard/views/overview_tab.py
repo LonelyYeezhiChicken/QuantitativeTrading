@@ -54,8 +54,12 @@ def render_overview_tab(
     # Dynamic Portfolio Valuation Calculation
     capital_base = sum(b["init_cap"] for b in active_bots) if active_bots else 200.0
     total_portfolio_upnl = sum(b["upnl"] for b in active_bots)
-    total_portfolio_equity = capital_base + total_realized_pnl + total_portfolio_upnl
-    total_net_pnl = total_realized_pnl + total_portfolio_upnl
+    if active_bots:
+        total_portfolio_equity = sum(b["equity"] for b in active_bots)
+        total_net_pnl = total_portfolio_equity - capital_base
+    else:
+        total_portfolio_equity = capital_base + total_realized_pnl + total_portfolio_upnl
+        total_net_pnl = total_realized_pnl + total_portfolio_upnl
     total_pnl_pct = (total_net_pnl / capital_base) * 100.0 if capital_base > 0 else 0.0
     open_trades_count = len([b for b in active_bots if b.get("side") != "NONE"])
     closed_trades_count = len([e for e in entries if e.get("status") == "CLOSED"])
@@ -258,8 +262,25 @@ def render_overview_tab(
                         """, unsafe_allow_html=True)
 
                     if st.button(b["stop_btn_label"], key=f"btn_stop_{b['id']}", use_container_width=True):
-                        b["stop_flag"].touch()
-                        st.success(f"已發送停止信號 ({b['stop_flag'].name})")
+                        ctrl_file = b.get("control_file")
+                        if ctrl_file is not None:
+                            next_cmd = "STANDBY" if b.get("status") == "ARMED" else "ARM"
+                            next_status = "STANDBY" if next_cmd == "STANDBY" else "ARMED"
+                            ctrl_file.write_text(
+                                json.dumps({"command": next_cmd}, ensure_ascii=False),
+                                encoding="utf-8",
+                            )
+                            try:
+                                st_obj = json.loads(b["file"].read_text(encoding="utf-8"))
+                                st_obj["status"] = next_status
+                                b["file"].write_text(json.dumps(st_obj, indent=2, ensure_ascii=False), encoding="utf-8")
+                            except Exception:
+                                pass
+                            st.success(f"已發送 {next_cmd} 指令至 {b['short_title']}")
+                            st.rerun()
+                        else:
+                            b["stop_flag"].touch()
+                            st.success(f"已發送停止信號 ({b['stop_flag'].name})")
     else:
         st.info("目前無任何活躍的守護進程，請透過 CLI 或自動操盤中樞啟動。")
 

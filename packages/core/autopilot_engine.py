@@ -27,7 +27,7 @@ from packages.execution.precision import round_price
 from packages.models.base import BaseTradingModel
 from packages.models.advanced_strategies import SwapMultiRegimeModel, SpotMomentumPullbackModel
 from packages.models.ollama_agent import OllamaDecisionAgent
-from packages.journal import TradeJournalManager
+from packages.journal.manager import TradeJournalManager
 
 
 class AutopilotState:
@@ -448,9 +448,12 @@ class UnifiedAutopilotEngine:
             except Exception:
                 pass
             self.strategy = strategy or SwapMultiRegimeModel(ema_span=21)
-            self.price_sl_pct = price_sl_pct if price_sl_pct is not None else 1.5
-            self.price_tp_pct = price_tp_pct if price_tp_pct is not None else (2.0 if self.leverage >= 10 else 1.0)
-            self.price_pullback_pct = price_pullback_pct if price_pullback_pct is not None else (0.5 if self.leverage >= 10 else 0.33)
+            default_sl = round(15.0 / self.leverage, 4) if self.leverage > 10 else 1.5
+            default_tp = round(25.0 / self.leverage, 4) if self.leverage > 10 else (2.0 if self.leverage >= 10 else 1.0)
+            default_pb = round(5.0 / self.leverage, 4) if self.leverage > 10 else (0.5 if self.leverage >= 10 else 0.33)
+            self.price_sl_pct = price_sl_pct if price_sl_pct is not None else default_sl
+            self.price_tp_pct = price_tp_pct if price_tp_pct is not None else default_tp
+            self.price_pullback_pct = price_pullback_pct if price_pullback_pct is not None else default_pb
             self.margin_sl_threshold = self.price_sl_pct * self.leverage
             self.margin_tp_threshold = self.price_tp_pct * self.leverage
             self.margin_pullback_threshold = self.price_pullback_pct * self.leverage
