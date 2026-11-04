@@ -1,0 +1,20 @@
+{
+  "status": "ARMED",
+  "mode": "SPOT",
+  "capital": 100.0,
+  "cash": 99.43,
+  "leverage": 1,
+  "position": {
+    "side": "NONE",
+    "amount": 0.0,
+    "amount_btc": 0.0,
+    "entry_price": 0.0,
+    "margin_used": 0.0,
+    "highest_pnl_pct": 0.0,
+    "entry_time": "",
+    "entry_why": "",
+    "ai_decision": ""
+  },
+  "pending_order": null,
+  "updated_at": "2026-11-04T08:25:48.436906+00:00"
+}

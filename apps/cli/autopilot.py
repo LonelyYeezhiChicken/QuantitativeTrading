@@ -69,6 +69,7 @@ def main():
     parser.add_argument("--run-loop", action="store_true", help="Run 24/7 continuous autonomous monitoring loop")
     parser.add_argument("--no-ai", action="store_true", help="Disable local Ollama AI veto guard")
     parser.add_argument("--vst", action="store_true", help="Route orders to BingX official VST simulation server (appears on BingX App)")
+    parser.add_argument("--live", action="store_true", help="Execute real orders on live exchange with REAL MONEY")
     args = parser.parse_args()
 
     engine = UnifiedAutopilotEngine(
@@ -77,7 +78,8 @@ def main():
         capital=args.capital,
         mode=args.mode,
         enable_ai_veto=not args.no_ai,
-        use_vst=args.vst,
+        dry_run=not args.live,
+        use_vst=args.vst if not args.live else False,
     )
 
     if args.status:
@@ -94,6 +96,7 @@ def main():
     print("=" * 70)
     print("  全自動量化操盤中樞 (Unified Autopilot)")
     print(f"  標的: {args.symbol} | 槓桿: {engine.leverage}x ({engine.mode}) | 本金: ${args.capital:.2f} USDT")
+    print(f"  環境: {'【⚠️ 實盤真金 (REAL MONEY)】' if args.live else ('【VST 模擬盤】' if args.vst else '【本地模擬】')}")
     print(f"  策略: {engine.strategy.__class__.__name__} | 風控: 價格停損 -{engine.price_sl_pct:.2f}% (保證金 -{engine.margin_sl_threshold:.1f}%)")
     print("=" * 70)
 

@@ -1,0 +1,20 @@
+{
+  "status": "ARMED",
+  "mode": "SWAP_50X",
+  "capital": 100.0,
+  "cash": 118.58,
+  "leverage": 50,
+  "position": {
+    "side": "NONE",
+    "amount": 0.0,
+    "amount_btc": 0.0,
+    "entry_price": 0.0,
+    "margin_used": 0.0,
+    "highest_pnl_pct": 0.0,
+    "entry_time": "",
+    "entry_why": "",
+    "ai_decision": ""
+  },
+  "pending_order": null,
+  "updated_at": "2026-11-04T08:26:03.943995+00:00"
+}

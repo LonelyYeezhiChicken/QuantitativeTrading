@@ -905,7 +905,7 @@ class UnifiedAutopilotEngine:
                 return step_result
 
         # D. Execute Order
-        trade_margin = min(50.0, self.cash)
+        trade_margin = min(max(10.0, self.capital * 0.5), self.cash)
         if trade_margin < 10.0:
             step_result["message"] = f"可用資金不足 (${self.cash:.2f} < 10 U)，放棄開倉"
             return step_result

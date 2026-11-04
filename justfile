@@ -35,6 +35,10 @@ start *args:
 vst *args:
     .venv\Scripts\python.exe -u apps/cli/autopilot.py --arm --run-loop --vst {{args}}
 
+# 啟動 BingX 官方實盤真金操盤中樞 (注意：扣除真實帳戶 USDT 資金！)
+live *args:
+    .venv\Scripts\python.exe -u apps/cli/autopilot.py --arm --run-loop --live {{args}}
+
 # 切換操盤中樞為待機狀態 (停止開新倉)
 standby *args:
     .venv\Scripts\python.exe apps/cli/autopilot.py --disarm {{args}}
