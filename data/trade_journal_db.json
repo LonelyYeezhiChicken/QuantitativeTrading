@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-04 02:08:17 UTC",
-  "total_entries": 4,
+  "updated_at": "2026-11-04 03:35:03 UTC",
+  "total_entries": 5,
   "entries": [
     {
       "journal_id": "SPOT_20261103_124013_LONG",
@@ -39,11 +39,11 @@
       },
       "trajectory": {
         "highest_price": 77715.99,
-        "lowest_price": 76915.54,
+        "lowest_price": 77198.05,
         "mfe_pct": 0.3613816027785616,
-        "mae_pct": -0.6723087343572745,
-        "duration_seconds": 48484,
-        "updates_count": 57
+        "mae_pct": -0.3074791295796489,
+        "duration_seconds": 16532,
+        "updates_count": 40
       },
       "review": {
         "thesis": "RSI 處於 53.0 動能健康區間，且市價 ($77,436.15) 穩定收在 EMA21 ($77,150.00) 之上 (乖離率 +0.37%)，顯示多頭動能延續。\n【系統觸發信號】：均線回踩支撐確認與健康吸籌 (現貨 100U 既有部位)\n【交易架構】：SPOT 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,120.00) 預留正常價格呼吸空間。",
@@ -160,18 +160,18 @@
       "symbol": "BTC/USDT",
       "market_type": "SWAP",
       "side": "SHORT",
-      "status": "OPEN",
+      "status": "CLOSED",
       "entry_time": "2026-11-04 01:51:45 UTC",
-      "exit_time": "",
+      "exit_time": "2026-11-04 03:01:57 UTC",
       "entry_price": 77000.0,
-      "exit_price": 0.0,
+      "exit_price": 76001.0,
       "amount_btc": 0.006493506493506494,
       "margin_used": 50.0,
       "leverage": 10,
       "notional_value": 500.0,
-      "pnl_usdt": 0.0,
-      "pnl_pct": 0.0,
-      "realized_r_multiple": 0.0,
+      "pnl_usdt": 6.487012987012988,
+      "pnl_pct": 12.974025974025977,
+      "realized_r_multiple": 0.864935064935065,
       "liquidation_price": 83930.0,
       "snapshot": {
         "price": 77000.0,
@@ -191,15 +191,66 @@
         "max_loss_usdt": 7.5
       },
       "trajectory": {
-        "highest_price": 77000.0,
-        "lowest_price": 77000.0,
-        "mfe_pct": 0.0,
-        "mae_pct": 0.0,
-        "duration_seconds": 0,
-        "updates_count": 1
+        "highest_price": 77172.4,
+        "lowest_price": 76001.0,
+        "mfe_pct": 12.974025974025976,
+        "mae_pct": -2.238961038960963,
+        "duration_seconds": 4212,
+        "updates_count": 71
       },
       "review": {
         "thesis": "市價 ($77,000.00) 跌破 EMA21 ($77,408.27) (乖離率 -0.53%)，且 RSI 偏弱，顯示空方趨勢加劇。\n【系統觸發信號】：均線跌破空頭順勢開空 (RSI=46.3, 跌破EMA21)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,155.00) 預留正常價格呼吸空間。",
+        "exit_reason": "- 出場執行點：`$76,001.00` (相較進場均價 `$77,000.00`)。\n- 觸發機制：1h RSI 極端超賣 (RSI=24.9 <= 25, 獲利 +12.97%)。\n- 信號反轉或手動平倉退出，結算總盈虧 `$+6.49 USDT`。",
+        "strategy_evaluation": "- **風險控制執行**：預期最大承受風險 `$7.50 USDT`，實際實現盈虧 `$+6.49 USDT` (實際 R 倍數: `+0.86R`)。\n- **部位耐受性 (MAE/MFE)**：持倉期間最大不利回撤為 `-2.24%`，最大有利獲利為 `+12.97%`。\n- **執行效率優秀**：獲利離場點位與盤中最高點貼近，動態停利回撤參數設定得宜。",
+        "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_20261104_030257_LONG",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "LONG",
+      "status": "OPEN",
+      "entry_time": "2026-11-04 03:02:57 UTC",
+      "exit_time": "",
+      "entry_price": 75870.5,
+      "exit_price": 0.0,
+      "amount_btc": 0.006590176682636862,
+      "margin_used": 50.0,
+      "leverage": 10,
+      "notional_value": 500.0,
+      "pnl_usdt": 0.0,
+      "pnl_pct": 0.0,
+      "realized_r_multiple": 0.0,
+      "liquidation_price": 69042.155,
+      "snapshot": {
+        "price": 75870.5,
+        "rsi": 23.319482225601547,
+        "ema21": 77172.4848036866,
+        "atr": 1138.0575,
+        "bid": 75870.0,
+        "ask": 75871.1,
+        "bias_pct": -1.6871101235092087
+      },
+      "risk_plan": {
+        "stop_loss_price": 74732.4425,
+        "stop_loss_pct": 15.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 5.0,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 7.5
+      },
+      "trajectory": {
+        "highest_price": 76486.6,
+        "lowest_price": 75727.0,
+        "mfe_pct": 8.120415708345218,
+        "mae_pct": -1.8913807079167793,
+        "duration_seconds": 1926,
+        "updates_count": 33
+      },
+      "review": {
+        "thesis": "短線 RSI 達 23.3，進入超賣極值區，具備高性價比的均值回歸反彈條件。\n【系統觸發信號】：合約短線超賣反彈訊號 (RSI=23.3 < 35)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,138.06) 預留正常價格呼吸空間。",
         "exit_reason": "持倉中，持續依據風控計畫動態監控中",
         "strategy_evaluation": "部位建倉符合量化規則，等待市場驗證假說",
         "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",

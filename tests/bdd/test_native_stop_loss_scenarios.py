@@ -271,8 +271,9 @@ class TestNativeStopLossAndDisconnectionBDDScenarios:
                 "side": "LONG", "amount_btc": 0.01, "entry_price": 100.0,
                 "margin_used": 1.0, "highest_pnl_pct": 0.0, "journal_id": entry.journal_id,
             }
-            result = engine.reconcile_with_exchange()
-            assert result is None
+            with patch.object(engine.gw.client, "get_swap_positions", side_effect=RuntimeError("Endpoint unavailable")):
+                result = engine.reconcile_with_exchange()
+                assert result is None
             assert engine.position["side"] == "LONG"
             assert jm.get_entry(entry.journal_id).status == "OPEN"
 

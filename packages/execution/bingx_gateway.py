@@ -481,7 +481,10 @@ class BingXGateway(BaseBrokerGateway):
         if not isinstance(response, dict):
             return {"result": False, "msg": "Invalid exchange order response"}
         data = response.get("data")
-        accepted = response.get("code") == 0 and isinstance(data, dict) and bool(data.get("orderId"))
+        order_payload = data if isinstance(data, dict) else {}
+        order_dict = order_payload.get("order") if isinstance(order_payload.get("order"), dict) else order_payload
+        has_order_id = bool(order_dict.get("orderId")) or bool(order_payload.get("orderId"))
+        accepted = response.get("code") == 0 and has_order_id
         return {**response, "result": bool(response.get("result", accepted))}
 
     def get_order(self, symbol: str, order_id: str, market_type: Optional[str] = None) -> Dict[str, Any]:
