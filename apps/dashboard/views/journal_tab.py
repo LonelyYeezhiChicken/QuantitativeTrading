@@ -7,8 +7,7 @@ from packages.journal import TradeJournalManager
 
 def render_journal_tab(jm: TradeJournalManager, entries: list[dict]):
     """Render the trade journal tab."""
-    st.subheader("量化自主學習覆盤日誌 (高信噪比精簡視圖)")
-    st.caption("專注於交易核心三要素：為什麼進場、AI 決策是什麼、出場與結果，杜絕雜訊干擾。")
+    st.subheader("交易覆盤日誌 (Trade Journal)")
 
     col_f1, col_f2 = st.columns([3, 1])
     with col_f1:

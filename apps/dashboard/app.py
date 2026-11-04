@@ -214,7 +214,7 @@ def main():
     # ----------------- Compact Trader Top Header Bar -----------------
     header_c1, header_c2 = st.columns([3, 1])
     with header_c1:
-        st.markdown("### 加密貨幣 AI 多因子量化控制台")
+        st.markdown("### AI 量化交易控制台")
         ws_badge = '<span style="color:#3fb950; font-weight:bold;">[WS: 即時串流]</span>' if gw.is_ws_connected else '<span style="color:#d29922; font-weight:bold;">[REST: 備援]</span>'
         if getattr(gw, "is_vst", False):
             mode_badge = '<span style="color:#a371f7; font-weight:bold;">[模式: BINGX-VST 模擬盤]</span>'
@@ -223,7 +223,7 @@ def main():
         else:
             mode_badge = '<span style="color:#f85149; font-weight:bold;">[模式: LIVE 實盤真金]</span>'
         auto_badge = '<span style="color:#3fb950; font-weight:bold;">[中樞: ARMED 運行]</span>' if autopilot.status == AutopilotState.ARMED else '<span style="color:#d29922; font-weight:bold;">[中樞: STANDBY 待機]</span>'
-        st.markdown(f"{ws_badge} &nbsp;|&nbsp; {mode_badge} &nbsp;|&nbsp; {auto_badge} &nbsp;|&nbsp; <span style=\"color:#8b949e;\">模組化解耦架構</span>", unsafe_allow_html=True)
+        st.markdown(f"{ws_badge} &nbsp;|&nbsp; {mode_badge} &nbsp;|&nbsp; {auto_badge}", unsafe_allow_html=True)
 
     with header_c2:
         btn_col, sel_col = st.columns([1, 1])

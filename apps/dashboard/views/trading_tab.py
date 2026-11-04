@@ -22,7 +22,7 @@ def render_trading_tab(gw: BingXGateway, broker: PaperBroker, dm, btc_p: float):
 
         col_ts1, col_ts2 = st.columns(2)
         with col_ts1:
-            trade_sym = st.selectbox("標的選擇", ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XAUT/USDT"], index=0, key="paper_sym")
+            trade_sym = st.selectbox("標的選擇", ["BTC/USDT", "ETH/USDT", "SOL/USDT"], index=0, key="paper_sym")
         with col_ts2:
             trade_mkt = st.selectbox("市場類別", ["SPOT", "SWAP"], index=0, key="order_mkt_type")
 

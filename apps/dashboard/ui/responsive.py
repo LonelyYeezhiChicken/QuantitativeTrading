@@ -93,6 +93,44 @@ def inject_responsive_css():
         .text-gold { color: #e3b341 !important; }
         .text-cyan { color: #58a6ff !important; }
 
+        /* Badge Utility Classes */
+        .badge-long {
+            background: rgba(63, 185, 80, 0.18);
+            color: #3fb950;
+            border: 1px solid rgba(63, 185, 80, 0.4);
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .badge-short {
+            background: rgba(248, 81, 73, 0.18);
+            color: #f85149;
+            border: 1px solid rgba(248, 81, 73, 0.4);
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .badge-idle {
+            background: rgba(139, 148, 158, 0.15);
+            color: #8b949e;
+            border: 1px solid rgba(139, 148, 158, 0.3);
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .badge-lev {
+            background: rgba(88, 166, 255, 0.15);
+            color: #58a6ff;
+            border: 1px solid rgba(88, 166, 255, 0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
         /* Responsive Breakpoints: Tablet (iPad 768px - 1024px) */
         @media (max-width: 1024px) {
             /* Force Streamlit Columns to wrap gracefully into 2-column or 1-column layouts */
