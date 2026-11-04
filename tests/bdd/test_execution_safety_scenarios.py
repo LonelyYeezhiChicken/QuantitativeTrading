@@ -278,3 +278,74 @@ class TestExecutionSafetyBDDScenarios:
             res = gw.update_stop_loss_order("BTC/USDT", "LONG", 76114.0, 0.0065, old_sl_order_id="OLD-1")
         assert res["result"] is True
         assert calls == ["create", "cancel"]
+
+    def test_scenario_nested_order_and_precision_fill_confirmation(self, tmp_path):
+        """Scenario: 交易所回傳巢狀 order 物件或因精度取整數量時正確確認成交."""
+        gw = MagicMock()
+        engine = _engine(tmp_path, leverage=3, gateway=gw)
+
+        # 1. Direct _confirm_market_fill on nested response with stepSize truncation
+        nested_order_response = {
+            "code": 0,
+            "msg": "",
+            "result": True,
+            "data": {
+                "order": {
+                    "orderId": 2117952982117203968,
+                    "symbol": "BTC-USDT",
+                    "positionSide": "LONG",
+                    "side": "BUY",
+                    "type": "MARKET",
+                    "status": "FILLED",
+                    "avgPrice": "78105.5",
+                    "executedQty": "0.0028",
+                    "origQty": "0.0028",
+                }
+            },
+        }
+
+        # Requested 0.0028807, executed 0.0028 -> should be confirmed as FILLED, not PENDING!
+        filled, fill_qty, fill_price, resolution = engine._confirm_market_fill(
+            nested_order_response, requested_qty=0.0028807, market_type="SWAP"
+        )
+        assert filled is True
+        assert fill_qty == pytest.approx(0.0028)
+        assert fill_price == pytest.approx(78105.5)
+        assert resolution == "FILLED"
+
+        # 2. Resolution of a pending order via get_order returning nested order structure
+        engine.pending_order = {
+            "action": "OPEN",
+            "order_id": "2117952982117203968",
+            "client_order_id": "auto-open-12345",
+            "candidate_signal": "LONG",
+            "candidate_reason": "回踩確認",
+            "ai_decision_text": "Ollama EXECUTE",
+            "quantity": 0.0028807,
+            "margin": 75.0,
+            "price": 78105.0,
+            "native_sl_price": 76933.0,
+            "signals": {},
+        }
+
+        gw.get_order.return_value = {
+            "code": 0,
+            "msg": "",
+            "result": True,
+            "data": {
+                "order": {
+                    "orderId": 2117952982117203968,
+                    "symbol": "BTC-USDT",
+                    "status": "FILLED",
+                    "avgPrice": "78105.5",
+                    "executedQty": "0.0028",
+                }
+            },
+        }
+
+        resolved = engine._resolve_pending_order()
+        assert resolved is True
+        assert engine.pending_order is None
+        assert engine.position["side"] == "LONG"
+        assert engine.position["amount_btc"] == pytest.approx(0.0028)
+        assert engine.position["entry_price"] == pytest.approx(78105.5)

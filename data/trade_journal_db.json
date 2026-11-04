@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-04 22:50:52 UTC",
+  "updated_at": "2026-11-04 22:58:43 UTC",
   "total_entries": 3,
   "entries": [
     {
@@ -42,8 +42,8 @@
         "lowest_price": 78143.9,
         "mfe_pct": 35.46022146322362,
         "mae_pct": 0.0,
-        "duration_seconds": 144,
-        "updates_count": 24
+        "duration_seconds": 613,
+        "updates_count": 114
       },
       "review": {
         "thesis": "RSI 處於 56.4 動能健康區間，且市價 ($78,143.90) 穩定收在 EMA21 ($77,802.26) 之上 (乖離率 +0.44%)，顯示多頭動能延續。\n【系統觸發信號】：雙均線順勢回踩多頭動量確認 (RSI=56.4, Bias=+0.44%, 價穩EMA21>=EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,172.16) 預留正常價格呼吸空間。",
@@ -93,8 +93,8 @@
         "lowest_price": 78105.5,
         "mfe_pct": 10.790789381029482,
         "mae_pct": 0.0,
-        "duration_seconds": 138,
-        "updates_count": 25
+        "duration_seconds": 609,
+        "updates_count": 116
       },
       "review": {
         "thesis": "RSI 處於 55.8 動能健康區間，且市價 ($78,105.50) 穩定收在 EMA21 ($77,798.75) 之上 (乖離率 +0.39%)，顯示多頭動能延續。\n【系統觸發信號】：雙均線順勢回踩多頭動量確認 (RSI=55.8, Bias=+0.39%, 價穩EMA21>=EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,171.58) 預留正常價格呼吸空間。",
