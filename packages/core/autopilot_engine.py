@@ -1157,6 +1157,8 @@ class UnifiedAutopilotEngine:
     def _record_open_position(self, side, quantity, price, margin, reason, decision, native_sl_price, signals):
         """Persist a confirmed opening fill and its authoritative journal entry."""
         actual_margin = quantity * price / (self.leverage if "SWAP" in self.mode else 1)
+        raw_ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        custom_jid = f"{self.mode.upper()}_{raw_ts}_{side.upper()}"
         j_entry = self.journal_mgr.on_trade_open(
             symbol=self.symbol,
             market_type="SWAP" if "SWAP" in self.mode else "SPOT",
@@ -1175,6 +1177,7 @@ class UnifiedAutopilotEngine:
             },
             stop_loss_pct=self.margin_sl_threshold,
             trailing_pullback_pct=self.margin_pullback_threshold,
+            custom_id=custom_jid,
         )
         if j_entry and hasattr(j_entry, "review"):
             j_entry.review.strategy_evaluation = decision

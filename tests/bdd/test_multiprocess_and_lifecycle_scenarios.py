@@ -185,3 +185,45 @@ class TestMultiprocessAndLifecycleBDDScenarios:
         assert state["position"]["side"] == "NONE"
         assert state["available_margin"] > 50.0
         assert len(state["history"]) == 1
+
+    def test_scenario_multiprocess_close_preserved_across_peer_saves(self, tmp_path):
+        """Scenario: 進程 A 平倉後進程 B 儲存時絕不抹除進程 A 之平倉價格與盈虧紀錄."""
+        db_file = tmp_path / "shared_journal_db.json"
+        j_dir = tmp_path / "journals"
+
+        # Given 進程 A 與進程 B 分別獨立開啟 TradeJournalManager 且各有一筆開倉中交易
+        mgr_a = TradeJournalManager(db_path=str(db_file), journals_dir=str(j_dir))
+        mgr_b = TradeJournalManager(db_path=str(db_file), journals_dir=str(j_dir))
+
+        ea = mgr_a.on_trade_open(
+            symbol="BTC/USDT", market_type="SWAP", side="LONG", entry_price=78000.0,
+            amount_btc=0.01, margin_used=50.0, leverage=10, custom_id="SWAP_10X_OPEN",
+        )
+        eb = mgr_b.on_trade_open(
+            symbol="BTC/USDT", market_type="SWAP", side="LONG", entry_price=78000.0,
+            amount_btc=0.05, margin_used=50.0, leverage=50, custom_id="SWAP_50X_OPEN",
+        )
+
+        # Ensure both are in mgr_b's in-memory entries as OPEN
+        mgr_b._load_db(merge=True)
+        assert mgr_b._entries[ea.journal_id].status == "OPEN"
+
+        # When 進程 A 執行 on_trade_close 完成平倉並寫入平倉價與獲利
+        closed_a = mgr_a.on_trade_close(
+            journal_id=ea.journal_id, exit_price=80500.0, exit_reason="動態停利",
+        )
+        assert closed_a.status == "CLOSED"
+        assert closed_a.exit_price == pytest.approx(80500.0)
+        assert closed_a.pnl_usdt > 0.0
+
+        # And 進程 B 隨後更新其持倉軌跡並觸發 _save_db
+        mgr_b.on_trade_update(eb.journal_id, current_price=79000.0)
+
+        # Then 磁碟資料庫中進程 A 的日誌狀態仍為 CLOSED 且平倉價與盈虧完整保留不得歸零
+        reader = TradeJournalManager(db_path=str(db_file), journals_dir=str(j_dir))
+        saved_a = reader.get_entry(ea.journal_id)
+        assert saved_a is not None
+        assert saved_a.status == "CLOSED"
+        assert saved_a.exit_price == pytest.approx(80500.0)
+        assert saved_a.pnl_usdt == pytest.approx(closed_a.pnl_usdt)
+        assert saved_a.pnl_pct == pytest.approx(closed_a.pnl_pct)

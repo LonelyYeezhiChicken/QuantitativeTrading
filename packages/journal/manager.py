@@ -60,15 +60,16 @@ class TradeJournalManager:
                         self._entries[jid] = d_entry
                     else:
                         mem_entry = self._entries[jid]
-                        # Prefer CLOSED status or strictly higher trajectory updates_count
-                        if (d_entry.status == "CLOSED" and mem_entry.status != "CLOSED") or (
+                        # If disk has a CLOSED entry with exit details, always adopt the complete closed record
+                        if d_entry.status == "CLOSED" and (mem_entry.status != "CLOSED" or (d_entry.exit_price > 0 and mem_entry.exit_price == 0)):
+                            self._entries[jid] = d_entry
+                        elif (
                             d_entry.status == mem_entry.status
                             and d_entry.trajectory.updates_count > mem_entry.trajectory.updates_count
                         ):
-                            mem_entry.status = d_entry.status
                             mem_entry.trajectory = d_entry.trajectory
-                            mem_entry.outcome = d_entry.outcome
-                            mem_entry.lesson = d_entry.lesson
+                            if d_entry.risk_plan:
+                                mem_entry.risk_plan = d_entry.risk_plan
         except Exception:
             if not merge:
                 self._entries = {}

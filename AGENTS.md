@@ -128,7 +128,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 | `tests/bdd/backtest_out_of_sample_and_stop_accounting.feature` | `test_backtest_leakage_scenarios.py` | 回測零外洩（停損 K 線虧損必須入帳、無停損時報酬僅由前一根訊號決定、LightGBM 早停驗證取自訓練折尾端不碰測試折、`out_of_sample_predictions()` 樣本外評分、滾動回測 `evaluation_scope` 為 `OUT_OF_SAMPLE`） |
 | `tests/bdd/broker_gateway_polymorphism.feature` | `test_broker_gateway_polymorphism_scenarios.py` | 經紀商抽象網關多型契約（PaperBroker 實作 BaseBrokerGateway、里氏替換、資金防呆） |
 | `tests/bdd/strategy_contract_polymorphism.feature` | `test_strategy_contract_scenarios.py` | 策略模型統一契約與依賴注入（BaseTradingModel 數值邊界、Autopilot 策略熱插拔） |
-| `tests/bdd/multiprocess_journal_and_swap_lifecycle.feature` | `test_multiprocess_and_lifecycle_scenarios.py` | 多進程日誌並發安全合併、同秒開倉防碰撞、測試日誌自動隔離、守護進程平倉反向市價單驗證 |
+| `tests/bdd/multiprocess_journal_and_swap_lifecycle.feature` | `test_multiprocess_and_lifecycle_scenarios.py` | 多進程日誌並發安全合併（平倉價格與盈虧絕不被並發存檔覆蓋抹除）、同秒開倉防碰撞、測試日誌自動隔離、守護進程平倉反向市價單驗證 |
 | `tests/bdd/structural_entry_and_breakeven_shield.feature` | `test_structural_entry_and_breakeven_scenarios.py` | 結構化順勢進場過濾（雙均線排列、48h 斐波那契黃金口袋、超賣止跌勾頭防接刀、最大均線乖離 `<=0.45%` 防追高、平倉後 15 分鐘冷卻期）與三階段保本推移鎖利護盾（含雲端 `STOP_MARKET` 套保同步） |
 | `tests/bdd/event_bus_and_hybrid_market_feed.feature` | `test_event_bus_scenarios.py` | 跨交易所統一 `MarketEventBus`、WebSocket 毫秒級推播出場、`PollingMarketFeedAdapter` 無 WS 交易所輪詢適配、斷線自動 Fallback 與 `InMemoryKlineRollingCache` 零額外 API 即時指標合成 |
 | `tests/bdd/autopilot_runtime_safety.feature` | `test_autopilot_runtime_safety_scenarios.py` | 執行期安全（平倉例外不崩潰並由對帳結算、無訂單編號待確認單不凍結、VST 模擬盤強制對帳、`*.control.json` 跨進程 ARM/STANDBY/緊急全平控制通道、`step()` 互斥鎖單一平倉、冷卻期跨重啟保留、`peek()` 唯讀狀態查詢） |
@@ -144,7 +144,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 ```bash
 just test
 ```
-**當前基準**：全套 114 項規格測試 **100% PASS** (114 passed, 1 xfailed)。
+**當前基準**：全套 115 項規格測試 **100% PASS** (115 passed, 1 xfailed)。
 
 ---
 
@@ -154,7 +154,7 @@ just test
 # 1. 虛擬環境建立與同步
 just sync
 
-# 2. 執行全套自動化測試 (114 項規格 100% PASS)
+# 2. 執行全套自動化測試 (115 項規格 100% PASS)
 just test
 
 # 3. 啟動 BingX 官方 VST 模擬盤操盤中樞 (訂單直接顯示在手機 BingX App 模擬倉)
