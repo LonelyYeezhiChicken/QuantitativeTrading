@@ -1,5 +1,159 @@
 {
-  "updated_at": "2026-11-04 09:56:53 UTC",
-  "total_entries": 0,
-  "entries": []
+  "updated_at": "2026-11-04 22:50:52 UTC",
+  "total_entries": 3,
+  "entries": [
+    {
+      "journal_id": "SWAP_20261104_224826_LONG",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "LONG",
+      "status": "OPEN",
+      "entry_time": "2026-11-04 22:48:26 UTC",
+      "exit_time": "",
+      "entry_price": 78143.9,
+      "exit_price": 0.0,
+      "amount_btc": 0.0095,
+      "margin_used": 74.236705,
+      "leverage": 10,
+      "notional_value": 742.3670500000001,
+      "pnl_usdt": 0.0,
+      "pnl_pct": 0.0,
+      "realized_r_multiple": 0.0,
+      "liquidation_price": 71110.949,
+      "snapshot": {
+        "price": 78143.9,
+        "rsi": 56.431587343907275,
+        "ema21": 77802.26039681103,
+        "atr": 1172.1584999999998,
+        "bid": 78143.9,
+        "ask": 78143.9,
+        "bias_pct": 0.43911269601488734
+      },
+      "risk_plan": {
+        "stop_loss_price": 76971.74149999999,
+        "stop_loss_pct": 15.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 5.0,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 11.13550575
+      },
+      "trajectory": {
+        "highest_price": 80914.9,
+        "lowest_price": 78143.9,
+        "mfe_pct": 35.46022146322362,
+        "mae_pct": 0.0,
+        "duration_seconds": 144,
+        "updates_count": 24
+      },
+      "review": {
+        "thesis": "RSI 處於 56.4 動能健康區間，且市價 ($78,143.90) 穩定收在 EMA21 ($77,802.26) 之上 (乖離率 +0.44%)，顯示多頭動能延續。\n【系統觸發信號】：雙均線順勢回踩多頭動量確認 (RSI=56.4, Bias=+0.44%, 價穩EMA21>=EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,172.16) 預留正常價格呼吸空間。",
+        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
+        "strategy_evaluation": "Ollama EXECUTE: 指標處於健康區間 (RSI=56.4, 乖離=+0.4%)，核准開多",
+        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_20261104_224834_LONG",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "LONG",
+      "status": "OPEN",
+      "entry_time": "2026-11-04 22:48:34 UTC",
+      "exit_time": "",
+      "entry_price": 78105.5,
+      "exit_price": 0.0,
+      "amount_btc": 0.0028,
+      "margin_used": 72.89846666666666,
+      "leverage": 3,
+      "notional_value": 218.6954,
+      "pnl_usdt": 0.0,
+      "pnl_pct": 0.0,
+      "realized_r_multiple": 0.0,
+      "liquidation_price": 54673.85,
+      "snapshot": {
+        "price": 78105.5,
+        "rsi": 55.81601726809822,
+        "ema21": 77798.75130590194,
+        "atr": 1171.5825,
+        "bid": 78105.5,
+        "ask": 78105.5,
+        "bias_pct": 0.39428485541102676
+      },
+      "risk_plan": {
+        "stop_loss_price": 78235.7,
+        "stop_loss_pct": 0.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 0.99,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 0.0
+      },
+      "trajectory": {
+        "highest_price": 80914.9,
+        "lowest_price": 78105.5,
+        "mfe_pct": 10.790789381029482,
+        "mae_pct": 0.0,
+        "duration_seconds": 138,
+        "updates_count": 25
+      },
+      "review": {
+        "thesis": "RSI 處於 55.8 動能健康區間，且市價 ($78,105.50) 穩定收在 EMA21 ($77,798.75) 之上 (乖離率 +0.39%)，顯示多頭動能延續。\n【系統觸發信號】：雙均線順勢回踩多頭動量確認 (RSI=55.8, Bias=+0.39%, 價穩EMA21>=EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,171.58) 預留正常價格呼吸空間。",
+        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
+        "strategy_evaluation": "Ollama EXECUTE: 指標處於健康區間 (RSI=55.8, 乖離=+0.4%)，核准開多",
+        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_50X_20261104_224834_LONG",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "LONG",
+      "status": "CLOSED",
+      "entry_time": "2026-11-04 22:48:34 UTC",
+      "exit_time": "",
+      "entry_price": 78156.2,
+      "exit_price": 0.0,
+      "amount_btc": 0.0479,
+      "margin_used": 74.87363959999999,
+      "leverage": 50,
+      "notional_value": 3743.6819799999994,
+      "pnl_usdt": 0.0,
+      "pnl_pct": 0.0,
+      "realized_r_multiple": 0.0,
+      "liquidation_price": 76749.3884,
+      "snapshot": {
+        "price": 78156.2,
+        "rsi": 56.57058916937915,
+        "ema21": 77803.04221499285,
+        "atr": 1172.3429999999998,
+        "bid": 78156.2,
+        "ask": 78156.2,
+        "bias_pct": 0.4539125655668688
+      },
+      "risk_plan": {
+        "stop_loss_price": 77921.73139999999,
+        "stop_loss_pct": 15.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 5.0,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 11.231045939999998
+      },
+      "trajectory": {
+        "highest_price": 80914.9,
+        "lowest_price": 78156.2,
+        "mfe_pct": 176.48631842387408,
+        "mae_pct": 0.0,
+        "duration_seconds": 104,
+        "updates_count": 16
+      },
+      "review": {
+        "thesis": "RSI 處於 56.6 動能健康區間，且市價 ($78,156.20) 穩定收在 EMA21 ($77,803.04) 之上 (乖離率 +0.45%)，顯示多頭動能延續。\n【系統觸發信號】：雙均線順勢回踩多頭動量確認 (RSI=56.6, Bias=+0.45%, 價穩EMA21>=EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,172.34) 預留正常價格呼吸空間。",
+        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
+        "strategy_evaluation": "Ollama EXECUTE: 指標處於健康區間 (RSI=56.6, 乖離=+0.4%)，核准開多",
+        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
+        "quality_score": 3
+      }
+    }
+  ]
 }
