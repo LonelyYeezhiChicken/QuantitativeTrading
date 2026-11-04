@@ -536,6 +536,58 @@ class BingXGateway(BaseBrokerGateway):
             return resp.get("code") == 0
         return True
 
+    def update_stop_loss_order(
+        self,
+        symbol: str,
+        position_side: str,
+        stop_price: float,
+        quantity: float,
+        old_sl_order_id: Optional[str] = None,
+        market_type: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Cancel previous stop-loss order (if any) and place a new STOP_MARKET order on exchange (Break-Even Sync)."""
+        m_type = (market_type or self.default_market_type).upper()
+        bx_symbol = self.to_bingx_symbol(symbol)
+        pos_side = position_side.upper()
+        clean_stop = round(stop_price, 2)
+
+        if old_sl_order_id:
+            try:
+                self.cancel_order(symbol, str(old_sl_order_id), market_type=m_type)
+            except Exception:
+                pass
+
+        if self.is_dry_run or m_type != MarketType.SWAP.value:
+            pos_key = f"{bx_symbol}_{pos_side}"
+            if pos_key in self._simulated_swap_positions:
+                self._simulated_swap_positions[pos_key]["stopLossPrice"] = clean_stop
+            order_id = f"BINGX_BE_SL_{uuid.uuid4().hex[:10].upper()}"
+            order_record = {
+                "orderId": order_id,
+                "symbol": bx_symbol,
+                "side": "SELL" if pos_side == "LONG" else "BUY",
+                "positionSide": pos_side,
+                "type": "STOP_MARKET",
+                "stopPrice": clean_stop,
+                "origQty": quantity,
+                "status": "NEW",
+                "is_dry_run": True,
+                "market_type": m_type,
+            }
+            self._simulated_orders.append(order_record)
+            return {"result": True, "code": 0, "data": order_record}
+
+        try:
+            resp = self.client.create_swap_stop_order(
+                symbol=bx_symbol,
+                position_side=pos_side,
+                stop_price=clean_stop,
+                quantity=round(quantity, 4),
+            )
+            return self._normalize_order_response(resp)
+        except Exception as e:
+            return {"result": False, "msg": str(e)}
+
     def get_open_orders(self, symbol: str, market_type: Optional[str] = None) -> List[Dict[str, Any]]:
         """Retrieve open orders."""
         m_type = (market_type or self.default_market_type).upper()

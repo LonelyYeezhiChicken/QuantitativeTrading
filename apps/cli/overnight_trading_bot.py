@@ -27,6 +27,7 @@ from packages.core.autopilot_engine import (
     compute_structural_indicators_from_ohlc,
     evaluate_structural_entry,
     evaluate_three_stage_exit,
+    sync_breakeven_stop_loss,
 )
 
 STATE_FILE = ROOT_DIR / "data" / "bingx_paper_100u.json"
@@ -314,9 +315,24 @@ def main():
                 )
                 if exit_action is not None:
                     execute_sell(state, price, reason=exit_reason)
-                # DCA Add Position: If down -0.8% ~ -1.2% near EMA, and still have >= 40U cash
-                elif -1.2 <= gain_pct <= -0.7 and cash >= 40.0 and rsi < 48:
-                    execute_buy(state, price, trade_usdt=cash, reason=f"分批加碼攤平 (回跌 {gain_pct:.2f}%, 動用剩餘 ${cash:.2f} U 壓低成本)", sig=sig)
+                else:
+                    be_price = sync_breakeven_stop_loss(
+                        pos=pos,
+                        cur_price=price,
+                        peak_pct=peak_gain_pct,
+                        tp_threshold=1.5,
+                        leverage=1,
+                        symbol="BTC/USDT",
+                        market_type=MarketType.SPOT.value,
+                        gw=gw,
+                        journal_mgr=journal_mgr,
+                    )
+                    if be_price is not None:
+                        save_state(state)
+                        log_msg(f"【現貨套保上移 (Break-Even Sync)】最高浮盈達 +{peak_gain_pct:.2f}%，已將保本停損價上移至 ${be_price:,.2f} (開倉均價: ${entry_p:,.2f})！")
+                    # DCA Add Position: If down -0.8% ~ -1.2% near EMA, and still have >= 40U cash
+                    elif -1.2 <= gain_pct <= -0.7 and cash >= 40.0 and rsi < 48:
+                        execute_buy(state, price, trade_usdt=cash, reason=f"分批加碼攤平 (回跌 {gain_pct:.2f}%, 動用剩餘 ${cash:.2f} U 壓低成本)", sig=sig)
 
         except Exception as e:
             log_msg(f"[例外警告] 輪詢迴圈異常 (不影響運行，將自動重試): {e}")

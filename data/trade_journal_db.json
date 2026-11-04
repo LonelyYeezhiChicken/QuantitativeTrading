@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-04 05:44:59 UTC",
-  "total_entries": 15,
+  "updated_at": "2026-11-04 05:52:14 UTC",
+  "total_entries": 16,
   "entries": [
     {
       "journal_id": "SPOT_20261103_124013_LONG",
@@ -591,20 +591,20 @@
         "bias_pct": 0.0
       },
       "risk_plan": {
-        "stop_loss_price": 74835.12875,
-        "stop_loss_pct": 1.5,
+        "stop_loss_price": 76164.69,
+        "stop_loss_pct": 0.0,
         "take_profit_type": "TRAILING",
         "trailing_pullback_pct": 0.4,
         "planned_rr_ratio": 2.0,
-        "max_loss_usdt": 0.75
+        "max_loss_usdt": 0.0
       },
       "trajectory": {
-        "highest_price": 77805.5,
+        "highest_price": 78120.26,
         "lowest_price": 75974.75,
-        "mfe_pct": 2.40968216414006,
+        "mfe_pct": 2.8239777031184636,
         "mae_pct": 0.0,
-        "duration_seconds": 9685,
-        "updates_count": 75
+        "duration_seconds": 10122,
+        "updates_count": 82
       },
       "review": {
         "thesis": "RSI 處於 50.0 動能健康區間，且市價 ($75,974.75) 穩定收在 EMA21 ($75,974.75) 之上 (乖離率 +0.00%)，顯示多頭動能延續。\n【系統觸發信號】：SPOT 1x 守護進程活躍持倉同步\n【交易架構】：SPOT 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,139.62) 預留正常價格呼吸空間。",
@@ -642,20 +642,20 @@
         "bias_pct": 0.0
       },
       "risk_plan": {
-        "stop_loss_price": 74732.4425,
-        "stop_loss_pct": 15.0,
+        "stop_loss_price": 75984.31,
+        "stop_loss_pct": 0.0,
         "take_profit_type": "TRAILING",
         "trailing_pullback_pct": 5.0,
         "planned_rr_ratio": 2.0,
-        "max_loss_usdt": 7.5
+        "max_loss_usdt": 0.0
       },
       "trajectory": {
-        "highest_price": 77762.7,
+        "highest_price": 78096.6,
         "lowest_price": 75870.5,
-        "mfe_pct": 24.939864637770903,
+        "mfe_pct": 29.340784626435912,
         "mae_pct": 0.0,
-        "duration_seconds": 9719,
-        "updates_count": 75
+        "duration_seconds": 10154,
+        "updates_count": 82
       },
       "review": {
         "thesis": "RSI 處於 50.0 動能健康區間，且市價 ($75,870.50) 穩定收在 EMA21 ($75,870.50) 之上 (乖離率 +0.00%)，顯示多頭動能延續。\n【系統觸發信號】：SWAP 10x 守護進程活躍持倉同步\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,138.06) 預留正常價格呼吸空間。",
@@ -693,20 +693,20 @@
         "bias_pct": 0.0
       },
       "risk_plan": {
-        "stop_loss_price": 75436.9826813191,
-        "stop_loss_pct": 3.99,
+        "stop_loss_price": 76581.24,
+        "stop_loss_pct": 0.0,
         "take_profit_type": "TRAILING",
         "trailing_pullback_pct": 0.99,
         "planned_rr_ratio": 2.0,
-        "max_loss_usdt": 3.9900000000000007
+        "max_loss_usdt": 0.0
       },
       "trajectory": {
-        "highest_price": 77748.0,
+        "highest_price": 78081.0,
         "lowest_price": 76453.81846692927,
-        "mfe_pct": 5.078287359697572,
+        "mfe_pct": 6.384958524110537,
         "mae_pct": 0.0,
-        "duration_seconds": 12301,
-        "updates_count": 74
+        "duration_seconds": 12737,
+        "updates_count": 81
       },
       "review": {
         "thesis": "RSI 處於 50.0 動能健康區間，且市價 ($76,453.82) 穩定收在 EMA21 ($76,453.82) 之上 (乖離率 +0.00%)，顯示多頭動能延續。\n【系統觸發信號】：SWAP 3x 守護進程活躍持倉同步\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,146.81) 預留正常價格呼吸空間。",
@@ -752,15 +752,66 @@
         "max_loss_usdt": 7.5
       },
       "trajectory": {
-        "highest_price": 77757.8,
+        "highest_price": 77748.1,
         "lowest_price": 77247.2,
-        "mfe_pct": 31.03074346969817,
+        "mfe_pct": 30.403140859906724,
         "mae_pct": -2.0057402993340943,
-        "duration_seconds": 3058,
-        "updates_count": 52
+        "duration_seconds": 2949,
+        "updates_count": 50
       },
       "review": {
         "thesis": "價格呈現順勢多頭排列，技術面維持支撐，配合策略信號觸發進場。\n【系統觸發信號】：均線上方多頭動量確認 (RSI=48.5, 站穩EMA21)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,159.17) 預留正常價格呼吸空間。",
+        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
+        "strategy_evaluation": "部位建倉符合量化規則，等待市場驗證假說",
+        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_20261104_055114_LONG",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "LONG",
+      "status": "OPEN",
+      "entry_time": "2026-11-04 05:51:14 UTC",
+      "exit_time": "",
+      "entry_price": 78114.0,
+      "exit_price": 0.0,
+      "amount_btc": 0.032004506234477814,
+      "margin_used": 50.0,
+      "leverage": 50,
+      "notional_value": 2500.0,
+      "pnl_usdt": 0.0,
+      "pnl_pct": 0.0,
+      "realized_r_multiple": 0.0,
+      "liquidation_price": 76707.948,
+      "snapshot": {
+        "price": 78114.0,
+        "rsi": 59.48567401759443,
+        "ema21": 77320.65444936452,
+        "atr": 534.8113763120241,
+        "bid": 78113.0,
+        "ask": 78114.5,
+        "bias_pct": 1.026046088571358
+      },
+      "risk_plan": {
+        "stop_loss_price": 77879.658,
+        "stop_loss_pct": 15.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 5.0,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 7.5
+      },
+      "trajectory": {
+        "highest_price": 78114.0,
+        "lowest_price": 78011.8,
+        "mfe_pct": 0.0,
+        "mae_pct": -6.541721074327079,
+        "duration_seconds": 60,
+        "updates_count": 2
+      },
+      "review": {
+        "thesis": "RSI 處於 59.5 動能健康區間，且市價 ($78,114.00) 穩定收在 EMA21 ($77,320.65) 之上 (乖離率 +1.03%)，顯示多頭動能延續。\n【系統觸發信號】：雙均線多頭排列強勢動能突破 (RSI=59.5, 站上EMA21/EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($534.81) 預留正常價格呼吸空間。",
         "exit_reason": "持倉中，持續依據風控計畫動態監控中",
         "strategy_evaluation": "部位建倉符合量化規則，等待市場驗證假說",
         "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",

@@ -239,6 +239,25 @@ class TradeJournalManager:
         self._render_index()
         return entry
 
+    def update_stop_loss_price(
+        self,
+        journal_id: str,
+        new_stop_price: float,
+        new_stop_loss_pct: float = 0.0,
+        new_max_loss_usdt: float = 0.0,
+    ) -> Optional[TradeJournalEntry]:
+        """Update the stop-loss price in an open trade journal entry (e.g., upon Break-Even Order Sync)."""
+        self._load_db(merge=True)
+        entry = self._entries.get(journal_id)
+        if not entry or entry.status != "OPEN":
+            return None
+        entry.risk_plan.stop_loss_price = round(new_stop_price, 2)
+        entry.risk_plan.stop_loss_pct = round(new_stop_loss_pct, 2)
+        entry.risk_plan.max_loss_usdt = round(new_max_loss_usdt, 2)
+        self._save_db(updated_entry=entry)
+        self._write_entry_markdown(entry)
+        return entry
+
     def on_trade_update(self, journal_id: str, current_price: float) -> Optional[TradeJournalEntry]:
         """Update live trajectory (MFE, MAE, duration) for an open trade."""
         self._load_db(merge=True)

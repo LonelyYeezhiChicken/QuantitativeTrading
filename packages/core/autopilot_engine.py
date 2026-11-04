@@ -202,6 +202,81 @@ def evaluate_three_stage_exit(
     return None, ""
 
 
+def sync_breakeven_stop_loss(
+    pos: Dict[str, Any],
+    cur_price: float,
+    peak_pct: float,
+    tp_threshold: float,
+    leverage: int,
+    symbol: str,
+    market_type: str,
+    gw: Any,
+    journal_mgr: Any,
+) -> Optional[float]:
+    """Synchronize exchange-side STOP_MARKET order and journal stop_loss_price up to Break-Even
+    once peak_pct reaches the halfway take-profit threshold (tp_threshold * 0.5).
+    """
+    if pos.get("breakeven_synced", False):
+        return None
+
+    be_trigger = tp_threshold * 0.5
+    if peak_pct < be_trigger:
+        return None
+
+    entry_price = float(pos.get("entry_price", 0.0))
+    qty = float(pos.get("amount_btc", pos.get("amount", 0.0)))
+    side = str(pos.get("side", "NONE")).upper()
+    if entry_price <= 0 or qty <= 0 or side not in ("LONG", "SHORT"):
+        return None
+
+    if tp_threshold >= 10.0:
+        be_floor_margin_pct = 1.5
+    elif tp_threshold >= 3.0:
+        be_floor_margin_pct = 0.5
+    else:
+        be_floor_margin_pct = 0.25
+
+    be_price_offset_pct = max(0.10, be_floor_margin_pct / max(leverage, 1))
+    if side == "LONG":
+        be_stop_price = round(entry_price * (1.0 + be_price_offset_pct / 100.0), 2)
+        if cur_price <= be_stop_price:
+            return None
+    else:
+        be_stop_price = round(entry_price * (1.0 - be_price_offset_pct / 100.0), 2)
+        if cur_price >= be_stop_price:
+            return None
+
+    if gw is not None and hasattr(gw, "update_stop_loss_order"):
+        res = gw.update_stop_loss_order(
+            symbol=symbol,
+            position_side=side,
+            stop_price=be_stop_price,
+            quantity=qty,
+            old_sl_order_id=pos.get("sl_order_id"),
+            market_type=market_type,
+        )
+        if isinstance(res, dict):
+            data = res.get("data", {})
+            order_dict = data.get("order", data) if isinstance(data, dict) else {}
+            new_sl_id = order_dict.get("orderId") if isinstance(order_dict, dict) else None
+            if new_sl_id:
+                pos["sl_order_id"] = str(new_sl_id)
+
+    pos["native_sl_price"] = be_stop_price
+    pos["breakeven_synced"] = True
+
+    journal_id = pos.get("journal_id")
+    if journal_id and journal_mgr is not None and hasattr(journal_mgr, "update_stop_loss_price"):
+        journal_mgr.update_stop_loss_price(
+            journal_id=journal_id,
+            new_stop_price=be_stop_price,
+            new_stop_loss_pct=0.0,
+            new_max_loss_usdt=0.0,
+        )
+
+    return be_stop_price
+
+
 class UnifiedAutopilotEngine:
     """Production-grade single autopilot trading engine."""
 
@@ -470,6 +545,20 @@ class UnifiedAutopilotEngine:
                 return step_result
 
             step_result["message"] = f"持倉監控中 ({side} {qty:.5f} BTC | 浮盈 {pnl_pct:+.2f}%)"
+            be_synced_price = sync_breakeven_stop_loss(
+                pos=self.position,
+                cur_price=cur_price,
+                peak_pct=peak_pct,
+                tp_threshold=self.margin_tp_threshold,
+                leverage=self.leverage,
+                symbol=self.symbol,
+                market_type=m_type,
+                gw=self.gw,
+                journal_mgr=self.journal_mgr,
+            )
+            if be_synced_price is not None:
+                self.save_state()
+                step_result["message"] = f"已啟動雲端保本推移套保 (新停損價 ${be_synced_price:,.2f} | 浮盈 {pnl_pct:+.2f}%)"
             return step_result
 
         # B. Entry Evaluation (Only when flat and ARMED)

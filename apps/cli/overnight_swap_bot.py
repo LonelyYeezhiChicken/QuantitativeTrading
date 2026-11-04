@@ -27,6 +27,7 @@ from packages.core.autopilot_engine import (
     compute_structural_indicators_from_ohlc,
     evaluate_structural_entry,
     evaluate_three_stage_exit,
+    sync_breakeven_stop_loss,
 )
 
 STATE_FILE = ROOT_DIR / "data" / "bingx_swap_100u.json"
@@ -468,20 +469,35 @@ def main():
                 )
                 if exit_action is not None:
                     execute_swap_close(state, price, reason=exit_reason, gw=gw)
-                # DCA Add Position: (Only for conservative leverage <= 5x to avoid Martingale blowout)
-                elif lev <= 5 and -2.5 <= unrealized_pct <= -1.5 and avail_margin >= 40.0:
-                    execute_swap_open(
-                        state,
-                        price,
-                        side=side,
-                        margin_amount=avail_margin,
+                else:
+                    be_price = sync_breakeven_stop_loss(
+                        pos=pos,
+                        cur_price=price,
+                        peak_pct=highest_pct,
+                        tp_threshold=target_margin_tp,
                         leverage=lev,
-                        reason=f"逆勢回檔分批攤平 (浮虧 {unrealized_pct:.2f}%, 動用剩餘 ${avail_margin:.2f} U 加碼)",
-                        sig=sig,
+                        symbol="BTC/USDT",
+                        market_type=MarketType.SWAP.value,
                         gw=gw,
-                        price_sl_pct=price_sl,
-                        price_pullback_pct=price_pullback,
+                        journal_mgr=journal_mgr,
                     )
+                    if be_price is not None:
+                        save_state(state)
+                        log_msg(f"【雲端套保上移 (Break-Even Sync)】最高浮盈達 +{highest_pct:.2f}%，已將雲端與日誌停損單上移至保本鎖利價 ${be_price:,.2f} (開倉均價: ${entry_p:,.2f})！")
+                    # DCA Add Position: (Only for conservative leverage <= 5x to avoid Martingale blowout)
+                    elif lev <= 5 and -2.5 <= unrealized_pct <= -1.5 and avail_margin >= 40.0:
+                        execute_swap_open(
+                            state,
+                            price,
+                            side=side,
+                            margin_amount=avail_margin,
+                            leverage=lev,
+                            reason=f"逆勢回檔分批攤平 (浮虧 {unrealized_pct:.2f}%, 動用剩餘 ${avail_margin:.2f} U 加碼)",
+                            sig=sig,
+                            gw=gw,
+                            price_sl_pct=price_sl,
+                            price_pullback_pct=price_pullback,
+                        )
 
         except Exception as e:
             log_msg(f"[例外警告] 合約輪詢異常 (自動重試中): {e}")

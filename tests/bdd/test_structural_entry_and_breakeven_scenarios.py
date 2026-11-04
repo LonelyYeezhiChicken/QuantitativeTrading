@@ -188,3 +188,91 @@ class TestStructuralEntryAndBreakevenBDDScenarios:
         assert closed_entry.status == "CLOSED"
         assert closed_entry.pnl_usdt > 0
         assert "保本" in closed_entry.review.exit_reason
+
+    def test_scenario_cloud_breakeven_stop_order_sync_for_open_positions(self, tmp_path, monkeypatch):
+        """Scenario: 持倉浮盈突破半程保本門檻時自動將雲端 STOP_MARKET 掛單與日誌停損價同步上移至成本價上方 (雲端套保同步)."""
+        state_file = tmp_path / "autopilot_10x_cloud_be.json"
+        jm = TradeJournalManager(
+            db_path=str(tmp_path / "journal_db.json"),
+            journals_dir=str(tmp_path / "journals"),
+        )
+        engine = UnifiedAutopilotEngine(
+            symbol="BTC/USDT",
+            leverage=10,
+            capital=100.0,
+            enable_ai_veto=False,
+            dry_run=True,
+            state_file=state_file,
+            journal_mgr=jm,
+        )
+        engine.arm()
+
+        # Given 10 倍槓桿合約持有一筆開倉價為 76000 的 "LONG" 倉位且初始停損價為 74860 (-15.0% 保證金)
+        entry_price = 76000.0
+        initial_sl_price = 74860.0
+        margin = 50.0
+        qty = (margin * 10) / entry_price
+        engine.cash = 50.0
+        open_res = engine.gw.create_order(
+            symbol="BTC/USDT",
+            side="BUY",
+            order_type="MARKET",
+            size=qty,
+            market_type="SWAP",
+            position_side="LONG",
+            leverage=10,
+            stop_loss_price=initial_sl_price,
+            simulation_price=entry_price,
+        )
+        assert open_res["result"] is True
+
+        j_entry = jm.on_trade_open(
+            symbol="BTC/USDT",
+            market_type="SWAP",
+            side="LONG",
+            entry_price=entry_price,
+            amount_btc=qty,
+            margin_used=margin,
+            leverage=10,
+            raw_reason="10x 順勢開多",
+            snapshot_dict={"price": entry_price},
+            stop_loss_pct=15.0,
+            trailing_pullback_pct=5.0,
+        )
+        assert j_entry.risk_plan.stop_loss_price == pytest.approx(initial_sl_price, rel=1e-3)
+
+        engine.position = {
+            "side": "LONG",
+            "amount": qty,
+            "amount_btc": qty,
+            "entry_price": entry_price,
+            "margin_used": margin,
+            "highest_pnl_pct": 0.0,
+            "entry_time": j_entry.entry_time,
+            "entry_why": "10x 順勢開多",
+            "ai_decision": "EXECUTE",
+            "journal_id": j_entry.journal_id,
+            "native_sl_price": initial_sl_price,
+            "breakeven_synced": False,
+        }
+
+        # When 市場行情上漲至 77200 使浮動盈虧達到 +15.79% (突破 +10.0% 半程保本門檻，且繼續持倉中)
+        rally_price = 77200.0
+        monkeypatch.setattr(
+            engine.gw,
+            "fetch_ticker",
+            lambda symbol, market_type="SWAP": {"price": rally_price, "bid": rally_price, "ask": rally_price},
+        )
+        step_res = engine.step()
+
+        # Then 系統應自動向交易所發送更新後的雲端 STOP_MARKET 保本停損單且新停損觸發價必須高於開倉價 76000
+        assert engine.position["side"] == "LONG"
+        assert engine.position.get("breakeven_synced") is True
+        new_sl_price = engine.position.get("native_sl_price", 0.0)
+        assert new_sl_price > entry_price
+
+        # And 權威交易日誌庫與持倉狀態中的 stop_loss_price 必須同步更新為該保本鎖利價位
+        updated_entry = jm.get_entry(j_entry.journal_id)
+        assert updated_entry is not None
+        assert updated_entry.risk_plan.stop_loss_price == pytest.approx(new_sl_price, rel=1e-4)
+        assert updated_entry.risk_plan.max_loss_usdt == 0.0
