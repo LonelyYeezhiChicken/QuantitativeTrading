@@ -10,6 +10,7 @@ import json
 import os
 import signal
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +24,11 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from packages.execution import BingXGateway, MarketType
 from packages.journal import TradeJournalManager
+from packages.core.event_bus import (
+    MarketEventBus,
+    TickerUpdateEvent,
+    InMemoryKlineRollingCache,
+)
 from packages.core.autopilot_engine import (
     compute_structural_indicators_from_ohlc,
     evaluate_structural_entry,
@@ -93,17 +99,47 @@ def save_state(state: dict):
         json.dump(state, f, indent=2, ensure_ascii=False)
 
 
-def fetch_market_signals(gw: BingXGateway, symbol: str = "BTC/USDT") -> dict:
-    """Fetch live ticker and compute 1h structural indicators (EMA21/50, Wilder RSI 14, ATR 14, 48h Fib Pocket)."""
-    ticker = gw.fetch_ticker(symbol)
-    price = ticker.get("price", 0.0)
+def fetch_spot_klines_raw(gw: BingXGateway, symbol: str = "BTC/USDT") -> dict:
+    """Fetch 100 1h OHLC bars from BingX REST API for the rolling in-memory cache."""
+    klines_resp = gw.client.fetch_klines(gw.to_bingx_symbol(symbol), interval="1h", limit=100)
+    k_data = klines_resp.get("data", [])
+    if not k_data:
+        return {}
+    return {
+        "closes": [float(x[4]) for x in k_data][::-1],
+        "highs": [float(x[2]) for x in k_data][::-1],
+        "lows": [float(x[3]) for x in k_data][::-1],
+    }
+
+
+def fetch_market_signals(
+    gw: BingXGateway,
+    symbol: str = "BTC/USDT",
+    kline_cache: InMemoryKlineRollingCache | None = None,
+    override_event: TickerUpdateEvent | None = None,
+) -> dict:
+    """Fetch live ticker (or use WebSocket event) and compute 1h structural indicators via rolling cache."""
+    if override_event is not None and override_event.price > 0:
+        price = override_event.price
+        bid = override_event.bid
+        ask = override_event.ask
+    else:
+        ticker = gw.fetch_ticker(symbol)
+        price = ticker.get("price", 0.0)
+        bid = ticker.get("bid", price)
+        ask = ticker.get("ask", price)
+
+    if kline_cache is not None:
+        try:
+            return kline_cache.compute_signals_on_tick(symbol, "SPOT", price=price, bid=bid, ask=ask)
+        except Exception:
+            pass
 
     try:
-        klines_resp = gw.client.fetch_klines(gw.to_bingx_symbol(symbol), interval="1h", limit=100)
-        k_data = klines_resp.get("data", [])
-        closes = [float(x[4]) for x in k_data][::-1] if k_data else [price]
-        highs = [float(x[2]) for x in k_data][::-1] if k_data else [price]
-        lows = [float(x[3]) for x in k_data][::-1] if k_data else [price]
+        raw = fetch_spot_klines_raw(gw, symbol)
+        closes = raw.get("closes") or [price]
+        highs = raw.get("highs") or [price]
+        lows = raw.get("lows") or [price]
     except Exception:
         closes = [price]
         highs = [price]
@@ -114,8 +150,8 @@ def fetch_market_signals(gw: BingXGateway, symbol: str = "BTC/USDT") -> dict:
         highs=highs,
         lows=lows,
         cur_price=price,
-        bid=ticker.get("bid", price),
-        ask=ticker.get("ask", price),
+        bid=bid,
+        ask=ask,
     )
 
 
@@ -238,8 +274,61 @@ def main():
     log_msg("  停止方式: 隨時按 Ctrl+C 或執行指令 `just bot-stop` 即可優雅結算退出")
     log_msg("=" * 65)
 
-    gw = BingXGateway(dry_run=True)
+    gw = BingXGateway(dry_run=True, enable_ws=True)
     loop_count = 0
+
+    event_bus = MarketEventBus()
+    kline_cache = InMemoryKlineRollingCache(
+        kline_fetcher=lambda sym, m_type: fetch_spot_klines_raw(gw, sym),
+        refresh_interval_sec=60.0,
+    )
+    tick_wakeup = threading.Event()
+    ws_tick_box: dict = {"event": None, "last_entry_check_ts": 0.0}
+
+    def _on_spot_ticker(ev: TickerUpdateEvent):
+        if ev.price <= 0:
+            return
+        ws_tick_box["event"] = ev
+        try:
+            st = load_state()
+            p_pos = st.get("position", {})
+            if p_pos.get("side") == "LONG":
+                p_entry = float(p_pos.get("entry_price", 0.0) or 0.0)
+                p_high = max(float(p_pos.get("highest_price", ev.price) or ev.price), ev.price)
+                if p_entry > 0:
+                    gain_pct = ((ev.price - p_entry) / p_entry) * 100.0
+                    peak_gain_pct = ((p_high - p_entry) / p_entry) * 100.0
+                    act, _ = evaluate_three_stage_exit(
+                        pnl_pct=gain_pct,
+                        peak_pct=peak_gain_pct,
+                        sl_threshold=1.5,
+                        tp_threshold=1.5,
+                        pullback_threshold=0.4,
+                        side="LONG",
+                    )
+                    need_be_sync = (peak_gain_pct >= 0.75) and not p_pos.get("breakeven_synced")
+                    if act is not None or need_be_sync:
+                        tick_wakeup.set()
+            else:
+                now_ts = time.time()
+                if (now_ts - ws_tick_box["last_entry_check_ts"]) >= 3.0:
+                    ws_tick_box["last_entry_check_ts"] = now_ts
+                    fast_sig = kline_cache.compute_signals_on_tick("BTC/USDT", "SPOT", price=ev.price, bid=ev.bid, ask=ev.ask)
+                    cand_side, _ = evaluate_structural_entry("SPOT", ev.price, fast_sig, history=st.get("history", []))
+                    if cand_side == "LONG":
+                        tick_wakeup.set()
+        except Exception:
+            pass
+
+    event_bus.subscribe(TickerUpdateEvent, _on_spot_ticker)
+    market_feed = gw.create_market_feed(
+        event_bus=event_bus,
+        symbols=["BTC/USDT"],
+        market_type=MarketType.SPOT.value,
+        poll_interval_sec=min(5.0, float(args.interval)),
+    )
+    market_feed.start()
+    log_msg(f"  [EventBus 已啟動] 資料源適配器: {market_feed.get_feed_status()['mode']} (WebSocket 毫秒級出場監聽 + 斷線自動輪詢備援)")
 
     while RUNNING:
         # Check stop flag file
@@ -254,7 +343,8 @@ def main():
         loop_count += 1
         try:
             state = load_state()
-            sig = fetch_market_signals(gw, "BTC/USDT")
+            latest_ev = ws_tick_box.get("event")
+            sig = fetch_market_signals(gw, "BTC/USDT", kline_cache=kline_cache, override_event=latest_ev)
             price = sig["price"]
             rsi = sig["rsi"]
             ema21 = sig["ema21"]
@@ -341,11 +431,15 @@ def main():
         except Exception as e:
             log_msg(f"[例外警告] 輪詢迴圈異常 (不影響運行，將自動重試): {e}")
 
-        # Sleep with early-exit polling
+        # Sleep with early-exit polling or instant EventBus wakeup
+        tick_wakeup.clear()
         for _ in range(args.interval):
             if not RUNNING or STOP_FLAG_FILE.exists():
                 break
-            time.sleep(1)
+            if tick_wakeup.wait(timeout=1.0):
+                break
+
+    market_feed.stop()
 
     # Post-shutdown summary
     final_state = load_state()

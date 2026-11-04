@@ -36,7 +36,7 @@ class BingXGateway(BaseBrokerGateway):
         self._default_market_type = default_market_type.upper()
         self._enable_ws = enable_ws
         self._ws_client: Optional[BingXWebSocketClient] = None
-        if enable_ws and not self._use_vst:
+        if enable_ws:
             try:
                 self._ws_client = BingXWebSocketClient.get_instance()
             except Exception:
@@ -86,6 +86,29 @@ class BingXGateway(BaseBrokerGateway):
     def ws_client(self) -> Optional[BingXWebSocketClient]:
         """Accessor for underlying WebSocket client."""
         return self._ws_client
+
+    @property
+    def supports_websocket(self) -> bool:
+        """BingX natively provides real-time WebSocket streams for both SPOT and SWAP."""
+        return True
+
+    def create_market_feed(
+        self,
+        event_bus: Any,
+        symbols: List[str],
+        market_type: Optional[str] = None,
+        poll_interval_sec: float = 5.0,
+    ) -> Any:
+        """Return a HybridWebSocketFeedAdapter (WebSocket push primary + REST polling fallback)."""
+        from packages.execution.market_feed import HybridWebSocketFeedAdapter
+
+        return HybridWebSocketFeedAdapter(
+            gateway=self,
+            event_bus=event_bus,
+            symbols=symbols,
+            market_type=market_type or self.default_market_type,
+            fallback_poll_interval_sec=poll_interval_sec,
+        )
 
     @staticmethod
     def to_bingx_symbol(symbol: str) -> str:

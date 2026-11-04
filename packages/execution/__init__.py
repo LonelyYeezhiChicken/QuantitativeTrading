@@ -7,6 +7,11 @@ from packages.execution.pionex_gateway import PionexGateway
 from packages.execution.bingx_client import BingXClient
 from packages.execution.bingx_gateway import BingXGateway
 from packages.execution.bingx_ws import BingXWebSocketClient
+from packages.execution.market_feed import (
+    BaseMarketFeedAdapter,
+    PollingMarketFeedAdapter,
+    HybridWebSocketFeedAdapter,
+)
 
 __all__ = [
     "BaseBrokerGateway",
@@ -17,4 +22,7 @@ __all__ = [
     "BingXClient",
     "BingXGateway",
     "BingXWebSocketClient",
+    "BaseMarketFeedAdapter",
+    "PollingMarketFeedAdapter",
+    "HybridWebSocketFeedAdapter",
 ]

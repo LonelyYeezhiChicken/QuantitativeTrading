@@ -46,11 +46,24 @@ class BingXWebSocketClient:
         self.symbols = [s.replace("/", "-").upper() for s in (symbols or DEFAULT_SYMBOLS)]
         self._cache: Dict[str, Dict[str, Any]] = {}
         self._cache_lock = threading.Lock()
+        self._listeners: List[Any] = []
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._spot_connected = False
         self._swap_connected = False
         self._last_ping_time = time.time()
+
+    def register_listener(self, callback: Any) -> None:
+        """Register a listener callback invoked on every real-time ticker/lastPrice update."""
+        with self._cache_lock:
+            if callback not in self._listeners:
+                self._listeners.append(callback)
+
+    def unregister_listener(self, callback: Any) -> None:
+        """Unregister a previously registered listener callback."""
+        with self._cache_lock:
+            if callback in self._listeners:
+                self._listeners.remove(callback)
 
     def start(self):
         """Start WebSocket worker thread in background."""
@@ -93,12 +106,19 @@ class BingXWebSocketClient:
             return dict(self._cache)
 
     def _update_cache(self, symbol: str, market_type: str, data: Dict[str, Any]):
-        """Thread-safe update of ticker cache."""
+        """Thread-safe update of ticker cache and instant notification of EventBus listeners."""
         clean_sym = symbol.replace("/", "-").upper()
         cache_key = f"{clean_sym}:{market_type.upper()}"
         data["local_timestamp"] = time.time()
         with self._cache_lock:
             self._cache[cache_key] = data
+            listeners = list(self._listeners)
+            snapshot = dict(data)
+        for listener in listeners:
+            try:
+                listener(snapshot)
+            except Exception as exc:
+                logger.debug(f"BingXWebSocketClient listener error: {exc}")
 
     def _run_event_loop(self):
         """Run asyncio event loop in dedicated background thread."""
@@ -250,11 +270,13 @@ class BingXWebSocketClient:
                 if price > 0:
                     cache_key = f"{clean_symbol.replace('/', '-')}:{market_type.upper()}"
                     with self._cache_lock:
-                        existing = self._cache.get(cache_key, {})
-                        existing["symbol"] = clean_symbol
-                        existing["market_type"] = market_type
-                        existing["price"] = price
-                        existing["local_timestamp"] = time.time()
-                        self._cache[cache_key] = existing
+                        existing = dict(self._cache.get(cache_key, {}))
+                    existing["symbol"] = clean_symbol
+                    existing["market_type"] = market_type
+                    existing["price"] = price
+                    existing.setdefault("bid", price)
+                    existing.setdefault("ask", price)
+                    existing["timestamp"] = int(data.get("E", data.get("time", time.time() * 1000)))
+                    self._update_cache(clean_symbol, market_type, existing)
             except Exception:
                 pass

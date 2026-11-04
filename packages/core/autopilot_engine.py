@@ -358,6 +358,7 @@ class UnifiedAutopilotEngine:
         gateway: Optional[BaseBrokerGateway] = None,
         strategy: Optional[BaseTradingModel] = None,
         ai_agent: Optional[Any] = None,
+        event_bus: Optional[Any] = None,
     ):
         self.symbol = symbol
         self.capital = capital
@@ -453,7 +454,29 @@ class UnifiedAutopilotEngine:
         }
         self.closed_trades: list[Dict[str, Any]] = []
         self.pending_order: Optional[Dict[str, Any]] = None
+        self.event_bus: Optional[Any] = None
         self.load_state()
+        if event_bus is not None:
+            self.attach_event_bus(event_bus)
+
+    def attach_event_bus(self, event_bus: Any) -> None:
+        """Subscribe this engine to a MarketEventBus for real-time event-driven execution."""
+        from packages.core.event_bus import TickerUpdateEvent
+
+        self.event_bus = event_bus
+        if hasattr(event_bus, "subscribe"):
+            event_bus.subscribe(TickerUpdateEvent, self.on_ticker_event)
+
+    def on_ticker_event(self, event: Any) -> Optional[Dict[str, Any]]:
+        """Event-driven entry point triggered immediately by WebSocket push or Polling adapter."""
+        ev_sym = getattr(event, "symbol", "").replace("-", "/").replace("_", "/").upper()
+        my_sym = self.symbol.replace("-", "/").replace("_", "/").upper()
+        if ev_sym != my_sym:
+            return None
+        ev_price = float(getattr(event, "price", 0.0) or 0.0)
+        if ev_price <= 0:
+            return None
+        return self.step(override_price=ev_price)
 
     def arm(self) -> str:
         """Manually arm the autopilot to activate automatic trading."""
@@ -479,15 +502,18 @@ class UnifiedAutopilotEngine:
         self.save_state()
         return "已全額平倉並切換為待機狀態。"
 
-    def step(self) -> Dict[str, Any]:
-        """Perform a single heartbeat evaluation tick.
+    def step(self, override_price: Optional[float] = None) -> Dict[str, Any]:
+        """Perform a single heartbeat or real-time event-driven evaluation tick.
 
         When STANDBY: Only refreshes tickers and computes portfolio value.
         When ARMED: Evaluates signals, AI multiple-choice veto, entry/exit.
         """
         m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
-        ticker = self.gw.fetch_ticker(self.symbol, market_type=m_type)
-        cur_price = ticker.get("price", 77000.0)
+        if override_price is not None and override_price > 0:
+            cur_price = float(override_price)
+        else:
+            ticker = self.gw.fetch_ticker(self.symbol, market_type=m_type)
+            cur_price = ticker.get("price", 77000.0)
 
         # 1. Calculate Portfolio Equity
         side = self.position.get("side", "NONE")

@@ -10,6 +10,7 @@ import json
 import os
 import signal
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +24,11 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from packages.execution import BingXGateway, MarketType
 from packages.journal import TradeJournalManager
+from packages.core.event_bus import (
+    MarketEventBus,
+    TickerUpdateEvent,
+    InMemoryKlineRollingCache,
+)
 from packages.core.autopilot_engine import (
     compute_structural_indicators_from_ohlc,
     evaluate_structural_entry,
@@ -119,17 +125,47 @@ def save_state(state: dict):
         json.dump(state, f, indent=2, ensure_ascii=False)
 
 
-def fetch_swap_signals(gw: BingXGateway, symbol: str = "BTC/USDT") -> dict:
-    """Fetch live swap ticker and compute 1h structural indicators (EMA21/50, Wilder RSI 14, ATR 14, 48h Fib Pocket)."""
-    ticker = gw.fetch_ticker(symbol, market_type=MarketType.SWAP.value)
-    price = ticker.get("price", 0.0)
+def fetch_swap_klines_raw(gw: BingXGateway, symbol: str = "BTC/USDT") -> dict:
+    """Fetch 100 1h OHLC bars from BingX REST API for the rolling in-memory cache."""
+    klines_resp = gw.client.fetch_klines(gw.to_bingx_symbol(symbol), interval="1h", limit=100)
+    k_data = klines_resp.get("data", [])
+    if not k_data:
+        return {}
+    return {
+        "closes": [float(x[4]) for x in k_data][::-1],
+        "highs": [float(x[2]) for x in k_data][::-1],
+        "lows": [float(x[3]) for x in k_data][::-1],
+    }
+
+
+def fetch_swap_signals(
+    gw: BingXGateway,
+    symbol: str = "BTC/USDT",
+    kline_cache: InMemoryKlineRollingCache | None = None,
+    override_event: TickerUpdateEvent | None = None,
+) -> dict:
+    """Fetch live swap ticker (or use WebSocket event) and compute 1h structural indicators via rolling cache."""
+    if override_event is not None and override_event.price > 0:
+        price = override_event.price
+        bid = override_event.bid
+        ask = override_event.ask
+    else:
+        ticker = gw.fetch_ticker(symbol, market_type=MarketType.SWAP.value)
+        price = ticker.get("price", 0.0)
+        bid = ticker.get("bid", price)
+        ask = ticker.get("ask", price)
+
+    if kline_cache is not None:
+        try:
+            return kline_cache.compute_signals_on_tick(symbol, "SWAP", price=price, bid=bid, ask=ask)
+        except Exception:
+            pass
 
     try:
-        klines_resp = gw.client.fetch_klines(gw.to_bingx_symbol(symbol), interval="1h", limit=100)
-        k_data = klines_resp.get("data", [])
-        closes = [float(x[4]) for x in k_data][::-1] if k_data else [price]
-        highs = [float(x[2]) for x in k_data][::-1] if k_data else [price]
-        lows = [float(x[3]) for x in k_data][::-1] if k_data else [price]
+        raw = fetch_swap_klines_raw(gw, symbol)
+        closes = raw.get("closes") or [price]
+        highs = raw.get("highs") or [price]
+        lows = raw.get("lows") or [price]
     except Exception:
         closes = [price]
         highs = [price]
@@ -140,8 +176,8 @@ def fetch_swap_signals(gw: BingXGateway, symbol: str = "BTC/USDT") -> dict:
         highs=highs,
         lows=lows,
         cur_price=price,
-        bid=ticker.get("bid", price),
-        ask=ticker.get("ask", price),
+        bid=bid,
+        ask=ask,
     )
 
 
@@ -364,7 +400,7 @@ def main():
     log_msg(f"  停止方式: 隨時按 Ctrl+C 或建立標誌檔案 {STOP_FLAG_FILE.name} 即可優雅結算退出")
     log_msg("=" * 65)
 
-    gw = BingXGateway(dry_run=not args.vst, use_vst=args.vst, default_market_type=MarketType.SWAP.value)
+    gw = BingXGateway(dry_run=not args.vst, use_vst=args.vst, default_market_type=MarketType.SWAP.value, enable_ws=True)
     try:
         gw.set_leverage("BTC/USDT", args.leverage)
     except Exception as e:
@@ -374,6 +410,64 @@ def main():
     target_margin_sl = price_sl * args.leverage
     target_margin_tp = price_tp * args.leverage
     target_margin_pullback = price_pullback * args.leverage
+
+    # Initialize Unified EventBus, In-Memory 1h Kline Rolling Cache, and Hybrid WebSocket/Polling Feed
+    event_bus = MarketEventBus()
+    kline_cache = InMemoryKlineRollingCache(
+        kline_fetcher=lambda sym, m_type: fetch_swap_klines_raw(gw, sym),
+        refresh_interval_sec=60.0,
+    )
+    tick_wakeup = threading.Event()
+    ws_tick_box: dict = {"event": None, "last_entry_check_ts": 0.0}
+
+    def _on_realtime_ticker(ev: TickerUpdateEvent):
+        if ev.price <= 0:
+            return
+        ws_tick_box["event"] = ev
+        try:
+            st = load_state(capital=args.capital, leverage=args.leverage)
+            p_pos = st.get("position", {})
+            p_side = p_pos.get("side", "NONE")
+            if p_side != "NONE":
+                p_entry = float(p_pos.get("entry_price", 0.0) or 0.0)
+                p_qty = float(p_pos.get("amount_btc", 0.0) or 0.0)
+                p_margin = float(p_pos.get("margin_used", 0.0) or 0.0)
+                if p_margin > 0 and p_entry > 0:
+                    upnl = (ev.price - p_entry) * p_qty if p_side == "LONG" else (p_entry - ev.price) * p_qty
+                    upnl_pct = (upnl / p_margin) * 100.0
+                    peak = max(float(p_pos.get("highest_pnl_pct", 0.0) or 0.0), upnl_pct)
+                    act, _ = evaluate_three_stage_exit(
+                        pnl_pct=upnl_pct,
+                        peak_pct=peak,
+                        sl_threshold=target_margin_sl,
+                        tp_threshold=target_margin_tp,
+                        pullback_threshold=target_margin_pullback,
+                        side=p_side,
+                    )
+                    need_be_sync = (peak >= target_margin_tp * 0.5) and not p_pos.get("breakeven_synced")
+                    new_peak_jump = upnl_pct > (float(p_pos.get("highest_pnl_pct", 0.0) or 0.0) + 1.0)
+                    if act is not None or need_be_sync or new_peak_jump:
+                        tick_wakeup.set()
+            else:
+                now_ts = time.time()
+                if (now_ts - ws_tick_box["last_entry_check_ts"]) >= 3.0:
+                    ws_tick_box["last_entry_check_ts"] = now_ts
+                    fast_sig = kline_cache.compute_signals_on_tick("BTC/USDT", "SWAP", price=ev.price, bid=ev.bid, ask=ev.ask)
+                    cand_side, _ = evaluate_structural_entry("SWAP", ev.price, fast_sig, history=st.get("history", []))
+                    if cand_side is not None:
+                        tick_wakeup.set()
+        except Exception:
+            pass
+
+    event_bus.subscribe(TickerUpdateEvent, _on_realtime_ticker)
+    market_feed = gw.create_market_feed(
+        event_bus=event_bus,
+        symbols=["BTC/USDT"],
+        market_type=MarketType.SWAP.value,
+        poll_interval_sec=min(5.0, float(args.interval)),
+    )
+    market_feed.start()
+    log_msg(f"  [EventBus 已啟動] 資料源適配器: {market_feed.get_feed_status()['mode']} (WebSocket 毫秒級出場監聽 + 斷線自動輪詢備援)")
 
     while RUNNING:
         if STOP_FLAG_FILE.exists():
@@ -387,7 +481,8 @@ def main():
         loop_count += 1
         try:
             state = load_state(capital=args.capital, leverage=args.leverage)
-            sig = fetch_swap_signals(gw, "BTC/USDT")
+            latest_ev = ws_tick_box.get("event")
+            sig = fetch_swap_signals(gw, "BTC/USDT", kline_cache=kline_cache, override_event=latest_ev)
             price = sig["price"]
             rsi = sig["rsi"]
             ema21 = sig["ema21"]
@@ -511,10 +606,14 @@ def main():
         except Exception:
             pass
 
+        tick_wakeup.clear()
         for _ in range(args.interval):
             if not RUNNING or STOP_FLAG_FILE.exists():
                 break
-            time.sleep(1)
+            if tick_wakeup.wait(timeout=1.0):
+                break
+
+    market_feed.stop()
 
     # Post-shutdown summary
     final_state = load_state()

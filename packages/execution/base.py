@@ -31,6 +31,29 @@ class BaseBrokerGateway(ABC):
         """Default market type ('SPOT' or 'SWAP'). Defaults to SPOT."""
         return MarketType.SPOT.value
 
+    @property
+    def supports_websocket(self) -> bool:
+        """True if this exchange gateway natively provides real-time WebSocket streaming."""
+        return False
+
+    def create_market_feed(
+        self,
+        event_bus: Any,
+        symbols: List[str],
+        market_type: Optional[str] = None,
+        poll_interval_sec: float = 5.0,
+    ) -> Any:
+        """Factory method: returns a PollingMarketFeedAdapter by default for exchanges without WebSocket."""
+        from packages.execution.market_feed import PollingMarketFeedAdapter
+
+        return PollingMarketFeedAdapter(
+            gateway=self,
+            event_bus=event_bus,
+            symbols=symbols,
+            market_type=market_type or self.default_market_type,
+            poll_interval_sec=poll_interval_sec,
+        )
+
     @abstractmethod
     def get_balance(self, asset: str = "USDT", market_type: Optional[str] = None) -> float:
         """Get available / free balance of a given asset for SPOT or SWAP."""
