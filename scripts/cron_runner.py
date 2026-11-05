@@ -14,15 +14,19 @@ import sys
 import time
 from pathlib import Path
 
+TZ_TAIPEI = timezone(timedelta(hours=8))
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from packages.core.heartbeat import record_heartbeat
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger("CronRunner")
-
-TZ_TAIPEI = timezone(timedelta(hours=8))
-ROOT_DIR = Path(__file__).resolve().parent.parent
 
 
 def run_report(args: list[str]) -> bool:
@@ -76,6 +80,9 @@ def main():
                     run_report(["--type", "daily", "--session", "PM"])
                     last_triggered_date = date_str
                     last_triggered_session = "PM"
+
+            # Record healthcheck heartbeat for container probe
+            record_heartbeat("reporter", metadata={"now_tp": str(now)})
 
             time.sleep(15)
         except KeyboardInterrupt:

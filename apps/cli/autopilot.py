@@ -21,6 +21,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from packages.core.autopilot_engine import UnifiedAutopilotEngine, AutopilotState
 from packages.core.event_bus import MarketEventBus, TickerUpdateEvent
+from packages.core.heartbeat import record_heartbeat
 
 # A pushed price older than this is considered stale and is not used for risk decisions.
 MAX_TICK_AGE_SEC = 15.0
@@ -72,7 +73,10 @@ def main():
     parser.add_argument("--live", action="store_true", help="Execute real orders on live exchange with REAL MONEY")
     parser.add_argument("--margin-ratio", type=float, default=0.75, help="Capital allocation ratio per trade (e.g. 0.75 for 75%)")
     parser.add_argument("--max-loss-pct", type=float, default=50.0, help="Circuit breaker threshold: stop if loss exceeds this pct of capital (e.g. 50.0)")
+    parser.add_argument("--bot-id", type=str, default="", help="Custom identifier for container healthcheck probe (e.g. swap_3x)")
     args = parser.parse_args()
+
+    bot_id = args.bot_id.strip() if args.bot_id else (f"swap_{args.leverage}x" if args.leverage > 1 else "spot_1x")
 
     engine = UnifiedAutopilotEngine(
         symbol=args.symbol,
@@ -162,6 +166,19 @@ def main():
                 # Never let a single failed tick kill the daemon and orphan an open position.
                 print(f"#{loop_count:04d} | [錯誤] 本次心跳執行失敗，將於下一次心跳重試: {exc!r}")
                 step = None
+
+            # Record healthcheck heartbeat for container probe
+            record_heartbeat(
+                name=bot_id,
+                metadata={
+                    "loop_count": loop_count,
+                    "symbol": args.symbol,
+                    "leverage": engine.leverage,
+                    "status": str(engine.status),
+                    "action": step.get("action_taken") if step else "STEP_ERROR",
+                    "price": fresh_price,
+                },
+            )
 
             if step is not None and (is_heartbeat or step.get("action_taken") not in ("NONE", None)):
                 state_tag = "【ARMED 運行中】" if engine.status == AutopilotState.ARMED else "【STANDBY 待機】"
