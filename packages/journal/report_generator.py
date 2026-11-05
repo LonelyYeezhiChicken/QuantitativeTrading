@@ -8,13 +8,16 @@ Follows an Inverted-Pyramid structure:
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import logging
 from pathlib import Path
+import shutil
 import subprocess
 from typing import Any, Callable, Dict, List, Optional
 
 from packages.journal.manager import TradeJournalManager
 from packages.journal.models import TradeJournalEntry
 
+logger = logging.getLogger("QuantReportGenerator")
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 TZ_TAIPEI = timezone(timedelta(hours=8))
 
@@ -42,11 +45,23 @@ class QuantReportGenerator:
 
     @staticmethod
     def _default_gh_issue_publisher(title: str, body_file: Path, labels: List[str]) -> Optional[str]:
-        """Publish a Markdown report file as a GitHub Issue via `gh issue create`."""
+        """Publish a Markdown report file as a GitHub Issue via `gh issue create`.
+
+        Safely handles environments without GitHub CLI installed.
+        """
+        if not shutil.which("gh"):
+            logger.info("未檢測到 gh CLI 工具，跳過 GitHub Issue 自動發布。")
+            return None
         cmd = ["gh", "issue", "create", "--title", title, "--body-file", str(body_file)]
-        res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", check=False)
-        if res.returncode == 0 and res.stdout.strip():
-            return res.stdout.strip().splitlines()[-1].strip()
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", check=False)
+            if res.returncode == 0 and res.stdout.strip():
+                return res.stdout.strip().splitlines()[-1].strip()
+            else:
+                logger.info(f"gh issue create 未成功 (代碼 {res.returncode})，不影響報表落盤。")
+        except Exception as exc:
+            logger.warning(f"調用 gh 指令失敗: {exc}")
+            return None
         return None
 
     @staticmethod
@@ -186,9 +201,19 @@ class QuantReportGenerator:
                 mkt_str = f"{e.market_type} {e.leverage}x"
                 exit_p_str = f"${e.exit_price:,.1f}" if e.status == "CLOSED" and e.exit_price > 0 else f"${current_price:,.1f} (持倉)"
                 reason_first = (e.review.exit_reason or "").splitlines()[0].lstrip("- ").strip()[:48]
+                if e.status == "CLOSED":
+                    pnl_u_str = f"**`{e.pnl_usdt:+,.2f} U`**"
+                    pnl_pct_str = f"`{e.pnl_pct:+.2f}%`"
+                else:
+                    amt = float(getattr(e, "amount_btc", 0.0) or 0.0)
+                    m = float(getattr(e, "margin_used", 0.0) or 0.0)
+                    upnl_val = (current_price - e.entry_price) * amt if e.side == "LONG" else (e.entry_price - current_price) * amt
+                    upnl_pct_val = (upnl_val / m * 100.0) if m > 0 else 0.0
+                    pnl_u_str = f"**`{upnl_val:+,.2f} U` (浮動)**"
+                    pnl_pct_str = f"`{upnl_pct_val:+.2f}%`"
                 md_lines.append(
                     f"| `{t_str}` | `{e.journal_id}` | `{mkt_str}` | **{e.side}** | `${e.entry_price:,.1f}` | "
-                    f"`{exit_p_str}` | **`{e.pnl_usdt:+,.2f} U`** | `{e.pnl_pct:+.2f}%` | {reason_first} |"
+                    f"`{exit_p_str}` | {pnl_u_str} | {pnl_pct_str} | {reason_first} |"
                 )
 
         content = "\n".join(md_lines) + "\n"
