@@ -22,8 +22,28 @@ echo "[1/6] 更新系統軟體包並安裝基礎工具 (curl, git, tzdata)..."
 $SUDO apt-get update -y
 $SUDO apt-get install -y curl git tzdata ca-certificates gnupg
 
-# 2. Timezone & Chrony Microsecond Clock Sync (CRITICAL for exchange signatures)
-echo "[2/6] 配置時區 (Asia/Taipei) 與安裝 Chrony 高精度時鐘同步..."
+# 2. Configure 2GB Swap for 1GB RAM VPS (Prevent Out-Of-Memory on $5/$6 Cloud Instances)
+TOTAL_RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+if [ "$TOTAL_RAM_KB" -lt 1600000 ]; then
+    if ! swapon --show | grep -q "/swapfile"; then
+        echo "[2/7] 偵測到伺服器實體記憶體 <= 1.5GB，自動啟用 2GB NVMe Swap 虛擬記憶體緩衝..."
+        $SUDO fallocate -l 2G /swapfile 2>/dev/null || $SUDO dd if=/dev/zero of=/swapfile bs=1M count=2048
+        $SUDO chmod 600 /swapfile
+        $SUDO mkswap /swapfile
+        $SUDO swapon /swapfile
+        if ! grep -q "/swapfile" /etc/fstab; then
+            echo '/swapfile none swap sw 0 0' | $SUDO tee -a /etc/fstab
+        fi
+        echo "✅ 2GB Swap 配置完成！系統記憶體池安全擴增至 3GB。"
+    else
+        echo "[2/7] 虛擬記憶體 (Swap) 已存在，略過建立。"
+    fi
+else
+    echo "[2/7] 實體記憶體充足 (> 1.5GB)，略過 Swap 建立。"
+fi
+
+# 3. Timezone & Chrony Microsecond Clock Sync (CRITICAL for exchange signatures)
+echo "[3/7] 配置時區 (Asia/Taipei) 與安裝 Chrony 高精度時鐘同步..."
 $SUDO timedatectl set-timezone Asia/Taipei || true
 $SUDO apt-get install -y chrony
 $SUDO systemctl enable --now chrony
@@ -31,8 +51,8 @@ $SUDO chronyc makestep || true
 echo "時鐘同步狀態："
 $SUDO chronyc tracking || true
 
-# 3. Security Hardening: UFW Firewall (Zero Ingress, Outbound Only)
-echo "[3/6] 配置 UFW 嚴密防火牆 (全面封鎖外來連線，零開放埠號)..."
+# 4. Security Hardening: UFW Firewall (Zero Ingress, Outbound Only)
+echo "[4/7] 配置 UFW 嚴密防火牆 (全面封鎖外來連線，零開放埠號)..."
 $SUDO apt-get install -y ufw
 $SUDO ufw default deny incoming
 $SUDO ufw default allow outgoing
@@ -41,23 +61,23 @@ $SUDO ufw --force enable
 echo "UFW 防火牆狀態："
 $SUDO ufw status verbose
 
-# 4. Security Hardening: Fail2ban (Anti SSH Brute-Force)
-echo "[4/6] 安裝並啟動 fail2ban (防止 SSH 暴力密碼破解)..."
+# 5. Security Hardening: Fail2ban (Anti SSH Brute-Force)
+echo "[5/7] 安裝並啟動 fail2ban (防止 SSH 暴力密碼破解)..."
 $SUDO apt-get install -y fail2ban
 $SUDO systemctl enable --now fail2ban
 
-# 5. Install Docker & Compose Plugin
+# 6. Install Docker & Compose Plugin
 if ! command -v docker &> /dev/null; then
-    echo "[5/6] 正在自動安裝 Docker 與 Docker Compose 插件..."
+    echo "[6/7] 正在自動安裝 Docker 與 Docker Compose 插件..."
     curl -fsSL https://get.docker.com | $SUDO sh
     $SUDO usermod -aG docker "$USER" || true
     echo "Docker 安裝完成！"
 else
-    echo "[5/6] Docker 已安裝，略過安裝步驟。"
+    echo "[6/7] Docker 已安裝，略過安裝步驟。"
 fi
 
-# 6. Prepare Application Directories & .env Permission Hardening
-echo "[6/6] 檢查專案目錄與權限加固..."
+# 7. Prepare Application Directories & .env Permission Hardening
+echo "[7/7] 檢查專案目錄與權限加固..."
 mkdir -p data journals logs journals/reports/daily journals/reports/weekly
 chmod 700 deploy/ || true
 
