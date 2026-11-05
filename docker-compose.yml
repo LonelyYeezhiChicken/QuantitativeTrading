@@ -61,12 +61,6 @@ services:
     <<: *bot-defaults
     container_name: quant_dashboard
     command: python -m streamlit run apps/dashboard/cloud_wallboard.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
-    volumes:
-      - ./data:/app/data
-      - ./journals:/app/journals
-      - ./logs:/app/logs
-      - ./apps/dashboard:/app/apps/dashboard
-      - ./scripts:/app/scripts
     ports:
       - "8501:8501"
     healthcheck:
