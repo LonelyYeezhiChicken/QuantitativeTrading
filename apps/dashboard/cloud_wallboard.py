@@ -229,6 +229,7 @@ def render_live_wallboard():
     total_net_pnl = total_equity - total_capital
     total_net_pct = (total_net_pnl / total_capital * 100.0) if total_capital > 0 else 0.0
     active_in_pos = sum(1 for b in bots if b.get("side") not in ("NONE", None, ""))
+    is_circuit_breaker_active = any(b.get("circuit_breaker_triggered") for b in bots) or (total_equity <= total_capital * 0.5)
 
     # ================= Header Bar =================
     st.markdown(
@@ -246,6 +247,27 @@ def render_live_wallboard():
         """,
         unsafe_allow_html=True,
     )
+
+    # ================= Circuit Breaker Alert Banner =================
+    if is_circuit_breaker_active:
+        st.markdown(
+            f"""
+            <div style="background-color: rgba(218, 54, 51, 0.2); border: 2px solid #f85149; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px; box-shadow: 0 0 15px rgba(248, 81, 73, 0.4);">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 2rem;">🚨</span>
+                    <div>
+                        <div style="font-size: 1.25rem; font-weight: 800; color: #f85149; letter-spacing: 0.5px;">
+                            全域風控熔斷警報 (CIRCUIT BREAKER TRIGGERED)
+                        </div>
+                        <div style="font-size: 0.95rem; color: #f0f6fc; margin-top: 4px;">
+                            帳戶淨值跌破初始本金 50% 風險底線 (${total_capital * 0.5:,.2f} USDT)。守護進程已自動平倉並鎖定待機模式 (STANDBY)，保護剩餘資金！請儘速手動介入評估。
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     # ================= Top 4 KPI Cards =================
     k1, k2, k3, k4 = st.columns(4)
@@ -330,7 +352,10 @@ def render_live_wallboard():
                 bot_ret = ((equity - init_cap) / init_cap * 100.0) if init_cap > 0 else 0.0
                 border_c = b.get("border_color", "#58a6ff")
 
-                if side == "LONG":
+                cb_triggered = b.get("circuit_breaker_triggered", False)
+                if cb_triggered:
+                    badge_html = '<span class="pos-badge-short" style="background-color: #8b0000; border: 1px solid #f85149;">🔴 熔斷停機</span>'
+                elif side == "LONG":
                     badge_html = '<span class="pos-badge-long">🚀 多單 (LONG)</span>'
                 elif side == "SHORT":
                     badge_html = '<span class="pos-badge-short">🔻 空單 (SHORT)</span>'
@@ -339,6 +364,8 @@ def render_live_wallboard():
 
                 ret_class = "text-green" if bot_ret >= 0 else "text-red"
                 ret_sign = "+" if bot_ret >= 0 else ""
+
+                risk_text = "🚨 熔斷鎖定 (本金虧損達 50%)" if cb_triggered else b.get('risk_desc', '移動停利 ｜ 原生硬止損')
 
                 st.markdown(
                     f"""
@@ -369,7 +396,7 @@ def render_live_wallboard():
                         </div>
                         <div class="kv-row">
                             <span class="kv-key">風控策略機制</span>
-                            <span class="kv-val" style="font-size: 0.8rem; color: #8b949e;">{b.get('risk_desc', '移動停利 ｜ 原生硬止損')}</span>
+                            <span class="kv-val" style="font-size: 0.8rem; color: {'#f85149' if cb_triggered else '#8b949e'};">{risk_text}</span>
                         </div>
                     </div>
                     """,

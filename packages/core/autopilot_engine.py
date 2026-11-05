@@ -416,12 +416,25 @@ class UnifiedAutopilotEngine:
         strategy: Optional[BaseTradingModel] = None,
         ai_agent: Optional[Any] = None,
         event_bus: Optional[Any] = None,
+        capital_allocation_ratio: Optional[float] = None,
+        max_loss_pct: Optional[float] = None,
     ):
         self.symbol = symbol
         self.capital = capital
         self.enable_ai_veto = enable_ai_veto
         self.dry_run = dry_run
         self.use_vst = use_vst or (os.getenv("BINGX_USE_VST", "false").lower() in ("true", "1"))
+
+        # Capital Allocation Ratio (70% ~ 80%, default 75%)
+        raw_alloc = capital_allocation_ratio if capital_allocation_ratio is not None else float(os.getenv("CAPITAL_ALLOCATION_RATIO", "0.75"))
+        self.capital_allocation_ratio = max(0.10, min(float(raw_alloc), 0.95))
+
+        # Initial Capital Max Loss Circuit Breaker (default 50.0%)
+        raw_max_loss = max_loss_pct if max_loss_pct is not None else float(os.getenv("MAX_LOSS_PCT", "50.0"))
+        self.max_loss_pct = max(1.0, min(float(raw_max_loss), 99.0))
+        self.circuit_breaker_triggered = False
+        self.circuit_breaker_reason = ""
+        self._circuit_breaker_alert_sent = False
 
         # Auto-derive mode & leverage
         if mode:
@@ -638,6 +651,11 @@ class UnifiedAutopilotEngine:
     def arm(self) -> str:
         """Manually arm the autopilot to activate automatic trading (also arms a running engine process)."""
         with self._step_lock:
+            circuit_breaker_threshold = self.capital * (1.0 - (self.max_loss_pct / 100.0))
+            current_equity = self.cash + self.position.get("margin_used", 0.0)
+            if current_equity <= circuit_breaker_threshold:
+                return f"拒絕武裝：帳戶淨值 (${current_equity:.2f} U) 低於最初本金 {100 - self.max_loss_pct:.0f}% 熔斷門檻 (${circuit_breaker_threshold:.2f} U)，請先補充本金或調整風控參數！"
+            self.circuit_breaker_triggered = False
             self.status = AutopilotState.ARMED
             self._persist_status()
             self.send_control_command("ARM")
@@ -663,6 +681,21 @@ class UnifiedAutopilotEngine:
             self.send_control_command("EMERGENCY_CLOSE")
         return "已送出緊急全平指令；運行中的操盤中樞將於下一個心跳平倉並切換為待機。"
 
+    def _dispatch_circuit_breaker_alert(self, circuit_breaker_threshold: float, total_equity: float) -> None:
+        """Send emergency circuit breaker notification to LINE and Telegram."""
+        self._circuit_breaker_alert_sent = True
+        try:
+            from packages.notifications import send_notification
+            send_notification(
+                f"🚨【本金熔斷緊急警報】\n\n機器人 {self.symbol} ({self.leverage}x) 淨值 (${total_equity:.2f} U) "
+                f"已跌破最初本金 {100 - self.max_loss_pct:.0f}% 臨界值 (${circuit_breaker_threshold:.2f} U)！\n"
+                f"系統已自動執行緊急平倉並解除武裝停止交易，以保全剩餘本金！",
+                title="風控熔斷警報",
+                async_send=True,
+            )
+        except Exception:
+            pass
+
     def emergency_close_and_stop(self) -> str:
         """Immediately liquidate this engine's position and enter STANDBY (in-process)."""
         with self._step_lock:
@@ -682,7 +715,7 @@ class UnifiedAutopilotEngine:
     def _portfolio_snapshot(self, cur_price: float) -> Tuple[str, float, float, float, float]:
         """Return (side, qty, unrealized_pnl, pnl_pct, total_equity) without side effects."""
         side = self.position.get("side", "NONE")
-        qty = self.position.get("amount_btc", 0.0)
+        qty = float(self.position.get("amount_btc", self.position.get("amount", 0.0)) or 0.0)
         entry_p = self.position.get("entry_price", cur_price)
         used_margin = self.position.get("margin_used", 0.0)
 
@@ -803,6 +836,30 @@ class UnifiedAutopilotEngine:
             "action_taken": "NONE",
             "message": "待機中 (STANDBY) - 尚未手動武裝",
         }
+
+        # 1.1 Initial Capital Max Loss Circuit Breaker Check (e.g. 50% loss of initial capital)
+        circuit_breaker_threshold = self.capital * (1.0 - (self.max_loss_pct / 100.0))
+        if total_equity <= circuit_breaker_threshold:
+            self.circuit_breaker_triggered = True
+            self.circuit_breaker_reason = (
+                f"🚨 帳戶淨值 (${total_equity:.2f} U) 低於最初本金 {100 - self.max_loss_pct:.0f}% 臨界值 "
+                f"(${circuit_breaker_threshold:.2f} U)，啟動緊急風控熔斷！"
+            )
+            if side != "NONE":
+                self._close_position(cur_price, reason=f"本金{int(self.max_loss_pct)}%熔斷緊急平倉保本")
+                side = "NONE"
+
+            self.status = AutopilotState.STANDBY
+            step_result["position_side"] = "NONE"
+            step_result["action_taken"] = "CIRCUIT_BREAKER_HALTED"
+            step_result["message"] = self.circuit_breaker_reason
+
+            if not getattr(self, "_circuit_breaker_alert_sent", False):
+                self._circuit_breaker_alert_sent = True
+                self._dispatch_circuit_breaker_alert(circuit_breaker_threshold, total_equity)
+
+            self.save_state()
+            return step_result
 
         # Resolve acknowledged orders before another order can be submitted.
         if self.pending_order:
@@ -939,8 +996,8 @@ class UnifiedAutopilotEngine:
                 step_result["message"] = f"AI 風控守門員否決開倉：{ai_eval['reason']}"
                 return step_result
 
-        # D. Execute Order
-        trade_margin = min(max(10.0, self.capital * 0.5), self.cash)
+        # D. Execute Order (70% ~ 80% allocation, reserving 10% cash buffer for fees)
+        trade_margin = min(max(10.0, self.capital * self.capital_allocation_ratio), self.cash * 0.90)
         if trade_margin < 10.0:
             step_result["message"] = f"可用資金不足 (${self.cash:.2f} < 10 U)，放棄開倉"
             return step_result
@@ -1008,10 +1065,10 @@ class UnifiedAutopilotEngine:
 
     def _close_position(self, exit_price: float, reason: str, *, exchange_already_closed: bool = False) -> bool:
         """Close the exchange position first, then persist the confirmed result."""
-        side = self.position["side"]
-        qty = self.position["amount_btc"]
-        entry_p = self.position["entry_price"]
-        margin = self.position["margin_used"]
+        side = self.position.get("side", "NONE")
+        qty = float(self.position.get("amount_btc", self.position.get("amount", 0.0)) or 0.0)
+        entry_p = float(self.position.get("entry_price", exit_price) or exit_price)
+        margin = float(self.position.get("margin_used", 0.0) or 0.0)
 
         if side == "NONE" or qty <= 0:
             return False
@@ -1076,6 +1133,7 @@ class UnifiedAutopilotEngine:
         self.cash += margin + pnl_usdt
         self.position = {
             "side": "NONE",
+            "amount": 0.0,
             "amount_btc": 0.0,
             "entry_price": 0.0,
             "margin_used": 0.0,
@@ -1448,6 +1506,10 @@ class UnifiedAutopilotEngine:
             "leverage": self.leverage,
             "position": self.position,
             "pending_order": self.pending_order,
+            "circuit_breaker_triggered": self.circuit_breaker_triggered,
+            "circuit_breaker_reason": self.circuit_breaker_reason,
+            "capital_allocation_ratio": self.capital_allocation_ratio,
+            "max_loss_pct": self.max_loss_pct,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         self._atomic_write_state(data)
@@ -1503,6 +1565,12 @@ class UnifiedAutopilotEngine:
                     self.cash = data.get("cash", self.capital)
                     self.position = data.get("position", self.position)
                     self.pending_order = data.get("pending_order")
+                    self.circuit_breaker_triggered = data.get("circuit_breaker_triggered", False)
+                    self.circuit_breaker_reason = data.get("circuit_breaker_reason", "")
+                    if "capital_allocation_ratio" in data:
+                        self.capital_allocation_ratio = float(data["capital_allocation_ratio"])
+                    if "max_loss_pct" in data:
+                        self.max_loss_pct = float(data["max_loss_pct"])
             except Exception:
                 pass
         # Restore recent closed trades so the post-exit cooldown survives restarts

@@ -134,6 +134,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 | `tests/bdd/autopilot_runtime_safety.feature` | `test_autopilot_runtime_safety_scenarios.py` | 執行期安全（平倉例外不崩潰並由對帳結算、無訂單編號待確認單不凍結、VST 模擬盤強制對帳、`*.control.json` 跨進程 ARM/STANDBY/緊急全平控制通道、`step()` 互斥鎖單一平倉、冷卻期跨重啟保留、`peek()` 唯讀狀態查詢） |
 | `tests/bdd/execution_safety_and_precision.feature` | `test_execution_safety_scenarios.py` | 下單執行安全（現貨 `position_side=None` 不崩潰、無效/零報價 `PRICE_UNAVAILABLE` 防護、下單 POST 僅於確定未送出時切換備援網域 `BingXAmbiguousRequestError`、開倉唯一 `clientOrderId`、依交易所 `pricePrecision`/`quantityPrecision` 取整、保本同步失敗不誤標、先掛新停損再撤舊單、以及交易所回傳巢狀 order 物件與精度取整正確確認成交避免誤判為 PENDING） |
 | `tests/bdd/daily_and_weekly_reports.feature` | `test_report_scenarios.py` | 量化操盤日報（每日 08:00/18:00）與週報（每週一）前重後輕倒金字塔結構、週一雙報獨立落盤、GitHub Issue 自動發布、四單績效賽馬榜與數學對帳 |
+| `tests/bdd/circuit_breaker_and_margin_allocation.feature` | `test_circuit_breaker_scenarios.py` | 提高單筆資金動用比率至 75% 與本金 50% 全域風控熔斷保護（75% 保證金比率、10% 現金手續費防呆、總淨值跌破 50% 緊急平倉與待機鎖定、Web 熔斷警報橫幅） |
 
 > [!IMPORTANT]
 > **日誌單一真實來源 (Single Source of Truth) 與真實 BDD 驗證準則**：
@@ -144,7 +145,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 ```bash
 just test
 ```
-**當前基準**：全套 115 項規格測試 **100% PASS** (115 passed, 1 xfailed)。
+**當前基準**：全套 150 項規格測試 **100% PASS** (149 passed, 1 xfailed)。
 
 ---
 
@@ -154,7 +155,7 @@ just test
 # 1. 虛擬環境建立與同步
 just sync
 
-# 2. 執行全套自動化測試 (115 項規格 100% PASS)
+# 2. 執行全套自動化測試 (150 項規格 100% PASS)
 just test
 
 # 3. 啟動 BingX 官方 VST 模擬盤操盤中樞 (訂單直接顯示在手機 BingX App 模擬倉)

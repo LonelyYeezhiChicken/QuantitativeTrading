@@ -189,6 +189,8 @@ class BotStateRepository:
                     "stop_flag": data_dir / "autopilot_stop.flag",
                     "control_file": f.with_suffix(".control.json"),
                     "status": st_data.get("status", "STANDBY"),
+                    "circuit_breaker_triggered": st_data.get("circuit_breaker_triggered", False),
+                    "circuit_breaker_reason": st_data.get("circuit_breaker_reason", ""),
                     "stop_btn_label": f"切換待機 ({lev}x)" if st_data.get("status") == "ARMED" else f"啟動操盤 ({lev}x)",
                 })
             except Exception:

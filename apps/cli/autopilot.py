@@ -70,6 +70,8 @@ def main():
     parser.add_argument("--no-ai", action="store_true", help="Disable local Ollama AI veto guard")
     parser.add_argument("--vst", action="store_true", help="Route orders to BingX official VST simulation server (appears on BingX App)")
     parser.add_argument("--live", action="store_true", help="Execute real orders on live exchange with REAL MONEY")
+    parser.add_argument("--margin-ratio", type=float, default=0.75, help="Capital allocation ratio per trade (e.g. 0.75 for 75%)")
+    parser.add_argument("--max-loss-pct", type=float, default=50.0, help="Circuit breaker threshold: stop if loss exceeds this pct of capital (e.g. 50.0)")
     args = parser.parse_args()
 
     engine = UnifiedAutopilotEngine(
@@ -80,6 +82,8 @@ def main():
         enable_ai_veto=not args.no_ai,
         dry_run=not args.live,
         use_vst=args.vst if not args.live else False,
+        capital_allocation_ratio=args.margin_ratio,
+        max_loss_pct=args.max_loss_pct,
     )
 
     if args.status:

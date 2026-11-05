@@ -52,3 +52,4 @@ data/bingx_paper_*.json
 data/bingx_swap_*.json
 data/autopilot_*.json
 data/*_stop.flag
+data/raw/*.parquet
