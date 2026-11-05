@@ -18,6 +18,8 @@ x-bot-defaults: &bot-defaults
     - ./data:/app/data
     - ./journals:/app/journals
     - ./logs:/app/logs
+    - ./packages:/app/packages
+    - ./apps:/app/apps
   env_file:
     - .env
   logging:

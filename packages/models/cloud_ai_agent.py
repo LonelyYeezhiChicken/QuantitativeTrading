@@ -61,7 +61,7 @@ class CloudAiDecisionAgent:
             except ValueError:
                 self.timeout = 2.0
         else:
-            self.timeout = 2.0
+            self.timeout = 20.0 if self.provider == "ollama" else 2.0
 
         # 3. Resolve API Key & Model based on Provider
         if self.provider == "gemini":
