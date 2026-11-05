@@ -317,64 +317,64 @@ def render_live_wallboard():
     else:
         b_cols = st.columns(len(bots))
         for idx, b in enumerate(bots):
-        with b_cols[idx]:
-            lev = b.get("leverage", 3)
-            side = b.get("side", "NONE")
-            qty = b.get("qty", 0.0)
-            cost = b.get("cost", 0.0)
-            avail = b.get("avail", 200.0)
-            equity = b.get("equity", 200.0)
-            init_cap = b.get("init_cap", 200.0)
-            upnl = b.get("upnl", 0.0)
-            upnl_pct = b.get("upnl_pct", 0.0)
-            bot_ret = ((equity - init_cap) / init_cap * 100.0) if init_cap > 0 else 0.0
-            border_c = b.get("border_color", "#58a6ff")
+            with b_cols[idx]:
+                lev = b.get("leverage", 3)
+                side = b.get("side", "NONE")
+                qty = b.get("qty", 0.0)
+                cost = b.get("cost", 0.0)
+                avail = b.get("avail", 200.0)
+                equity = b.get("equity", 200.0)
+                init_cap = b.get("init_cap", 200.0)
+                upnl = b.get("upnl", 0.0)
+                upnl_pct = b.get("upnl_pct", 0.0)
+                bot_ret = ((equity - init_cap) / init_cap * 100.0) if init_cap > 0 else 0.0
+                border_c = b.get("border_color", "#58a6ff")
 
-            if side == "LONG":
-                badge_html = '<span class="pos-badge-long">🚀 多單 (LONG)</span>'
-            elif side == "SHORT":
-                badge_html = '<span class="pos-badge-short">🔻 空單 (SHORT)</span>'
-            else:
-                badge_html = '<span class="pos-badge-flat">🟢 空倉待機</span>'
+                if side == "LONG":
+                    badge_html = '<span class="pos-badge-long">🚀 多單 (LONG)</span>'
+                elif side == "SHORT":
+                    badge_html = '<span class="pos-badge-short">🔻 空單 (SHORT)</span>'
+                else:
+                    badge_html = '<span class="pos-badge-flat">🟢 空倉待機</span>'
 
-            ret_class = "text-green" if bot_ret >= 0 else "text-red"
-            ret_sign = "+" if bot_ret >= 0 else ""
+                ret_class = "text-green" if bot_ret >= 0 else "text-red"
+                ret_sign = "+" if bot_ret >= 0 else ""
 
-            st.markdown(
-                f"""
-                <div class="bot-card" style="border-top: 4px solid {border_c};">
-                    <div class="bot-header">
-                        <span class="bot-title" style="color: {border_c};">{b.get('title', f'SWAP {lev}x')}</span>
-                        {badge_html}
+                st.markdown(
+                    f"""
+                    <div class="bot-card" style="border-top: 4px solid {border_c};">
+                        <div class="bot-header">
+                            <span class="bot-title" style="color: {border_c};">{b.get('title', f'SWAP {lev}x')}</span>
+                            {badge_html}
+                        </div>
+                        <div class="kv-row">
+                            <span class="kv-key">總可用淨值</span>
+                            <span class="kv-val" style="font-size: 1.1rem; color: #f0f6fc;">${equity:,.2f} U</span>
+                        </div>
+                        <div class="kv-row">
+                            <span class="kv-key">初始本金 / 可用現金</span>
+                            <span class="kv-val">${init_cap:,.0f} U / ${avail:,.2f} U</span>
+                        </div>
+                        <div class="kv-row">
+                            <span class="kv-key">累計總回報 (ROE)</span>
+                            <span class="kv-val {ret_class}">{ret_sign}{bot_ret:.2f}% ({ret_sign}${equity - init_cap:+,.2f} U)</span>
+                        </div>
+                        <div class="kv-row">
+                            <span class="kv-key">目前持倉數量</span>
+                            <span class="kv-val">{qty:.5f} BTC</span>
+                        </div>
+                        <div class="kv-row">
+                            <span class="kv-key">持倉均價 / 浮動盈虧</span>
+                            <span class="kv-val">{f'${cost:,.1f}' if side != 'NONE' else '—'} ｜ {f'{upnl:+,.2f} U ({upnl_pct:+.2f}%)' if side != 'NONE' else '—'}</span>
+                        </div>
+                        <div class="kv-row">
+                            <span class="kv-key">風控策略機制</span>
+                            <span class="kv-val" style="font-size: 0.8rem; color: #8b949e;">{b.get('risk_desc', '移動停利 ｜ 原生硬止損')}</span>
+                        </div>
                     </div>
-                    <div class="kv-row">
-                        <span class="kv-key">總可用淨值</span>
-                        <span class="kv-val" style="font-size: 1.1rem; color: #f0f6fc;">${equity:,.2f} U</span>
-                    </div>
-                    <div class="kv-row">
-                        <span class="kv-key">初始本金 / 可用現金</span>
-                        <span class="kv-val">${init_cap:,.0f} U / ${avail:,.2f} U</span>
-                    </div>
-                    <div class="kv-row">
-                        <span class="kv-key">累計總回報 (ROE)</span>
-                        <span class="kv-val {ret_class}">{ret_sign}{bot_ret:.2f}% ({ret_sign}${equity - init_cap:+,.2f} U)</span>
-                    </div>
-                    <div class="kv-row">
-                        <span class="kv-key">目前持倉數量</span>
-                        <span class="kv-val">{qty:.5f} BTC</span>
-                    </div>
-                    <div class="kv-row">
-                        <span class="kv-key">持倉均價 / 浮動盈虧</span>
-                        <span class="kv-val">{f'${cost:,.1f}' if side != 'NONE' else '—'} ｜ {f'{upnl:+,.2f} U ({upnl_pct:+.2f}%)' if side != 'NONE' else '—'}</span>
-                    </div>
-                    <div class="kv-row">
-                        <span class="kv-key">風控策略機制</span>
-                        <span class="kv-val" style="font-size: 0.8rem; color: #8b949e;">{b.get('risk_desc', '移動停利 ｜ 原生硬止損')}</span>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                    """,
+                    unsafe_allow_html=True,
+                )
 
     st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
 
