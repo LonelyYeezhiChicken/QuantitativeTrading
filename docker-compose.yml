@@ -35,32 +35,10 @@ x-bot-defaults: &bot-defaults
         memory: 512M
 
 services:
-  swap_3x:
-    <<: *bot-defaults
-    container_name: quant_swap_3x
-    command: python -u apps/cli/autopilot.py --symbol BTC/USDT --leverage 3 --capital 200 --margin-ratio 0.75 --max-loss-pct 50 --arm --run-loop --live --interval 60 --bot-id swap_3x
-    healthcheck:
-      test: ["CMD", "python", "scripts/healthcheck.py", "--target", "swap_3x", "--max-stale", "180"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 45s
-
-  swap_10x:
-    <<: *bot-defaults
-    container_name: quant_swap_10x
-    command: python -u apps/cli/autopilot.py --symbol BTC/USDT --leverage 10 --capital 200 --margin-ratio 0.75 --max-loss-pct 50 --arm --run-loop --live --interval 60 --bot-id swap_10x
-    healthcheck:
-      test: ["CMD", "python", "scripts/healthcheck.py", "--target", "swap_10x", "--max-stale", "180"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 45s
-
   swap_50x:
     <<: *bot-defaults
     container_name: quant_swap_50x
-    command: python -u apps/cli/autopilot.py --symbol BTC/USDT --leverage 50 --capital 200 --margin-ratio 0.75 --max-loss-pct 50 --arm --run-loop --live --interval 15 --bot-id swap_50x
+    command: python -u apps/cli/autopilot.py --symbol BTC/USDT --leverage 50 --capital 600 --margin-ratio 0.75 --max-loss-pct 50 --arm --run-loop --live --interval 15 --bot-id swap_50x
     healthcheck:
       test: ["CMD", "python", "scripts/healthcheck.py", "--target", "swap_50x", "--max-stale", "90"]
       interval: 30s

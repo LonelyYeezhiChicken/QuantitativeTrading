@@ -470,8 +470,9 @@ def render_live_wallboard():
             unsafe_allow_html=True,
         )
 
-    # ================= 3 Bot Cards (賽馬榜 - 降噪精華版) =================
-    st.markdown("### 🏇 三合約守護戰隊實時賽馬榜 (均攤總本金，獨立風控)")
+    # ================= Bot Status Section (自適應單機/賽馬榜) =================
+    board_title = "### 🏇 多合約守護戰隊實時賽馬榜 (均攤總本金，獨立風控)" if len(bots) > 1 else "### ⚡ 50X 旗艦合約守護中樞 (全額本金，獨立風控)"
+    st.markdown(board_title)
 
     if not bots:
         st.info("💡 尚未偵測到運行中的守護進程狀態檔案，正在等待交易中樞啟動寫入...")
