@@ -67,7 +67,7 @@ class TestCircuitBreakerAndMarginRatio:
         assert engine2.capital_allocation_ratio == 0.75
         assert engine2.max_loss_pct == 50.0
 
-    def test_circuit_breaker_triggers_when_empty_position_and_cash_below_threshold(self, tmp_path):
+    def test_circuit_breaker_triggers_when_empty_position_and_cash_below_threshold(self, tmp_path, monkeypatch):
         state_file = tmp_path / "state.json"
         engine = UnifiedAutopilotEngine(
             symbol="BTC/USDT",
@@ -80,6 +80,7 @@ class TestCircuitBreakerAndMarginRatio:
         engine.arm()
         engine.cash = 80.0  # Already < 200 * 0.5 = 100
         engine.position = {"side": "NONE", "amount": 0.0, "entry_price": 0.0, "margin_used": 0.0}
+        monkeypatch.setattr(engine, "_dispatch_circuit_breaker_alert", lambda *args: None)
 
         res = engine.step(override_price=70000.0)
         assert engine.circuit_breaker_triggered is True

@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-05 09:02:53 UTC",
-  "total_entries": 6,
+  "updated_at": "2026-11-05 09:23:34 UTC",
+  "total_entries": 9,
   "entries": [
     {
       "journal_id": "SWAP_20261104_224826_LONG",
@@ -306,6 +306,159 @@
         "strategy_evaluation": "Ollama EXECUTE: 指標處於健康順勢區間 (RSI=60.0, 乖離=+0.4%)，核准開多",
         "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
         "quality_score": 4
+      }
+    },
+    {
+      "journal_id": "SWAP_10X_20261105_091907_LONG",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "LONG",
+      "status": "OPEN",
+      "entry_time": "2026-11-05 09:19:07 UTC",
+      "exit_time": "",
+      "entry_price": 80354.6,
+      "exit_price": 0.0,
+      "amount_btc": 0.0186,
+      "margin_used": 149.459556,
+      "leverage": 10,
+      "notional_value": 1494.59556,
+      "pnl_usdt": 0.0,
+      "pnl_pct": 0.0,
+      "realized_r_multiple": 0.0,
+      "liquidation_price": 73122.686,
+      "snapshot": {
+        "price": 80354.6,
+        "rsi": 59.269328443316084,
+        "ema21": 80055.93794657303,
+        "atr": 1205.319,
+        "bid": 80354.6,
+        "ask": 80354.6,
+        "bias_pct": 0.37306670946294235
+      },
+      "risk_plan": {
+        "stop_loss_price": 79149.281,
+        "stop_loss_pct": 15.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 5.0,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 22.418933399999997
+      },
+      "trajectory": {
+        "highest_price": 80385.5,
+        "lowest_price": 80323.9,
+        "mfe_pct": 0.3845455020620372,
+        "mae_pct": -0.38205653441136717,
+        "duration_seconds": 265,
+        "updates_count": 53
+      },
+      "review": {
+        "thesis": "RSI 處於 59.3 動能健康區間，且市價 ($80,354.60) 穩定收在 EMA21 ($80,055.94) 之上 (乖離率 +0.37%)，顯示多頭動能延續。\n【系統觸發信號】：雙均線多頭排列強勢動能突破 (RSI=59.3, Bias=+0.34%, 站上EMA21/EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,205.32) 預留正常價格呼吸空間。",
+        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
+        "strategy_evaluation": "Ollama EXECUTE: [雲端 AI 響應逾時 (20.03s > 20.0s)，立即切換為高階數學風控規則] 指標處於健康順勢區間 (RSI=59.3, 乖離=+0.3%)，核准開多",
+        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_3X_20261105_091907_LONG",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "LONG",
+      "status": "OPEN",
+      "entry_time": "2026-11-05 09:19:07 UTC",
+      "exit_time": "",
+      "entry_price": 80354.6,
+      "exit_price": 0.0,
+      "amount_btc": 0.0056,
+      "margin_used": 149.99525333333335,
+      "leverage": 3,
+      "notional_value": 449.98576,
+      "pnl_usdt": 0.0,
+      "pnl_pct": 0.0,
+      "realized_r_multiple": 0.0,
+      "liquidation_price": 56248.22,
+      "snapshot": {
+        "price": 80354.6,
+        "rsi": 59.269328443316084,
+        "ema21": 80055.93794657303,
+        "atr": 1205.319,
+        "bid": 80354.6,
+        "ask": 80354.6,
+        "bias_pct": 0.37306670946294235
+      },
+      "risk_plan": {
+        "stop_loss_price": 79149.281,
+        "stop_loss_pct": 4.5,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 0.99,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 6.7497864000000005
+      },
+      "trajectory": {
+        "highest_price": 80385.5,
+        "lowest_price": 80323.9,
+        "mfe_pct": 0.11536365061861115,
+        "mae_pct": -0.11461696032341015,
+        "duration_seconds": 265,
+        "updates_count": 53
+      },
+      "review": {
+        "thesis": "RSI 處於 59.3 動能健康區間，且市價 ($80,354.60) 穩定收在 EMA21 ($80,055.94) 之上 (乖離率 +0.37%)，顯示多頭動能延續。\n【系統觸發信號】：雙均線多頭排列強勢動能突破 (RSI=59.3, Bias=+0.34%, 站上EMA21/EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,205.32) 預留正常價格呼吸空間。",
+        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
+        "strategy_evaluation": "Ollama EXECUTE: [雲端 AI 響應逾時 (20.06s > 20.0s)，立即切換為高階數學風控規則] 指標處於健康順勢區間 (RSI=59.3, 乖離=+0.3%)，核准開多",
+        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_50X_20261105_091931_LONG",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "LONG",
+      "status": "OPEN",
+      "entry_time": "2026-11-05 09:19:31 UTC",
+      "exit_time": "",
+      "entry_price": 80354.6,
+      "exit_price": 0.0,
+      "amount_btc": 0.0242,
+      "margin_used": 38.8916264,
+      "leverage": 50,
+      "notional_value": 1944.58132,
+      "pnl_usdt": 0.0,
+      "pnl_pct": 0.0,
+      "realized_r_multiple": 0.0,
+      "liquidation_price": 78908.2172,
+      "snapshot": {
+        "price": 80354.6,
+        "rsi": 59.66616342303498,
+        "ema21": 80057.70158293666,
+        "atr": 1205.319,
+        "bid": 80354.6,
+        "ask": 80354.6,
+        "bias_pct": 0.3708555344369627
+      },
+      "risk_plan": {
+        "stop_loss_price": 80113.5362,
+        "stop_loss_pct": 15.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 5.0,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 5.83374396
+      },
+      "trajectory": {
+        "highest_price": 80385.5,
+        "lowest_price": 80318.1,
+        "mfe_pct": 1.922727510310186,
+        "mae_pct": -2.27118298143479,
+        "duration_seconds": 243,
+        "updates_count": 49
+      },
+      "review": {
+        "thesis": "RSI 處於 59.7 動能健康區間，且市價 ($80,354.60) 穩定收在 EMA21 ($80,057.70) 之上 (乖離率 +0.37%)，顯示多頭動能延續。\n【系統觸發信號】：雙均線多頭排列強勢動能突破 (RSI=59.7, Bias=+0.37%, 站上EMA21/EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,205.32) 預留正常價格呼吸空間。",
+        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
+        "strategy_evaluation": "Ollama EXECUTE: [雲端 AI 響應逾時 (20.02s > 20.0s)，立即切換為高階數學風控規則] 指標處於健康順勢區間 (RSI=59.7, 乖離=+0.4%)，核准開多",
+        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
+        "quality_score": 3
       }
     }
   ]

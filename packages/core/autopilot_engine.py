@@ -684,6 +684,8 @@ class UnifiedAutopilotEngine:
     def _dispatch_circuit_breaker_alert(self, circuit_breaker_threshold: float, total_equity: float) -> None:
         """Send emergency circuit breaker notification to LINE and Telegram."""
         self._circuit_breaker_alert_sent = True
+        if self.dry_run:
+            return
         try:
             from packages.notifications import send_notification
             send_notification(
