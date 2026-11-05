@@ -1076,6 +1076,20 @@ class UnifiedAutopilotEngine:
             return False
 
         if not exchange_already_closed:
+            if self.is_exchange_backed and "SWAP" in self.mode:
+                exists, exch_pos = self._query_exchange_position(side)
+                if exists is False:
+                    # Exchange position already closed (e.g. by sibling daemon or manual intervention)
+                    exchange_already_closed = True
+                elif exists and exch_pos:
+                    try:
+                        exch_amt = abs(float(exch_pos.get("positionAmt", exch_pos.get("amount", qty))))
+                        if exch_amt > 0 and exch_amt < qty:
+                            qty = exch_amt
+                    except Exception:
+                        pass
+
+        if not exchange_already_closed:
             market_type = "SWAP" if "SWAP" in self.mode else "SPOT"
             close_side = "SELL" if side == "LONG" else "BUY"
             close_res: Any = None
