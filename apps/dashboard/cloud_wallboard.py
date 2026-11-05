@@ -471,7 +471,11 @@ def render_live_wallboard():
         )
 
     # ================= Bot Status Section (自適應單機/賽馬榜) =================
-    board_title = "### 🏇 多合約守護戰隊實時賽馬榜 (均攤總本金，獨立風控)" if len(bots) > 1 else "### ⚡ 50X 旗艦合約守護中樞 (全額本金，獨立風控)"
+    board_title = (
+        "### 🏇 多合約守護戰隊實時賽馬榜 (均攤總本金，獨立風控)"
+        if len(bots) > 1
+        else (f"### ⚡ {bots[0].get('leverage', 20)}X 旗艦合約守護中樞 (全額本金，獨立風控)" if bots else "### ⚡ 量化旗艦合約守護中樞")
+    )
     st.markdown(board_title)
 
     if not bots:
