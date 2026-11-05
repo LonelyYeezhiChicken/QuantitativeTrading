@@ -68,7 +68,7 @@ class BotStateRepository:
                 side = pos.get("side", "NONE")
                 qty = pos.get("amount_btc", 0.0)
                 cost = pos.get("entry_price", btc_p)
-                margin = pos.get("margin_used", 50.0)
+                margin = float(pos.get("margin_used", 0.0) or 0.0) if side != "NONE" else 0.0
                 avail = st_data.get("available_margin", 50.0)
                 init_cap = st_data.get("initial_capital", 100.0)
                 lev = pos.get("leverage", st_data.get("leverage", 3))
@@ -136,7 +136,7 @@ class BotStateRepository:
                 side = pos.get("side", "NONE")
                 qty = pos.get("amount", pos.get("amount_btc", 0.0))
                 cost = pos.get("entry_price", btc_p)
-                margin = pos.get("margin_used", 50.0)
+                margin = float(pos.get("margin_used", 0.0) or 0.0) if side != "NONE" else 0.0
                 avail = st_data.get("cash", 50.0)
                 init_cap = st_data.get("capital", 100.0)
                 lev = st_data.get("leverage", 10)
@@ -178,6 +178,7 @@ class BotStateRepository:
                     "side": side,
                     "qty": qty,
                     "cost": cost,
+                    "margin_used": margin,
                     "mkt_val": qty * btc_p,
                     "upnl": upnl,
                     "upnl_pct": upnl_pct,
@@ -186,6 +187,13 @@ class BotStateRepository:
                     "init_cap": init_cap,
                     "liq_price": liq_p,
                     "risk_desc": risk_info,
+                    "entry_time": pos.get("entry_time", ""),
+                    "entry_why": pos.get("entry_why", ""),
+                    "ai_decision": pos.get("ai_decision", ""),
+                    "native_sl_price": float(pos.get("native_sl_price", 0.0) or 0.0),
+                    "cloud_sl_tier": int(pos.get("cloud_sl_tier", 0) or 0),
+                    "highest_pnl_pct": float(pos.get("highest_pnl_pct", 0.0) or 0.0),
+                    "journal_id": pos.get("journal_id", ""),
                     "stop_flag": data_dir / "autopilot_stop.flag",
                     "control_file": f.with_suffix(".control.json"),
                     "status": st_data.get("status", "STANDBY"),

@@ -234,9 +234,9 @@
     "semantic_hash": ""
   },
   "data/trade_journal_db.json": {
-    "mtime": 1793872620.9750915,
-    "seen": 1793872621.0687854,
-    "ast_hash": "50b2147e4890f9f795e18f05376f5403",
+    "mtime": 1793873895.9750926,
+    "seen": 1793873897.270698,
+    "ast_hash": "3e645009fce36da16f1c5f849032531e",
     "semantic_hash": ""
   },
   "interactive_menu.py": {
@@ -1062,9 +1062,9 @@
     "semantic_hash": ""
   },
   "packages/core/state_repository.py": {
-    "mtime": 1793868639.284555,
-    "seen": 1793869153.7624884,
-    "ast_hash": "39499bf38a684f46f763997e332435e4",
+    "mtime": 1793873828.5560186,
+    "seen": 1793873897.2707334,
+    "ast_hash": "bd52a060487900bc5973a9b4ce70bf37",
     "semantic_hash": ""
   },
   "tests/bdd/test_broker_gateway_polymorphism_scenarios.py": {
@@ -1410,9 +1410,9 @@
     "semantic_hash": ""
   },
   "apps/dashboard/cloud_wallboard.py": {
-    "mtime": 1793868760.2410998,
-    "seen": 1793869153.7624156,
-    "ast_hash": "0aaabe55cc089892db76cf9668ddaac7",
+    "mtime": 1793873800.8160603,
+    "seen": 1793873897.2706192,
+    "ast_hash": "dd085d41a7b61c190afbad0f43a1876c",
     "semantic_hash": ""
   },
   "deploy/upgrade.sh": {
@@ -1518,21 +1518,33 @@
     "semantic_hash": ""
   },
   "journals/entries/SWAP_10X_20261105_091907_LONG.md": {
-    "mtime": 1793872616.5801322,
-    "seen": 1793872621.069158,
-    "ast_hash": "c0e420f500b91d798bdbd96a92eb7ef2",
+    "mtime": 1793873895.9835672,
+    "seen": 1793873897.271036,
+    "ast_hash": "28aa6d64535025301cba0ccadbed2756",
     "semantic_hash": ""
   },
   "journals/entries/SWAP_3X_20261105_091907_LONG.md": {
-    "mtime": 1793872620.9822924,
-    "seen": 1793872621.0691648,
-    "ast_hash": "88d102b528a7020fb637d2d4df6d7dd0",
+    "mtime": 1793873895.984123,
+    "seen": 1793873897.2710428,
+    "ast_hash": "42747ec0c9d3cdad26b89a22c95567df",
     "semantic_hash": ""
   },
   "journals/entries/SWAP_50X_20261105_091931_LONG.md": {
-    "mtime": 1793872618.9818351,
-    "seen": 1793872621.06917,
-    "ast_hash": "1d837ee76986530233a981efcb7a9d37",
+    "mtime": 1793873893.516313,
+    "seen": 1793873897.2710478,
+    "ast_hash": "2383b067750656463c3eae092a7f8f68",
+    "semantic_hash": ""
+  },
+  "tests/test_wallboard_position_display.py": {
+    "mtime": 1793873812.4770598,
+    "seen": 1793873897.2708817,
+    "ast_hash": "d67a913eb04548e41c79b7c0c4b24a50",
+    "semantic_hash": ""
+  },
+  "journals/reports/daily/2026-11-05_PM.md": {
+    "mtime": 1793872818.045632,
+    "seen": 1793873897.2710528,
+    "ast_hash": "553176a1dcd5f6f06b4c597eeed27173",
     "semantic_hash": ""
   }
 }
