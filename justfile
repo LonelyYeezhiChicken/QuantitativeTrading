@@ -15,6 +15,10 @@ sync:
 gui:
     .venv\Scripts\python.exe -m streamlit run apps/dashboard/app.py
 
+# 啟動雲端極簡零按鈕大字看板 (未來上雲專用，純讀取防誤觸)
+wallboard:
+    .venv\Scripts\python.exe -m streamlit run apps/dashboard/cloud_wallboard.py
+
 # 啟動免指令純數字互動選單 (Terminal Interactive Menu)
 menu:
     .venv\Scripts\python.exe apps/cli/interactive_menu.py

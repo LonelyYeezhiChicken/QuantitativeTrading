@@ -324,9 +324,9 @@
     "semantic_hash": ""
   },
   "packages/execution/bingx_client.py": {
-    "mtime": 1793780273.840088,
-    "seen": 1793780293.765699,
-    "ast_hash": "3fe226d0907c9898a6b61f48dc8efdb2",
+    "mtime": 1793844432.0155487,
+    "seen": 1793845326.3214662,
+    "ast_hash": "79b9219eff7e6570748dea7ea28e614b",
     "semantic_hash": ""
   },
   "packages/execution/bingx_gateway.py": {
@@ -402,9 +402,9 @@
     "semantic_hash": ""
   },
   "packages/models/__init__.py": {
-    "mtime": 1793721505.7052877,
-    "seen": 1793722086.294238,
-    "ast_hash": "29d3f9555768e25b18209ffda4d075eb",
+    "mtime": 1793843824.8307855,
+    "seen": 1793843983.9105449,
+    "ast_hash": "0256c1f05d65e38ddf1ebf4e869d873b",
     "semantic_hash": ""
   },
   "packages/models/advanced_strategies.py": {
@@ -990,9 +990,9 @@
     "semantic_hash": ""
   },
   "packages/core/autopilot_engine.py": {
-    "mtime": 1793834111.796465,
-    "seen": 1793834227.0631049,
-    "ast_hash": "48b097371f9281e4e44169478186d955",
+    "mtime": 1793843846.1415827,
+    "seen": 1793843983.9104967,
+    "ast_hash": "6f59f65a40038977f4bdc3f219aa93a0",
     "semantic_hash": ""
   },
   "packages/models/ollama_agent.py": {
@@ -1365,6 +1365,102 @@
     "mtime": 1793834089.3737688,
     "seen": 1793834227.0633693,
     "ast_hash": "2f6050dd4c0d5fc4919f0ce3b34d9d98",
+    "semantic_hash": ""
+  },
+  "data/archive_4bots_150u/autopilot_BTC_USDT_spot_150u.control.json": {
+    "mtime": 1793834692.8656676,
+    "seen": 1793843983.910435,
+    "ast_hash": "2f759927b5929665906950ad7577a8b4",
+    "semantic_hash": ""
+  },
+  "data/archive_4bots_150u/autopilot_BTC_USDT_spot_150u.json": {
+    "mtime": 1793834692.8656676,
+    "seen": 1793843983.910437,
+    "ast_hash": "25feacbb7f7e728f977a766d9005050b",
+    "semantic_hash": ""
+  },
+  "data/archive_4bots_150u/autopilot_BTC_USDT_swap_10x_150u.control.json": {
+    "mtime": 1793832536.354466,
+    "seen": 1793843983.9104393,
+    "ast_hash": "79363812bc440a89fb0c43a62ed8c2a8",
+    "semantic_hash": ""
+  },
+  "data/archive_4bots_150u/autopilot_BTC_USDT_swap_10x_150u.json": {
+    "mtime": 1793833244.7968626,
+    "seen": 1793843983.9104407,
+    "ast_hash": "c0a7a2842eaa24ff18b9865117acd4b9",
+    "semantic_hash": ""
+  },
+  "data/archive_4bots_150u/autopilot_BTC_USDT_swap_3x_150u.control.json": {
+    "mtime": 1793832532.8496964,
+    "seen": 1793843983.910443,
+    "ast_hash": "6c05ada55735d41753405069e68d5786",
+    "semantic_hash": ""
+  },
+  "data/archive_4bots_150u/autopilot_BTC_USDT_swap_3x_150u.json": {
+    "mtime": 1793833216.8604095,
+    "seen": 1793843983.910444,
+    "ast_hash": "b881fcde8b5a4028562d10bb5d28e3db",
+    "semantic_hash": ""
+  },
+  "data/archive_4bots_150u/autopilot_BTC_USDT_swap_50x_150u.control.json": {
+    "mtime": 1793832540.1874976,
+    "seen": 1793843983.9104455,
+    "ast_hash": "bd400b8c176816f11f73e2f4b6fc6a5c",
+    "semantic_hash": ""
+  },
+  "data/archive_4bots_150u/autopilot_BTC_USDT_swap_50x_150u.json": {
+    "mtime": 1793832618.754766,
+    "seen": 1793843983.9104474,
+    "ast_hash": "4b16fc7697de9bacf22c2796b1ec1bb0",
+    "semantic_hash": ""
+  },
+  "deploy/setup_vps.sh": {
+    "mtime": 1793844465.7844057,
+    "seen": 1793845326.3214233,
+    "ast_hash": "c4f29c46dd16dc4067d181e3d8cb00bb",
+    "semantic_hash": ""
+  },
+  "docker-compose.yml": {
+    "mtime": 1793846773.9364362,
+    "seen": 1793846833.7885704,
+    "ast_hash": "35ce4bfbf8705f029c2ecf9bc69a73ce",
+    "semantic_hash": ""
+  },
+  "packages/models/cloud_ai_agent.py": {
+    "mtime": 1793843820.170682,
+    "seen": 1793843983.91055,
+    "ast_hash": "50b62ca8e7b14267f04c83c8e86aeaa2",
+    "semantic_hash": ""
+  },
+  "scripts/cron_runner.py": {
+    "mtime": 1793843873.6473782,
+    "seen": 1793843983.9105656,
+    "ast_hash": "68651de5f48891164908d5f774e2ce5f",
+    "semantic_hash": ""
+  },
+  "tests/test_cloud_ai_agent.py": {
+    "mtime": 1793843856.9286902,
+    "seen": 1793843983.9106257,
+    "ast_hash": "4b59427a37c53c0c04bf4ad6f90e8c3c",
+    "semantic_hash": ""
+  },
+  "docs/VPS_DEPLOYMENT_GUIDE.md": {
+    "mtime": 1793844487.007535,
+    "seen": 1793845326.3218176,
+    "ast_hash": "5749ab3b680b6f058e005c4cc44a8326",
+    "semantic_hash": ""
+  },
+  "journals/reports/daily/2026-11-05_AM.md": {
+    "mtime": 1793836807.9545581,
+    "seen": 1793843983.910796,
+    "ast_hash": "31139f34fb23c439c120fe5be7f0f1ea",
+    "semantic_hash": ""
+  },
+  "apps/dashboard/cloud_wallboard.py": {
+    "mtime": 1793846665.8952854,
+    "seen": 1793846833.7883806,
+    "ast_hash": "865f74176a63be47d9385310da5f5874",
     "semantic_hash": ""
   }
 }

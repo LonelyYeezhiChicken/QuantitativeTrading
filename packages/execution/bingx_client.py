@@ -67,6 +67,7 @@ class BingXClient:
         self.base_urls = [u.rstrip("/") for u in target_urls]
         self.timeout = timeout
         self.session = requests.Session()
+        self._server_time_offset_ms = 0
 
     def validate_params(self, params: Dict[str, Any]) -> None:
         """Validate parameter values to prevent injection and malformed query strings."""
@@ -87,7 +88,7 @@ class BingXClient:
         """
         all_params = dict(params)
         if "timestamp" not in all_params:
-            all_params["timestamp"] = int(time.time() * 1000)
+            all_params["timestamp"] = int(time.time() * 1000) + getattr(self, "_server_time_offset_ms", 0)
 
         self.validate_params(all_params)
 
@@ -171,6 +172,17 @@ class BingXClient:
 
                 resp.raise_for_status()
                 data = resp.json()
+
+                # Dynamic Server Time Calibration (Prevent Timestamp Drift & Expiration)
+                if isinstance(data, dict) and "timestamp" in data:
+                    try:
+                        server_ts = int(data["timestamp"])
+                        local_ts = int(time.time() * 1000)
+                        skew = server_ts - local_ts
+                        if abs(skew) > 200:
+                            self._server_time_offset_ms = skew
+                    except (ValueError, TypeError):
+                        pass
 
                 # BingX success code is 0
                 if isinstance(data, dict) and data.get("code") not in (0, None):

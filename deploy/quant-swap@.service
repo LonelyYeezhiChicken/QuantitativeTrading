@@ -1,0 +1,17 @@
+[Unit]
+Description=Crypto AI Quant Swap Bot (%i x Leverage)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/QuantitativeTrading
+EnvironmentFile=/home/ubuntu/QuantitativeTrading/.env
+ExecStart=/home/ubuntu/QuantitativeTrading/.venv/bin/python -u apps/cli/autopilot.py --symbol BTC/USDT --leverage %i --capital 200 --arm --run-loop --live --interval 60
+Restart=always
+RestartSec=5s
+StandardOutput=append:/home/ubuntu/QuantitativeTrading/logs/swap_%ix.log
+StandardError=append:/home/ubuntu/QuantitativeTrading/logs/swap_%ix.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,64 @@
+version: '3.8'
+
+# ==============================================================================
+# Crypto AI Quantitative Trading - Multi-Bot Container Orchestration
+# Manages 3x, 10x, 50x live perpetual bots + automated report generator + read-only wallboard
+# Supports Host Ollama integration via host.docker.internal:11434
+# ==============================================================================
+
+x-bot-defaults: &bot-defaults
+  build: .
+  restart: unless-stopped
+  environment:
+    - TZ=Asia/Taipei
+    - OLLAMA_BASE_URL=http://host.docker.internal:11434
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  volumes:
+    - ./data:/app/data
+    - ./journals:/app/journals
+    - ./logs:/app/logs
+  env_file:
+    - .env
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+  deploy:
+    resources:
+      limits:
+        memory: 512M
+
+services:
+  swap_3x:
+    <<: *bot-defaults
+    container_name: quant_swap_3x
+    command: python -u apps/cli/autopilot.py --symbol BTC/USDT --leverage 3 --capital 200 --arm --run-loop --live --interval 60
+
+  swap_10x:
+    <<: *bot-defaults
+    container_name: quant_swap_10x
+    command: python -u apps/cli/autopilot.py --symbol BTC/USDT --leverage 10 --capital 200 --arm --run-loop --live --interval 60
+
+  swap_50x:
+    <<: *bot-defaults
+    container_name: quant_swap_50x
+    command: python -u apps/cli/autopilot.py --symbol BTC/USDT --leverage 50 --capital 200 --arm --run-loop --live --interval 15
+
+  reporter:
+    <<: *bot-defaults
+    container_name: quant_reporter
+    command: python -u scripts/cron_runner.py
+
+  dashboard:
+    <<: *bot-defaults
+    container_name: quant_dashboard
+    command: python -m streamlit run apps/dashboard/cloud_wallboard.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
+    volumes:
+      - ./data:/app/data
+      - ./journals:/app/journals
+      - ./logs:/app/logs
+      - ./apps/dashboard:/app/apps/dashboard
+    ports:
+      - "8501:8501"

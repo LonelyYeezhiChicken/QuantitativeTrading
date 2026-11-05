@@ -13,6 +13,7 @@ from packages.models.advanced_strategies import (
     BollingerBreakoutModel,
 )
 from packages.models.ollama_agent import OllamaDecisionAgent
+from packages.models.cloud_ai_agent import CloudAiDecisionAgent, get_ai_decision_agent
 
 __all__ = [
     "BaseTradingModel",
@@ -27,4 +28,6 @@ __all__ = [
     "RSIBottomHunterModel",
     "BollingerBreakoutModel",
     "OllamaDecisionAgent",
+    "CloudAiDecisionAgent",
+    "get_ai_decision_agent",
 ]

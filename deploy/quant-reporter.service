@@ -1,0 +1,17 @@
+[Unit]
+Description=Crypto AI Quant Daily & Weekly Report Cron Runner
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/QuantitativeTrading
+EnvironmentFile=/home/ubuntu/QuantitativeTrading/.env
+ExecStart=/home/ubuntu/QuantitativeTrading/.venv/bin/python -u scripts/cron_runner.py
+Restart=always
+RestartSec=10s
+StandardOutput=append:/home/ubuntu/QuantitativeTrading/logs/reporter.log
+StandardError=append:/home/ubuntu/QuantitativeTrading/logs/reporter.log
+
+[Install]
+WantedBy=multi-user.target

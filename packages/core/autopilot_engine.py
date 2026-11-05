@@ -27,6 +27,7 @@ from packages.execution.precision import round_price
 from packages.models.base import BaseTradingModel
 from packages.models.advanced_strategies import SwapMultiRegimeModel, SpotMomentumPullbackModel
 from packages.models.ollama_agent import OllamaDecisionAgent
+from packages.models.cloud_ai_agent import get_ai_decision_agent
 from packages.journal.manager import TradeJournalManager
 
 
@@ -439,7 +440,7 @@ class UnifiedAutopilotEngine:
             enable_ws=True,
             default_market_type=MarketType.SWAP.value if "SWAP" in self.mode else MarketType.SPOT.value,
         )
-        self.ai_agent = ai_agent or OllamaDecisionAgent(model=ollama_model)
+        self.ai_agent = ai_agent or get_ai_decision_agent(ollama_model=ollama_model)
 
         # Strategy Models (Supports Dependency Injection) & Adaptive Volatility Risk Math
         if "SWAP" in self.mode:

@@ -39,6 +39,7 @@ Thumbs.db
 .vscode/
 *.swp
 data/archive_old_paper/
+data/archive_4bots_150u/
 *.swo
 
 # ==============================================================================
