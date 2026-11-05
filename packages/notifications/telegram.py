@@ -23,8 +23,10 @@ class TelegramNotifier(BaseNotifier):
         chat_id: Optional[str] = None,
         timeout: float = 5.0,
     ) -> None:
-        self.token = token or os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-        self.chat_id = chat_id or os.getenv("TELEGRAM_CHAT_ID", "").strip()
+        raw_token = token if token is not None else os.getenv("TELEGRAM_BOT_TOKEN", "")
+        raw_chat = chat_id if chat_id is not None else os.getenv("TELEGRAM_CHAT_ID", "")
+        self.token = raw_token.strip()
+        self.chat_id = raw_chat.strip()
         self.timeout = timeout
 
     @property

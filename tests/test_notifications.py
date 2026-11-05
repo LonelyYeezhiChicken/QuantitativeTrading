@@ -135,7 +135,7 @@ def test_line_notifier_messaging_api_successful_push():
 
 def test_line_notifier_legacy_notify_fallback():
     """Verify fallback to LINE Notify when only notify_token is provided."""
-    notifier = LineNotifier(notify_token="mock_notify_token")
+    notifier = LineNotifier(channel_access_token="", user_id="", notify_token="mock_notify_token")
     assert notifier.is_enabled() is True
 
     mock_resp = MagicMock()

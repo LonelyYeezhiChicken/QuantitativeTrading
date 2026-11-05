@@ -28,11 +28,12 @@ class LineNotifier(BaseNotifier):
         notify_token: Optional[str] = None,
         timeout: float = 5.0,
     ) -> None:
-        self.channel_access_token = (
-            channel_access_token or os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
-        ).strip()
-        self.user_id = (user_id or os.getenv("LINE_USER_ID", "")).strip()
-        self.notify_token = (notify_token or os.getenv("LINE_NOTIFY_TOKEN", "")).strip()
+        raw_cat = channel_access_token if channel_access_token is not None else os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
+        raw_uid = user_id if user_id is not None else os.getenv("LINE_USER_ID", "")
+        raw_nt = notify_token if notify_token is not None else os.getenv("LINE_NOTIFY_TOKEN", "")
+        self.channel_access_token = raw_cat.strip()
+        self.user_id = raw_uid.strip()
+        self.notify_token = raw_nt.strip()
         self.timeout = timeout
 
     @property
