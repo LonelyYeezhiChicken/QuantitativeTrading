@@ -371,96 +371,91 @@ def render_live_wallboard():
 
     st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
 
-    # ================= Active Live Position Focus Panel =================
+    # ================= Active Live Position Focus Panel (橫向三欄並排) =================
     active_bots = [b for b in bots if b.get("side") not in ("NONE", None, "")]
     if active_bots:
-        for b in active_bots:
-            side = b.get("side", "LONG")
-            lev = b.get("leverage", 3)
-            qty = b.get("qty", 0.0)
-            cost = b.get("cost", 0.0)
-            margin_used = b.get("margin_used", 0.0)
-            upnl = b.get("upnl", 0.0)
-            upnl_pct = b.get("upnl_pct", 0.0)
-            native_sl = b.get("native_sl_price", 0.0)
-            liq_p = b.get("liq_price", 0.0)
-            tier = b.get("cloud_sl_tier", 0)
-            entry_t = format_to_taipei_time(b.get("entry_time"))
-            why = b.get("entry_why") or "雙均線多頭排列強勢動能突破模型觸發"
-            ai_eval = b.get("ai_decision") or "模型風控核准執行"
-            border_c = b.get("border_color", "#58a6ff")
+        st.markdown(f"### 🎯 當前即時持倉戰情 ({len(active_bots)} 檔持倉中)")
+        pos_cols = st.columns(len(active_bots))
+        for idx, b in enumerate(active_bots):
+            with pos_cols[idx]:
+                side = b.get("side", "LONG")
+                lev = b.get("leverage", 3)
+                qty = b.get("qty", 0.0)
+                cost = b.get("cost", 0.0)
+                margin_used = b.get("margin_used", 0.0)
+                upnl = b.get("upnl", 0.0)
+                upnl_pct = b.get("upnl_pct", 0.0)
+                native_sl = b.get("native_sl_price", 0.0)
+                liq_p = b.get("liq_price", 0.0)
+                tier = b.get("cloud_sl_tier", 0)
+                entry_t = format_to_taipei_time(b.get("entry_time"))
+                why = b.get("entry_why") or "雙均線多頭排列強勢動能突破模型觸發"
+                ai_eval = b.get("ai_decision") or "模型風控核准執行"
+                border_c = b.get("border_color", "#58a6ff")
 
-            is_profit = upnl >= 0
-            pnl_c = "text-green" if is_profit else "text-red"
-            pnl_s = "+" if is_profit else ""
-            badge_cls = "pos-badge-long" if side == "LONG" else "pos-badge-short"
-            side_icon = "🟢 做多 (LONG)" if side == "LONG" else "🔴 做空 (SHORT)"
+                is_profit = upnl >= 0
+                pnl_c = "text-green" if is_profit else "text-red"
+                pnl_s = "+" if is_profit else ""
+                badge_cls = "pos-badge-long" if side == "LONG" else "pos-badge-short"
+                side_icon = "🟢 做多" if side == "LONG" else "🔴 做空"
 
-            # Safe Distances
-            sl_dist_str = "未設置"
-            if native_sl > 0 and cur_p > 0:
-                dist_pct = ((cur_p - native_sl) / cur_p * 100.0) if side == "LONG" else ((native_sl - cur_p) / cur_p * 100.0)
-                sl_dist_str = f"${native_sl:,.1f} (距現價 {dist_pct:+.2f}%)"
+                # Safe Distances
+                sl_dist_str = "未設置"
+                if native_sl > 0 and cur_p > 0:
+                    dist_pct = ((cur_p - native_sl) / cur_p * 100.0) if side == "LONG" else ((native_sl - cur_p) / cur_p * 100.0)
+                    sl_dist_str = f"${native_sl:,.1f} ({dist_pct:+.1f}%)"
 
-            liq_dist_str = "安全"
-            if liq_p > 0 and cur_p > 0:
-                liq_dist = ((cur_p - liq_p) / cur_p * 100.0) if side == "LONG" else ((liq_p - cur_p) / cur_p * 100.0)
-                liq_dist_str = f"${liq_p:,.1f} (安全距離 {liq_dist:+.1f}%)"
+                liq_dist_str = "安全"
+                if liq_p > 0 and cur_p > 0:
+                    liq_dist = ((cur_p - liq_p) / cur_p * 100.0) if side == "LONG" else ((liq_p - cur_p) / cur_p * 100.0)
+                    liq_dist_str = f"${liq_p:,.0f} ({liq_dist:+.1f}%)"
 
-            tier_desc = "第 0 階 (初始硬防護)" if tier == 0 else ("第 1 階 (保本無風險)" if tier == 1 else f"第 {tier} 階 (移動鎖利中)")
+                tier_desc = "第 0 階 (初始硬防護)" if tier == 0 else ("第 1 階 (保本無風險)" if tier == 1 else f"第 {tier} 階 (移動鎖利中)")
 
-            st.markdown(
-                f"""
-                <div class="active-pos-card" style="border-left: 6px solid {border_c};">
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #21262d; padding-bottom: 12px; margin-bottom: 16px;">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <span style="font-size: 1.3rem; font-weight: 800; color: #f0f6fc;">🎯 當前持倉戰情：{b.get('title', f'SWAP {lev}x')}</span>
-                            <span class="{badge_cls}" style="font-size: 0.9rem; padding: 4px 12px;">{side_icon}</span>
-                            <span style="color: #8b949e; font-size: 0.85rem;">開倉時間: {entry_t}</span>
+                st.markdown(
+                    f"""
+                    <div class="active-pos-card" style="border-top: 4px solid {border_c}; padding: 14px; margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #21262d; padding-bottom: 8px; margin-bottom: 10px;">
+                            <div>
+                                <span style="font-size: 1.15rem; font-weight: 800; color: {border_c};">{b.get('title', f'SWAP {lev}x')}</span>
+                                <span class="{badge_cls}" style="font-size: 0.78rem; padding: 2px 6px; margin-left: 6px;">{side_icon}</span>
+                            </div>
+                            <span style="color: #8b949e; font-size: 0.75rem;">{entry_t}</span>
                         </div>
-                        <div style="text-align: right;">
-                            <span style="color: #8b949e; font-size: 0.85rem;">保證金動用: </span>
-                            <span style="color: #58a6ff; font-weight: 700; font-size: 1rem;">${margin_used:,.2f} U ({qty:.5f} BTC)</span>
-                        </div>
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1.4fr 1.6fr 1fr; gap: 16px; align-items: center; margin-bottom: 16px;">
-                        <div>
-                            <div style="color: #8b949e; font-size: 0.85rem; font-weight: 600;">開倉均價 ➔ 當前市價</div>
-                            <div style="font-size: 1.35rem; font-weight: 800; color: #c9d1d9; margin-top: 4px;">
-                                ${cost:,.1f} <span style="color: #58a6ff;">➔</span> ${cur_p:,.1f}
+                        <div style="text-align: center; background-color: rgba(22, 27, 34, 0.9); border: 1px solid #30363d; border-radius: 6px; padding: 8px; margin-bottom: 10px;">
+                            <div style="color: #8b949e; font-size: 0.75rem; font-weight: 600;">即時未實現損益 (ROE)</div>
+                            <div style="font-size: 1.45rem; font-weight: 900; line-height: 1.1;" class="{pnl_c}">
+                                {pnl_s}${upnl:,.2f} U <span style="font-size: 1.05rem;">({pnl_s}{upnl_pct:.2f}%)</span>
                             </div>
                         </div>
-                        <div style="text-align: center; background-color: rgba(22, 27, 34, 0.8); border: 1px solid #30363d; border-radius: 8px; padding: 10px;">
-                            <div style="color: #8b949e; font-size: 0.82rem; font-weight: 600;">即時浮動損益 (UNREALIZED PnL)</div>
-                            <div class="active-pos-hero-pnl {pnl_c}">
-                                {pnl_s}${upnl:,.2f} U <span style="font-size: 1.25rem;">({pnl_s}{upnl_pct:.2f}% ROE)</span>
-                            </div>
+                        <div class="kv-row" style="padding: 3px 0;">
+                            <span class="kv-key">開倉 ➔ 現價</span>
+                            <span class="kv-val" style="color: #f0f6fc;">${cost:,.1f} ➔ ${cur_p:,.1f}</span>
                         </div>
-                        <div style="text-align: right;">
-                            <div style="color: #8b949e; font-size: 0.85rem; font-weight: 600;">合約防護階梯</div>
-                            <div style="font-size: 1.05rem; font-weight: 700; color: #a371f7; margin-top: 4px;">
-                                🔒 {tier_desc}
-                            </div>
+                        <div class="kv-row" style="padding: 3px 0;">
+                            <span class="kv-key">保證金 / 數量</span>
+                            <span class="kv-val" style="color: #58a6ff;">${margin_used:,.1f} U ({qty:.4f} BTC)</span>
+                        </div>
+                        <div class="kv-row" style="padding: 3px 0;">
+                            <span class="kv-key">🛡️ 雲端硬停損</span>
+                            <span class="kv-val text-green">{sl_dist_str}</span>
+                        </div>
+                        <div class="kv-row" style="padding: 3px 0;">
+                            <span class="kv-key">⚠️ 預估強平價</span>
+                            <span class="kv-val text-blue">{liq_dist_str}</span>
+                        </div>
+                        <div class="kv-row" style="padding: 3px 0;">
+                            <span class="kv-key">🔒 保本階梯</span>
+                            <span class="kv-val text-purple">{tier_desc}</span>
+                        </div>
+                        <div style="background-color: #0d1117; border: 1px solid #21262d; border-radius: 4px; padding: 6px 8px; margin-top: 8px; font-size: 0.72rem; color: #8b949e; line-height: 1.3;">
+                            <div><strong style="color: #58a6ff;">進場：</strong>{why}</div>
+                            <div style="margin-top: 2px;"><strong style="color: #bc8cff;">AI：</strong>{ai_eval}</div>
                         </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
-                        <div class="pos-shield-item">
-                            <div class="pos-shield-title">🛡️ 雲端原生硬停損價 (SL)</div>
-                            <div class="pos-shield-val text-green">{sl_dist_str}</div>
-                        </div>
-                        <div class="pos-shield-item">
-                            <div class="pos-shield-title">⚠️ 預估強平清算價 (LIQ)</div>
-                            <div class="pos-shield-val text-blue">{liq_dist_str}</div>
-                        </div>
-                    </div>
-                    <div style="background-color: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 10px 14px; font-size: 0.85rem; color: #8b949e;">
-                        <div style="margin-bottom: 4px;"><strong style="color: #58a6ff;">【進場歸因】：</strong>{why}</div>
-                        <div><strong style="color: #a371f7;">【AI 決策依據】：</strong>{ai_eval}</div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                    """,
+                    unsafe_allow_html=True,
+                )
     else:
         st.markdown(
             """

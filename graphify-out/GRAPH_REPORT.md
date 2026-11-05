@@ -1,17 +1,17 @@
 # Graph Report - QuantitativeTrading  (2026-11-05)
 
 ## Corpus Check
-- 250 files · ~214,654 words
+- 250 files · ~214,784 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 54 file(s) not represented in the graph (top: .feature 24, .parquet 20, (none) 4)
 
 ## Summary
-- 3382 nodes · 6058 edges · 220 communities (182 shown, 38 thin omitted)
+- 3382 nodes · 6061 edges · 225 communities (180 shown, 45 thin omitted)
 - Extraction: 91% EXTRACTED · 9% INFERRED · 0% AMBIGUOUS · INFERRED: 557 edges (avg confidence: 0.87)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `b0507095`
+- Built from commit: `8ffe0a98`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -30,7 +30,7 @@
 - BingX Spot Wallet — API Reference
 - BingXGateway
 - BingX Swap Market Data — API Reference
-- PionexClient
+- PionexGateway
 - BingX Fund Account — API Reference
 - BingX Spot WebSocket Account Data
 - execution/__init__.py
@@ -39,10 +39,11 @@
 - BingX Spot Market Data — API Reference
 - BingX Copy Trade Spot — API Reference
 - PaperBroker
-- CCXTFetcher
-- time
+- argparse
+- check_heartbeat
 - QuantReportGenerator
 - test
+- .test_scenario_websocket_push_triggers_instant_trailing_stop_without_polling
 - BingX Swap Account — API Reference
 - test_autopilot_runtime_safety_scenarios.py
 - BingX Standard Contract Trading
@@ -62,9 +63,9 @@
 - 78 Indicator Quick Reference
 - BingX Trading Plan
 - _engine
-- RSIMomentumModel
+- RollingBacktestEvaluator
 - 3.1 保留並納入主力實盤 (KEEP - Core Production)
-- argparse
+- PionexClient
 - TypeSafeAIAgent
 - reporter
 - BingX Swap Trade
@@ -121,8 +122,8 @@
 - Subscribe K-Line Data
 - Subscribe the Latest Trade Detail
 - backtest
-- StrategyConvergenceAnalyzer
-- precision.py
+- CCXTFetcher
+- .build_features
 - LineNotifier
 - Subscription: Trade Detail
 - Subscription: Best Bid and Ask (Book Ticker)
@@ -148,9 +149,9 @@
 - IV. Position Management
 - Parameters
 - 交易學習日誌：SWAP_20261104_021851_LONG
-- UnifiedAutopilotEngine
+- time
 - manager.py
-- sys
+- precision.py
 - 11. Set Leverage
 - 12. Query Margin Type
 - 13. Set Margin Type
@@ -177,17 +178,17 @@
 - 交易學習日誌：SWAP_50X_20261104_224834_LONG
 - overnight_trading_bot.py
 - 雲端伺服器 (VPS) 24/7 永續合約操盤部署指南
-- TestNativeStopLossAndDisconnectionBDDScenarios
+- .get_entry
 - 交易學習日誌：SWAP_50X_20261105_075702_LONG
-- PionexGateway
+- UnifiedAutopilotEngine
 - 交易學習日誌：SWAP_20261104_224826_LONG
 - 交易學習日誌：SWAP_20261104_045401_LONG
 - 交易學習日誌：SWAP_20261104_055114_LONG
 - 交易學習日誌：SWAP_20261104_060010_LONG
 - 交易學習日誌：SWAP_20261104_060016_LONG
 - dashboard/app.py
-- sys
-- json
+- TickerUpdateEvent
+- analyze.py
 - 一、核心摘要與關鍵數字（必讀區）
 - 交易學習日誌：SWAP_10X_20261105_075647_LONG
 - 交易學習日誌：SWAP_20261104_224834_LONG
@@ -207,25 +208,28 @@
 - swap_3x
 - swap_50x
 - maker.py
-- Any
 - healthcheck.py
-- overview_tab.py
+- json
 - test_bingx_gateway.py
-- calculator.py
+- review.py
 - INDEX.md
-- MarketEventBus
+- PollingMarketFeedAdapter
 - 交易學習日誌：SWAP_10X_20261105_091907_LONG
 - ._safe_send
 - 交易學習日誌：SWAP_3X_20261105_091907_LONG
 - 交易學習日誌：SWAP_50X_20261105_091931_LONG
-- time
-- TestCircuitBreakerAndMarginAllocationBDDScenarios
+- .discover_active_bots
+- TestAutonomousOrchestrationBDDScenarios
+- TestStructuralEntryAndBreakevenBDDScenarios
 - healthcheck
 - cloud_ai_agent.py
 - 一、核心摘要與關鍵數字（必讀區）
 - plan.py
-- TestHealthcheckCli
 - main
+- cloud_wallboard.py
+- ahr999.py
+- config.py
+- TestHealthcheckCli
 
 ## God Nodes (most connected - your core abstractions)
 1. `UnifiedAutopilotEngine` - 107 edges
@@ -242,23 +246,23 @@
 ## Surprising Connections (you probably didn't know these)
 - `一、時間精確防護（杜絕下單拒絕與報表錯位）` --references--> `BingXClient`  [INFERRED]
   docs/VPS_DEPLOYMENT_GUIDE.md → packages/execution/bingx_client.py
+- `5. BDD 規格驅動測試矩陣 (BDD Test Matrix)` --references--> `MarketEventBus`  [INFERRED]
+  AGENTS.md → packages/core/event_bus.py
 - `5. BDD 規格驅動測試矩陣 (BDD Test Matrix)` --references--> `InMemoryKlineRollingCache`  [INFERRED]
   AGENTS.md → packages/core/event_bus.py
 - `1. 系統設計哲學 (Design Principles)` --references--> `BaseBrokerGateway`  [INFERRED]
   AGENTS.md → packages/execution/base.py
 - `5. BDD 規格驅動測試矩陣 (BDD Test Matrix)` --references--> `BingXAmbiguousRequestError`  [INFERRED]
   AGENTS.md → packages/execution/bingx_client.py
-- `5. BDD 規格驅動測試矩陣 (BDD Test Matrix)` --references--> `TradeJournalManager`  [INFERRED]
-  AGENTS.md → packages/journal/manager.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (220 total, 38 thin omitted)
+## Communities (225 total, 45 thin omitted)
 
 ### Community 1 - "StrategyConvergenceAnalyzer"
-Cohesion: 0.06
-Nodes (8): BollingerBreakoutModel, FibonacciSNRModel, RSIBottomHunterModel, SpotMomentumPullbackModel, SwapMultiRegimeModel, BaseTradingModel, DualEMACrossoverModel, TestStrategyContractBDDScenarios
+Cohesion: 0.05
+Nodes (10): generate_markdown_report(), main(), StrategyConvergenceAnalyzer, StrategyEvaluationSummary, BollingerBreakoutModel, FibonacciSNRModel, RSIBottomHunterModel, SpotMomentumPullbackModel (+2 more)
 
 ### Community 3 - "scoring.py"
 Cohesion: 0.30
@@ -275,10 +279,6 @@ Nodes (41): Account Balance and Position Update (ACCOUNT_UPDATE), Account Config
 ### Community 7 - "BingX Coin-M WebSocket Account Data — API Reference"
 Cohesion: 0.05
 Nodes (40): Account Balance and Position Update (ACCOUNT_UPDATE), Account Config Update (ACCOUNT_CONFIG_UPDATE), BingX Coin-M WebSocket Account Data — API Reference, Connection, Delete Listen Key, Error Codes, Example, Execution Types (+32 more)
-
-### Community 8 - "TickerUpdateEvent"
-Cohesion: 0.13
-Nodes (3): TickerUpdateEvent, HybridWebSocketFeedAdapter, TestEventBusAndHybridMarketFeedBDDScenarios
 
 ### Community 9 - "BingXWebSocketClient"
 Cohesion: 0.06
@@ -304,9 +304,9 @@ Nodes (5): BingXGateway, _cancel_old(), TestBingXVSTBDDScenarios, TestMarketType
 Cohesion: 0.06
 Nodes (33): 10. Historical Trades, 11. Mark Price Kline/Candlestick Data, 12. Symbol Price Ticker, 13. Trading Rules, 14. Get Server Time, 15. Trading Schedule, 1. Get Contract Info, 2. Order Book Depth (+25 more)
 
-### Community 15 - "PionexClient"
+### Community 15 - "PionexGateway"
 Cohesion: 0.10
-Nodes (3): main(), PionexClient, test_signature_with_json_body()
+Nodes (4): PionexGateway, TestPionexBDDScenarios, test_dry_run_balance_and_cancel(), test_symbol_normalization()
 
 ### Community 16 - "BingX Fund Account — API Reference"
 Cohesion: 0.06
@@ -336,17 +336,17 @@ Nodes (28): 10. Historical Trade Lookup, 1. Get Spot Trading Symbols, 2. Order B
 Cohesion: 0.07
 Nodes (27): 1. Trader Sells Spot Assets, 2. Personal Trading Overview, 3. Profit Summary, 4. Profit Details, 5. Query Historical Orders, BingX Copy Trade Spot — API Reference, Common Error Codes, Personal Trading Overview (+19 more)
 
-### Community 24 - "CCXTFetcher"
-Cohesion: 0.08
-Nodes (9): RollingBacktestEvaluator, CCXTFetcher, FeaturePipeline, TestDashboardBDDScenarios, TestZeroDataLeakageBDDScenarios, test_feature_data_leakage(), test_modular_evaluator_with_custom_model(), test_modular_evaluator_with_lgbm_and_rule_based() (+1 more)
+### Community 24 - "argparse"
+Cohesion: 0.10
+Nodes (6): main(), main(), main(), main(), DataManager, FeaturePipeline
 
-### Community 25 - "time"
+### Community 25 - "check_heartbeat"
 Cohesion: 0.17
 Nodes (3): check_heartbeat(), get_heartbeat_path(), TestHeartbeatModule
 
 ### Community 26 - "QuantReportGenerator"
-Cohesion: 0.11
-Nodes (6): fetch_live_btc_context(), main(), compute_structural_indicators_from_ohlc(), QuantReportGenerator, _seed_four_autopilot_bots(), TestDailyAndWeeklyReportsBDDScenarios
+Cohesion: 0.17
+Nodes (4): fetch_live_btc_context(), main(), compute_structural_indicators_from_ohlc(), QuantReportGenerator
 
 ### Community 27 - "test"
 Cohesion: 0.08
@@ -428,21 +428,21 @@ Nodes (15): Agent Interaction Rules, BingX Trading Plan, Common Calls, Direction
 Cohesion: 0.08
 Nodes (8): _bullish_signals(), _engine(), _mock_response(), _StubAI, TestExecutionSafetyBDDScenarios, _connect_fail_then_ok(), _get_read_timeout_then_ok(), _refused_then_ok()
 
-### Community 48 - "RSIMomentumModel"
-Cohesion: 0.11
-Nodes (3): get_model(), main(), RSIMomentumModel
+### Community 48 - "RollingBacktestEvaluator"
+Cohesion: 0.08
+Nodes (6): get_model(), main(), RollingBacktestEvaluator, DualEMACrossoverModel, RSIMomentumModel, TestDashboardBDDScenarios
 
 ### Community 49 - "3.1 保留並納入主力實盤 (KEEP - Core Production)"
 Cohesion: 0.12
 Nodes (15): 1. 五年全週期績效排行榜 (5-Year Performance Ranking Matrix), 2. 逐年市場行情適應性矩陣 (Year-by-Year Multi-Regime Breakdown), 3.1 保留並納入主力實盤 (KEEP - Core Production), 3.2 具備優勢但需優化調校 (OPTIMIZE - High Potential Refinement), 3.3 淘汰捨棄或除役 (DISCARD - Inadequate Risk/Reward), 3. 策略收斂淘汰決策剖析 (Convergence & Pruning Breakdown), 比特幣 (BTC/USDT) 五年 (2021~2025) 策略回測矩陣與收斂淘汰權威報告, 策略：`Bollinger_Breakout_20_2.0` (波動通道突破) (+7 more)
 
-### Community 50 - "argparse"
-Cohesion: 0.09
-Nodes (5): main(), main(), main(), main(), DataManager
+### Community 50 - "PionexClient"
+Cohesion: 0.10
+Nodes (3): main(), PionexClient, test_signature_with_json_body()
 
 ### Community 51 - "TypeSafeAIAgent"
-Cohesion: 0.10
-Nodes (4): main(), TypeSafeAIAgent, TestTypeSafeBDDScenarios, test_typesafe_mock_inference_scenarios()
+Cohesion: 0.09
+Nodes (10): calc_atr(), calc_sl(), calc_tp(), find_structure(), load_df(), main(), main(), TypeSafeAIAgent (+2 more)
 
 ### Community 52 - "reporter"
 Cohesion: 0.22
@@ -457,8 +457,8 @@ Cohesion: 0.14
 Nodes (14): Agent Interaction Rules, Cancel Order Flow, Close Position Flow, Leverage Settings Flow, Margin Type Flow, Position Mode Flow, Step 1 — Identify the Operation, Step 2 — Collect symbol (if not provided) (+6 more)
 
 ### Community 55 - "TradeJournalManager"
-Cohesion: 0.07
-Nodes (8): main(), print_entry_detail(), print_list_view(), TradeJournalManager, TradeJournalEntry, TestTradeJournalBDDScenarios, TestMultiprocessAndLifecycleBDDScenarios, test_trade_lifecycle_in_manager()
+Cohesion: 0.06
+Nodes (10): main(), print_entry_detail(), print_list_view(), TradeJournalManager, TradeJournalEntry, TestTradeJournalBDDScenarios, TestMultiprocessAndLifecycleBDDScenarios, _seed_four_autopilot_bots() (+2 more)
 
 ### Community 56 - "Default Parameters & Tuning Guide"
 Cohesion: 0.15
@@ -498,7 +498,7 @@ Nodes (9): 1. Get Order Book Depth, 2. Place Order, 3. Cancel Order, API Endpoin
 
 ### Community 65 - "pandas"
 Cohesion: 0.08
-Nodes (11): exp_growth_value(), main(), normalize_klines(), zone_info(), calculate_performance_metrics(), RollingEvaluationResult, calculate_atr(), calculate_bollinger_bands() (+3 more)
+Nodes (3): calculate_performance_metrics(), RollingEvaluationResult, BaseTradingModel
 
 ### Community 66 - "BingX Perpetual Swap Trade — API Reference"
 Cohesion: 0.20
@@ -509,8 +509,8 @@ Cohesion: 0.20
 Nodes (9): BingX Trading Plan API Reference, Depth, Funding Rate, Global Account Long-Short Ratio, Internal Lindorm Query, Klines, Liquidation Heatmap, Top Account Long-Short Ratio (+1 more)
 
 ### Community 69 - "components.py"
-Cohesion: 0.11
-Nodes (7): create_candlestick_chart(), create_equity_curve_chart(), create_feature_importance_chart(), render_research_tab(), BacktestEngine, _frame(), TestBacktestLeakageBDDScenarios
+Cohesion: 0.12
+Nodes (6): create_candlestick_chart(), create_equity_curve_chart(), create_feature_importance_chart(), render_research_tab(), BacktestEngine, _frame()
 
 ### Community 70 - "BingX Sub-Account Management — API Reference"
 Cohesion: 0.22
@@ -656,9 +656,13 @@ Nodes (6): dataType Format, Parameters, Response Example, Response Fields, Subsc
 Cohesion: 0.33
 Nodes (6): backtest, confidence_threshold, initial_capital, maker_fee, slippage, taker_fee
 
-### Community 107 - "StrategyConvergenceAnalyzer"
-Cohesion: 0.08
-Nodes (5): generate_markdown_report(), main(), StrategyConvergenceAnalyzer, StrategyEvaluationSummary, TestStrategyConvergenceBDDScenarios
+### Community 107 - "CCXTFetcher"
+Cohesion: 0.10
+Nodes (6): CCXTFetcher, TestStrategyContractBDDScenarios, test_feature_data_leakage(), test_modular_evaluator_with_custom_model(), test_modular_evaluator_with_lgbm_and_rule_based(), test_typesafe_predict_shape_and_bounds()
+
+### Community 108 - ".build_features"
+Cohesion: 0.18
+Nodes (5): calculate_atr(), calculate_bollinger_bands(), calculate_macd(), calculate_returns(), calculate_rsi()
 
 ### Community 109 - "LineNotifier"
 Cohesion: 0.18
@@ -760,17 +764,13 @@ Nodes (4): Common Parameters, Enums, Parameter Validation Rules, Parameters
 Cohesion: 0.18
 Nodes (10): 1. 進場立論假說 (Trade Thesis), 2. 出場歸因 (Exit Catalyst), 3. 策略執行評價 (Strategy Evaluation), 4. 給操盤手的學習心得與啟發 (Pedagogical Takeaway), 一、基本交易參數, 三、前置風控計畫 (Pre-Trade Risk Management), 二、進場環境與技術面快照, 五、學習覆盤與策略反思 (Pedagogical Reflection) (+2 more)
 
-### Community 134 - "UnifiedAutopilotEngine"
-Cohesion: 0.08
-Nodes (6): main(), UnifiedAutopilotEngine, TestAutonomousOrchestrationBDDScenarios, TestAutopilotBDDScenarios, TestCircuitBreakerAndMarginRatio, test_stepped_cloud_stop_ladder_lifecycle()
+### Community 134 - "time"
+Cohesion: 0.22
+Nodes (3): record_heartbeat(), main(), run_report()
 
 ### Community 135 - "manager.py"
 Cohesion: 0.10
 Nodes (8): JournalAnalyzer, MarketSnapshot, ReviewNote, RiskPlan, TradeTrajectory, temp_journal_env(), test_journal_analyzer_thesis(), test_market_snapshot_and_risk_plan()
-
-### Community 136 - "sys"
-Cohesion: 0.08
-Nodes (12): main(), classify(), main(), AutopilotState, get_laddered_cloud_stop_tier(), get_tier_locked_margin_pct(), sync_breakeven_stop_loss(), round_price() (+4 more)
 
 ### Community 146 - "交易學習日誌：SWAP_20261104_022601_LONG"
 Cohesion: 0.18
@@ -781,8 +781,8 @@ Cohesion: 0.18
 Nodes (10): 1. 進場立論假說 (Trade Thesis), 2. 出場歸因 (Exit Catalyst), 3. 策略執行評價 (Strategy Evaluation), 4. 給操盤手的學習心得與啟發 (Pedagogical Takeaway), 一、基本交易參數, 三、前置風控計畫 (Pre-Trade Risk Management), 二、進場環境與技術面快照, 五、學習覆盤與策略反思 (Pedagogical Reflection) (+2 more)
 
 ### Community 154 - "LGBMAgent"
-Cohesion: 0.09
-Nodes (3): render_trading_tab(), PurgedTimeSeriesSplit, LGBMAgent
+Cohesion: 0.08
+Nodes (5): render_trading_tab(), PurgedTimeSeriesSplit, LGBMAgent, TestBacktestLeakageBDDScenarios, TestZeroDataLeakageBDDScenarios
 
 ### Community 155 - "交易學習日誌：SWAP_20261104_030108_LONG"
 Cohesion: 0.18
@@ -812,10 +812,6 @@ Nodes (5): 1. 一句話戰況結論, 2. 四張單即時健康度與關鍵指標�
 Cohesion: 0.18
 Nodes (10): 1. 進場立論假說 (Trade Thesis), 2. 出場歸因 (Exit Catalyst), 3. 策略執行評價 (Strategy Evaluation), 4. 給操盤手的學習心得與啟發 (Pedagogical Takeaway), 一、基本交易參數, 三、前置風控計畫 (Pre-Trade Risk Management), 二、進場環境與技術面快照, 五、學習覆盤與策略反思 (Pedagogical Reflection) (+2 more)
 
-### Community 163 - "TestStructuralEntryAndBreakevenBDDScenarios"
-Cohesion: 0.15
-Nodes (3): evaluate_structural_entry(), _parse_utc_timestamp(), TestStructuralEntryAndBreakevenBDDScenarios
-
 ### Community 164 - "TelegramNotifier"
 Cohesion: 0.17
 Nodes (6): TelegramNotifier, test_telegram_notifier_disabled_when_credentials_missing(), test_telegram_notifier_empty_message(), test_telegram_notifier_html_error_fallback_to_plain_text(), test_telegram_notifier_successful_send(), test_telegram_notifier_timeout_and_exceptions()
@@ -825,8 +821,8 @@ Cohesion: 0.18
 Nodes (10): 1. 進場立論假說 (Trade Thesis), 2. 出場歸因 (Exit Catalyst), 3. 策略執行評價 (Strategy Evaluation), 4. 給操盤手的學習心得與啟發 (Pedagogical Takeaway), 一、基本交易參數, 三、前置風控計畫 (Pre-Trade Risk Management), 二、進場環境與技術面快照, 五、學習覆盤與策略反思 (Pedagogical Reflection) (+2 more)
 
 ### Community 166 - "overnight_trading_bot.py"
-Cohesion: 0.18
-Nodes (9): execute_buy(), execute_sell(), fetch_spot_klines_raw(), handle_exit(), load_state(), log_msg(), main(), _on_spot_ticker() (+1 more)
+Cohesion: 0.15
+Nodes (11): execute_buy(), execute_sell(), fetch_market_signals(), fetch_spot_klines_raw(), handle_exit(), load_state(), log_msg(), main() (+3 more)
 
 ### Community 167 - "雲端伺服器 (VPS) 24/7 永續合約操盤部署指南"
 Cohesion: 0.15
@@ -836,9 +832,9 @@ Nodes (12): 1. 為什麼選擇 VPS 雲端部署？, 2. 雲端平台選購建議,
 Cohesion: 0.18
 Nodes (10): 1. 進場立論假說 (Trade Thesis), 2. 出場歸因 (Exit Catalyst), 3. 策略執行評價 (Strategy Evaluation), 4. 給操盤手的學習心得與啟發 (Pedagogical Takeaway), 一、基本交易參數, 三、前置風控計畫 (Pre-Trade Risk Management), 二、進場環境與技術面快照, 五、學習覆盤與策略反思 (Pedagogical Reflection) (+2 more)
 
-### Community 170 - "PionexGateway"
-Cohesion: 0.10
-Nodes (4): PionexGateway, TestPionexBDDScenarios, test_dry_run_balance_and_cancel(), test_symbol_normalization()
+### Community 170 - "UnifiedAutopilotEngine"
+Cohesion: 0.07
+Nodes (7): main(), print_status(), UnifiedAutopilotEngine, TestAutopilotBDDScenarios, TestCircuitBreakerAndMarginAllocationBDDScenarios, TestCircuitBreakerAndMarginRatio, test_stepped_cloud_stop_ladder_lifecycle()
 
 ### Community 171 - "交易學習日誌：SWAP_20261104_224826_LONG"
 Cohesion: 0.18
@@ -864,11 +860,11 @@ Nodes (10): 1. 進場立論假說 (Trade Thesis), 2. 出場歸因 (Exit Catalyst
 Cohesion: 0.10
 Nodes (15): get_unified_journal_entries(), load_bot_states(), main(), _render_journal_live(), _render_journal_manual(), _render_overview_10s(), _render_overview_3s(), _render_overview_5s() (+7 more)
 
-### Community 177 - "sys"
-Cohesion: 0.26
-Nodes (5): main(), calc_stats(), generate_charts(), main(), parse_period()
+### Community 177 - "TickerUpdateEvent"
+Cohesion: 0.17
+Nodes (4): fetch_swap_klines_raw(), fetch_swap_signals(), KlineCacheUpdatedEvent, TickerUpdateEvent
 
-### Community 178 - "json"
+### Community 178 - "analyze.py"
 Cohesion: 0.11
 Nodes (10): build_confirmation(), main(), ta_checks(), compute_score(), detect_divergence(), extract_latest(), find_support_resistance(), main() (+2 more)
 
@@ -888,13 +884,9 @@ Nodes (10): 1. 進場立論假說 (Trade Thesis), 2. 出場歸因 (Exit Catalyst
 Cohesion: 0.15
 Nodes (5): get_market_analysis(), load_state(), main(), save_state(), test_gateway_rest_fallback()
 
-### Community 186 - "InMemoryKlineRollingCache"
-Cohesion: 0.20
-Nodes (3): fetch_swap_signals(), fetch_market_signals(), InMemoryKlineRollingCache
-
 ### Community 187 - "BingXGateway"
-Cohesion: 0.13
-Nodes (13): configure_bot_paths(), execute_swap_close(), execute_swap_open(), fetch_swap_klines_raw(), handle_exit(), load_state(), log_msg(), main() (+5 more)
+Cohesion: 0.16
+Nodes (11): configure_bot_paths(), execute_swap_close(), execute_swap_open(), handle_exit(), load_state(), log_msg(), main(), _on_realtime_ticker() (+3 more)
 
 ### Community 189 - "x-bot-defaults"
 Cohesion: 0.18
@@ -936,25 +928,25 @@ Nodes (5): adjust_mode(), calc_tick_size(), main(), parse_orderbook(), plan_mode
 Cohesion: 0.23
 Nodes (3): check_http_endpoint(), main(), TestHttpProbe
 
-### Community 201 - "overview_tab.py"
-Cohesion: 0.08
-Nodes (8): fetch_live_market_data(), format_to_taipei_time(), main(), render_live_wallboard(), discover_active_bot_instances(), load_config(), BotStateRepository, TestWallboardPositionData
+### Community 201 - "json"
+Cohesion: 0.06
+Nodes (13): main(), classify(), main(), AutopilotState, get_laddered_cloud_stop_tier(), get_tier_locked_margin_pct(), sync_breakeven_stop_loss(), BotStateRepository (+5 more)
 
 ### Community 202 - "test_bingx_gateway.py"
 Cohesion: 0.09
 Nodes (5): TestBingXBDDScenarios, test_domain_fallback(), test_param_validation(), test_server_time_skew_calibration(), test_symbol_normalization()
 
-### Community 203 - "calculator.py"
-Cohesion: 0.54
-Nodes (6): calc_atr(), calc_sl(), calc_tp(), find_structure(), load_df(), main()
+### Community 203 - "review.py"
+Cohesion: 0.26
+Nodes (5): main(), calc_stats(), generate_charts(), main(), parse_period()
 
 ### Community 205 - "INDEX.md"
 Cohesion: 0.40
 Nodes (3): 一、總體績效指標 (Overall Statistics), 二、歷史交易日誌清單 (Trade Entries), 量化交易自主學習日誌總覽 (Trade Journal Index)
 
-### Community 206 - "MarketEventBus"
-Cohesion: 0.09
-Nodes (5): 5. BDD 規格驅動測試矩陣 (BDD Test Matrix), KlineCacheUpdatedEvent, MarketEventBus, BaseMarketFeedAdapter, PollingMarketFeedAdapter
+### Community 206 - "PollingMarketFeedAdapter"
+Cohesion: 0.10
+Nodes (3): 5. BDD 規格驅動測試矩陣 (BDD Test Matrix), BaseMarketFeedAdapter, PollingMarketFeedAdapter
 
 ### Community 207 - "交易學習日誌：SWAP_10X_20261105_091907_LONG"
 Cohesion: 0.18
@@ -968,10 +960,6 @@ Nodes (10): 1. 進場立論假說 (Trade Thesis), 2. 出場歸因 (Exit Catalyst
 Cohesion: 0.18
 Nodes (10): 1. 進場立論假說 (Trade Thesis), 2. 出場歸因 (Exit Catalyst), 3. 策略執行評價 (Strategy Evaluation), 4. 給操盤手的學習心得與啟發 (Pedagogical Takeaway), 一、基本交易參數, 三、前置風控計畫 (Pre-Trade Risk Management), 二、進場環境與技術面快照, 五、學習覆盤與策略反思 (Pedagogical Reflection) (+2 more)
 
-### Community 212 - "time"
-Cohesion: 0.22
-Nodes (3): record_heartbeat(), main(), run_report()
-
 ### Community 214 - "healthcheck"
 Cohesion: 0.56
 Nodes (10): healthcheck, interval, retries, start_period, test, timeout, healthcheck, healthcheck (+2 more)
@@ -984,25 +972,33 @@ Nodes (5): 1. 一句話戰況結論, 2. 四張單即時健康度與關鍵指標�
 Cohesion: 0.70
 Nodes (4): build_plan(), calc_atr(), main(), snap_to_sr()
 
+### Community 219 - "cloud_wallboard.py"
+Cohesion: 0.27
+Nodes (4): fetch_live_market_data(), format_to_taipei_time(), main(), render_live_wallboard()
+
+### Community 220 - "ahr999.py"
+Cohesion: 0.53
+Nodes (4): exp_growth_value(), main(), normalize_klines(), zone_info()
+
 ## Knowledge Gaps
 - **1 isolated node(s):** `crypto-ai-quant`
   These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1984 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **38 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **45 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `BingXGateway` connect `BingXGateway` to `BingXClient`, `sys`, `TickerUpdateEvent`, `BingXWebSocketClient`, `execution/__init__.py`, `PaperBroker`, `CCXTFetcher`, `QuantReportGenerator`, `LGBMAgent`, `.test_scenario_websocket_push_triggers_instant_trailing_stop_without_polling`, `test_autopilot_runtime_safety_scenarios.py`, `overnight_trading_bot.py`, `_engine`, `dashboard/app.py`, `json`, `InMemoryKlineRollingCache`, `BingXGateway`, `Any`, `overview_tab.py`, `test_bingx_gateway.py`, `MarketEventBus`, `.supports_websocket`, `main`?**
+- **Why does `BingXGateway` connect `BingXGateway` to `BingXClient`, `TickerUpdateEvent`, `BingXWebSocketClient`, `execution/__init__.py`, `PaperBroker`, `LGBMAgent`, `QuantReportGenerator`, `.test_scenario_websocket_push_triggers_instant_trailing_stop_without_polling`, `test_autopilot_runtime_safety_scenarios.py`, `overnight_trading_bot.py`, `_engine`, `dashboard/app.py`, `TickerUpdateEvent`, `json`, `BingXGateway`, `pandas`, `Any`, `json`, `test_bingx_gateway.py`, `main`, `cloud_wallboard.py`, `.supports_websocket`?**
   _High betweenness centrality (0.044) - this node is a cross-community bridge._
 - **Are the 19 inferred relationships involving `UnifiedAutopilotEngine` (e.g. with `print_status()` and `InMemoryKlineRollingCache`) actually correct?**
   _`UnifiedAutopilotEngine` has 19 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `crypto-ai-quant` to the rest of the system?**
   _1 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `._step_locked` be split into smaller, more focused modules?**
-  _Cohesion score 0.08602150537634409 - nodes in this community are weakly interconnected._
-- **Why does `UnifiedAutopilotEngine` connect `UnifiedAutopilotEngine` to `._step_locked`, `StrategyConvergenceAnalyzer`, `sys`, `TickerUpdateEvent`, `execution/__init__.py`, `.test_scenario_websocket_push_triggers_instant_trailing_stop_without_polling`, `test_autopilot_runtime_safety_scenarios.py`, `TestStructuralEntryAndBreakevenBDDScenarios`, `TestNativeStopLossAndDisconnectionBDDScenarios`, `_engine`, `dashboard/app.py`, `TradeJournalManager`, `InMemoryKlineRollingCache`, `Any`, `overview_tab.py`, `._step_locked`, `MarketEventBus`, `time`, `TestCircuitBreakerAndMarginAllocationBDDScenarios`?**
+  _Cohesion score 0.08912655971479501 - nodes in this community are weakly interconnected._
+- **Why does `UnifiedAutopilotEngine` connect `UnifiedAutopilotEngine` to `._step_locked`, `StrategyConvergenceAnalyzer`, `time`, `execution/__init__.py`, `.test_scenario_websocket_push_triggers_instant_trailing_stop_without_polling`, `test_autopilot_runtime_safety_scenarios.py`, `.get_entry`, `_engine`, `dashboard/app.py`, `TickerUpdateEvent`, `TradeJournalManager`, `InMemoryKlineRollingCache`, `pandas`, `Any`, `json`, `.peek`, `TestAutonomousOrchestrationBDDScenarios`, `TestStructuralEntryAndBreakevenBDDScenarios`, `CCXTFetcher`?**
   _High betweenness centrality (0.024) - this node is a cross-community bridge._
 - **Are the 7 inferred relationships involving `BingXGateway` (e.g. with `MarketType` and `BingXClient`) actually correct?**
   _`BingXGateway` has 7 INFERRED edges - model-reasoned connections that need verification._
 - **Should `StrategyConvergenceAnalyzer` be split into smaller, more focused modules?**
-  _Cohesion score 0.061018437225636525 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.04803312629399586 - nodes in this community are weakly interconnected._
