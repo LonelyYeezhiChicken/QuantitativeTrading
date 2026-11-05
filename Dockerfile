@@ -27,8 +27,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 # Copy project specification first for layer caching
 COPY pyproject.toml .
 
-# Install dependencies into system environment
-RUN uv pip install --system --no-cache -e .
+# Install dependencies (including dev/test tools for pre-flight verification)
+RUN uv pip install --system --no-cache -e ".[dev]"
 
 # Copy application code
 COPY . .
