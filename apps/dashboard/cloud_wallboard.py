@@ -312,8 +312,11 @@ def render_live_wallboard():
     # ================= 3 Bot Cards (賽馬榜) =================
     st.markdown("### 🏇 三合約守護戰隊實時賽馬榜 (均攤總本金，獨立風控)")
 
-    b_cols = st.columns(len(bots) if bots else 3)
-    for idx, b in enumerate(bots):
+    if not bots:
+        st.info("💡 尚未偵測到運行中的守護進程狀態檔案，正在等待交易中樞啟動寫入...")
+    else:
+        b_cols = st.columns(len(bots))
+        for idx, b in enumerate(bots):
         with b_cols[idx]:
             lev = b.get("leverage", 3)
             side = b.get("side", "NONE")

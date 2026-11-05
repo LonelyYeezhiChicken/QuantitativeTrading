@@ -93,3 +93,35 @@ def test_dry_run_buy_sell_and_cancel():
     # 4. Open orders
     open_orders = gw.get_open_orders("BTC/USDT")
     assert isinstance(open_orders, list)
+
+
+def test_server_time_skew_calibration():
+    """Verify that BingXClient calibrates timestamp skew if local and server clocks drift > 200ms."""
+    import time
+    client = BingXClient(base_urls=["https://fake.bingx.com"])
+    assert client._server_time_offset_ms == 0
+
+    # Simulate response with server timestamp 5000ms ahead
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status.return_value = None
+    future_server_ts = int(time.time() * 1000) + 5000
+    mock_resp.json.return_value = {
+        "code": 0,
+        "msg": "SUCCESS",
+        "data": {},
+        "timestamp": future_server_ts,
+    }
+
+    with patch.object(client.session, "get", return_value=mock_resp):
+        client.request("GET", "/openApi/spot/v1/ticker/price")
+
+    # Offset should have been updated to ~5000ms
+    assert 4500 <= client._server_time_offset_ms <= 5500
+
+    # Subsequent request signed params should incorporate this offset
+    query_string, sig, payload = client.sign_params({})
+    assert "timestamp=" in query_string
+    ts_val = int(query_string.split("timestamp=")[1].split("&")[0])
+    now_ms = int(time.time() * 1000)
+    assert ts_val >= now_ms + 4000
+

@@ -1367,58 +1367,10 @@
     "ast_hash": "2f6050dd4c0d5fc4919f0ce3b34d9d98",
     "semantic_hash": ""
   },
-  "data/archive_4bots_150u/autopilot_BTC_USDT_spot_150u.control.json": {
-    "mtime": 1793834692.8656676,
-    "seen": 1793843983.910435,
-    "ast_hash": "2f759927b5929665906950ad7577a8b4",
-    "semantic_hash": ""
-  },
-  "data/archive_4bots_150u/autopilot_BTC_USDT_spot_150u.json": {
-    "mtime": 1793834692.8656676,
-    "seen": 1793843983.910437,
-    "ast_hash": "25feacbb7f7e728f977a766d9005050b",
-    "semantic_hash": ""
-  },
-  "data/archive_4bots_150u/autopilot_BTC_USDT_swap_10x_150u.control.json": {
-    "mtime": 1793832536.354466,
-    "seen": 1793843983.9104393,
-    "ast_hash": "79363812bc440a89fb0c43a62ed8c2a8",
-    "semantic_hash": ""
-  },
-  "data/archive_4bots_150u/autopilot_BTC_USDT_swap_10x_150u.json": {
-    "mtime": 1793833244.7968626,
-    "seen": 1793843983.9104407,
-    "ast_hash": "c0a7a2842eaa24ff18b9865117acd4b9",
-    "semantic_hash": ""
-  },
-  "data/archive_4bots_150u/autopilot_BTC_USDT_swap_3x_150u.control.json": {
-    "mtime": 1793832532.8496964,
-    "seen": 1793843983.910443,
-    "ast_hash": "6c05ada55735d41753405069e68d5786",
-    "semantic_hash": ""
-  },
-  "data/archive_4bots_150u/autopilot_BTC_USDT_swap_3x_150u.json": {
-    "mtime": 1793833216.8604095,
-    "seen": 1793843983.910444,
-    "ast_hash": "b881fcde8b5a4028562d10bb5d28e3db",
-    "semantic_hash": ""
-  },
-  "data/archive_4bots_150u/autopilot_BTC_USDT_swap_50x_150u.control.json": {
-    "mtime": 1793832540.1874976,
-    "seen": 1793843983.9104455,
-    "ast_hash": "bd400b8c176816f11f73e2f4b6fc6a5c",
-    "semantic_hash": ""
-  },
-  "data/archive_4bots_150u/autopilot_BTC_USDT_swap_50x_150u.json": {
-    "mtime": 1793832618.754766,
-    "seen": 1793843983.9104474,
-    "ast_hash": "4b16fc7697de9bacf22c2796b1ec1bb0",
-    "semantic_hash": ""
-  },
   "deploy/setup_vps.sh": {
-    "mtime": 1793844465.7844057,
-    "seen": 1793845326.3214233,
-    "ast_hash": "c4f29c46dd16dc4067d181e3d8cb00bb",
+    "mtime": 1793847764.8939855,
+    "seen": 1793848202.405699,
+    "ast_hash": "5bebee25b95f2bd0a25f9b3e4d340c2b",
     "semantic_hash": ""
   },
   "docker-compose.yml": {
@@ -1461,6 +1413,12 @@
     "mtime": 1793846665.8952854,
     "seen": 1793846833.7883806,
     "ast_hash": "865f74176a63be47d9385310da5f5874",
+    "semantic_hash": ""
+  },
+  "deploy/upgrade.sh": {
+    "mtime": 1793848107.8203495,
+    "seen": 1793848202.4057026,
+    "ast_hash": "2b932bfe77eacc4e712481f467eeef32",
     "semantic_hash": ""
   }
 }
