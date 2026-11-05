@@ -1,9 +1,9 @@
 # Graph Report - QuantitativeTrading  (2026-11-05)
 
 ## Corpus Check
-- 242 files · ~210,475 words
+- 242 files · ~210,467 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 56 file(s) not represented in the graph (top: .feature 24, .parquet 22, (none) 4)
+- Unclassified: 54 file(s) not represented in the graph (top: .feature 24, .parquet 20, (none) 4)
 
 ## Summary
 - 3279 nodes · 5855 edges · 214 communities (173 shown, 41 thin omitted)
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `59abaac8`
+- Built from commit: `6d501d2b`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 

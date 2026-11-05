@@ -66,7 +66,7 @@ class CloudAiDecisionAgent:
         # 3. Resolve API Key & Model based on Provider
         if self.provider == "gemini":
             self.api_key = (api_key or os.getenv("GEMINI_API_KEY", "")).strip()
-            self.model = model or os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip()
+            self.model = model or os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite").strip()
             self.base_url = (base_url or "https://generativelanguage.googleapis.com").rstrip("/")
         elif self.provider == "deepseek":
             self.api_key = (api_key or os.getenv("DEEPSEEK_API_KEY", "")).strip()
