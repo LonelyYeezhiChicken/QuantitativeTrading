@@ -257,11 +257,20 @@ def evaluate_three_stage_exit(
     if peak_pct >= tp_threshold and pullback >= pullback_threshold:
         return "TAKE_PROFIT", f"動態移動停利 (最高獲利 +{peak_pct:.2f}% 回撤 {pullback:.2f}%, 鎖定 +{pnl_pct:.2f}%)"
 
-    # Stage 2: Break-Even Ratchet Shield (Halfway target reached, then pulled back to breakeven floor)
-    if peak_pct >= be_trigger and pnl_pct <= be_floor:
+    # Stage 2: Dynamic Progressive Ratchet & Break-Even Shield
+    effective_floor = be_floor
+    if peak_pct >= tp_threshold * 0.8:
+        # e.g., 20x (tp=30%): peak >= 24% locks 12% ROE; 50x (tp=25%): peak >= 20% locks 10% ROE
+        effective_floor = max(be_floor, round(tp_threshold * 0.4, 2))
+    elif peak_pct >= tp_threshold * 0.6:
+        # e.g., 20x (tp=30%): peak >= 18% locks 6% ROE; 50x (tp=25%): peak >= 15% locks 5% ROE
+        effective_floor = max(be_floor, round(tp_threshold * 0.2, 2))
+
+    if peak_pct >= be_trigger and pnl_pct <= effective_floor:
+        desc = "保本動態階梯鎖利" if effective_floor > be_floor else "保本推移鎖利"
         return (
             "BREAKEVEN_STOP",
-            f"保本推移鎖利觸發 (最高浮盈曾達 +{peak_pct:.2f}% 突破半程門檻，回落守住 +{pnl_pct:.2f}% 保本底線)",
+            f"{desc}觸發 (最高浮盈曾達 +{peak_pct:.2f}%，回落守住 +{pnl_pct:.2f}% 鎖利底線)",
         )
 
     return None, ""
@@ -494,8 +503,15 @@ class UnifiedAutopilotEngine:
                 pass
             self.strategy = strategy or SwapMultiRegimeModel(ema_span=21)
             default_sl = round(15.0 / self.leverage, 4) if self.leverage > 10 else 1.5
-            default_tp = round(25.0 / self.leverage, 4) if self.leverage > 10 else (2.0 if self.leverage >= 10 else 1.0)
-            default_pb = round(5.0 / self.leverage, 4) if self.leverage > 10 else (0.5 if self.leverage >= 10 else 0.33)
+            if 15 <= self.leverage <= 25:
+                default_tp = round(30.0 / self.leverage, 4)  # 20x flagship: 1.50% price target = +30.0% ROE
+                default_pb = round(8.0 / self.leverage, 4)   # 20x flagship: 0.40% price pullback = 8.0% ROE buffer
+            elif self.leverage > 10:
+                default_tp = round(25.0 / self.leverage, 4)
+                default_pb = round(5.0 / self.leverage, 4)
+            else:
+                default_tp = 2.0 if self.leverage >= 10 else 1.0
+                default_pb = 0.5 if self.leverage >= 10 else 0.33
             self.price_sl_pct = price_sl_pct if price_sl_pct is not None else default_sl
             self.price_tp_pct = price_tp_pct if price_tp_pct is not None else default_tp
             self.price_pullback_pct = price_pullback_pct if price_pullback_pct is not None else default_pb
