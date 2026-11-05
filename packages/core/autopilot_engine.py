@@ -267,6 +267,43 @@ def evaluate_three_stage_exit(
     return None, ""
 
 
+def get_laddered_cloud_stop_tier(peak_pct: float, tp_threshold: float) -> int:
+    """Determine highest qualified cloud stop-loss tier based on peak ROE.
+    Tiers are spaced widely ('慢慢推，不用頻繁推'):
+    - Tier 1 (保本): peak >= tp_threshold * 0.5 (例如 50x: +12.5%, 10x: +10%)
+    - Tier 2 (大鎖利 1): peak >= tp_threshold * 1.5 (例如 50x: +37.5%, 10x: +30%)
+    - Tier 3 (翻倍鎖利 2): peak >= tp_threshold * 3.0 (例如 50x: +75.0%, 10x: +60%)
+    - Tier 4 (破百大鎖利 3): peak >= tp_threshold * 5.0 (例如 50x: +125.0%, 10x: +100%)
+    """
+    if peak_pct >= tp_threshold * 5.0:
+        return 4
+    if peak_pct >= tp_threshold * 3.0:
+        return 3
+    if peak_pct >= tp_threshold * 1.5:
+        return 2
+    if peak_pct >= tp_threshold * 0.5:
+        return 1
+    return 0
+
+
+def get_tier_locked_margin_pct(tier: int, tp_threshold: float) -> float:
+    """Returns the locked margin ROE% protected by the cloud stop-loss."""
+    if tier == 1:
+        if tp_threshold >= 10.0:
+            return 1.5
+        elif tp_threshold >= 3.0:
+            return 0.5
+        else:
+            return 0.25
+    elif tier == 2:
+        return max(3.0, round(tp_threshold * 0.5, 2))
+    elif tier == 3:
+        return max(6.0, round(tp_threshold * 1.5, 2))
+    elif tier >= 4:
+        return max(10.0, round(tp_threshold * 3.0, 2))
+    return 0.0
+
+
 def sync_breakeven_stop_loss(
     pos: Dict[str, Any],
     cur_price: float,
@@ -281,11 +318,9 @@ def sync_breakeven_stop_loss(
     """Synchronize exchange-side STOP_MARKET order and journal stop_loss_price up to Break-Even
     once peak_pct reaches the halfway take-profit threshold (tp_threshold * 0.5).
     """
-    if pos.get("breakeven_synced", False):
-        return None
-
-    be_trigger = tp_threshold * 0.5
-    if peak_pct < be_trigger:
+    current_tier = int(pos.get("cloud_sl_tier", 1 if pos.get("breakeven_synced") else 0))
+    target_tier = get_laddered_cloud_stop_tier(peak_pct, tp_threshold)
+    if target_tier <= current_tier or target_tier == 0:
         return None
 
     entry_price = float(pos.get("entry_price", 0.0))
@@ -294,19 +329,14 @@ def sync_breakeven_stop_loss(
     if entry_price <= 0 or qty <= 0 or side not in ("LONG", "SHORT"):
         return None
 
-    if tp_threshold >= 10.0:
-        be_floor_margin_pct = 1.5
-    elif tp_threshold >= 3.0:
-        be_floor_margin_pct = 0.5
-    else:
-        be_floor_margin_pct = 0.25
+    locked_margin_pct = get_tier_locked_margin_pct(target_tier, tp_threshold)
 
     # Do not hammer the exchange while a previous sync attempt keeps failing.
     retry_after = float(pos.get("breakeven_sync_retry_after", 0.0) or 0.0)
     if retry_after and time.time() < retry_after:
         return None
 
-    be_price_offset_pct = max(0.10, be_floor_margin_pct / max(leverage, 1))
+    be_price_offset_pct = max(0.10, locked_margin_pct / max(leverage, 1))
     raw_be_price = entry_price * (1.0 + be_price_offset_pct / 100.0) if side == "LONG" else entry_price * (1.0 - be_price_offset_pct / 100.0)
     # Round with exchange precision (or a magnitude-aware fallback): a fixed 2-decimal
     # rounding collapses the break-even offset to the entry price on sub-$10 symbols.
@@ -350,6 +380,7 @@ def sync_breakeven_stop_loss(
 
     pos["native_sl_price"] = be_stop_price
     pos["breakeven_synced"] = True
+    pos["cloud_sl_tier"] = target_tier
 
     journal_id = pos.get("journal_id")
     if journal_id and journal_mgr is not None and hasattr(journal_mgr, "update_stop_loss_price"):
@@ -873,7 +904,10 @@ class UnifiedAutopilotEngine:
             )
             if be_synced_price is not None:
                 self.save_state()
-                step_result["message"] = f"已啟動雲端保本推移套保 (新停損價 ${be_synced_price:,.2f} | 浮盈 {pnl_pct:+.2f}%)"
+                tier = self.position.get("cloud_sl_tier", 1)
+                locked_pct = get_tier_locked_margin_pct(tier, self.margin_tp_threshold)
+                tier_desc = "保本" if tier == 1 else f"第 {tier} 階鎖利 (+{locked_pct:.1f}% ROE)"
+                step_result["message"] = f"已同步交易所雲端{tier_desc} (新停損價 ${be_synced_price:,.2f} | 浮盈 {pnl_pct:+.2f}%)"
             return step_result
 
         # B. Entry Evaluation (Only when flat and ARMED)
