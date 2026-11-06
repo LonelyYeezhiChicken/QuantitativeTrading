@@ -495,12 +495,15 @@ def render_live_wallboard():
                 border_c = b.get("border_color", "#58a6ff")
 
                 cb_triggered = b.get("circuit_breaker_triggered", False)
+                bot_status = str(b.get("status", "STANDBY")).upper()
                 if cb_triggered:
                     badge_html = '<span class="pos-badge-short" style="background-color: #8b0000; border: 1px solid #f85149;">🔴 熔斷停機</span>'
                 elif side != "NONE":
                     badge_html = f'<span class="pos-badge-long" style="background-color: #1f6feb;">🔥 持倉中 ({side})</span>'
+                elif bot_status == "ARMED":
+                    badge_html = '<span class="pos-badge-flat" style="background-color: #1b4721; color: #3fb950; border: 1px solid #238636; font-weight: 700;">🟢 巡邏開火中 (ARMED)</span>'
                 else:
-                    badge_html = '<span class="pos-badge-flat">🟢 待命中</span>'
+                    badge_html = '<span class="pos-badge-flat" style="background-color: #21262d; color: #8b949e;">⚪ 待機中 (STANDBY)</span>'
 
                 ret_class = "text-green" if bot_ret >= 0 else "text-red"
                 ret_sign = "+" if bot_ret >= 0 else ""

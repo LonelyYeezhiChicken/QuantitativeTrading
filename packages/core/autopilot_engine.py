@@ -88,6 +88,14 @@ def compute_structural_indicators_from_ohlc(
         in_bull_gp = bool(bull_bot <= cur_price <= bull_top)
         in_bear_gp = bool(bear_bot <= cur_price <= bear_top)
 
+    # Bollinger Bands (20 periods, 2.0 std dev)
+    bb_mid = float(s_close.rolling(20, min_periods=5).mean().iloc[-1])
+    bb_std = float(s_close.rolling(20, min_periods=5).std().iloc[-1]) if len(closes) >= 5 else (cur_price * 0.01)
+    bb_lower = bb_mid - 2.0 * bb_std
+    bb_upper = bb_mid + 2.0 * bb_std
+    touch_bb_low = bool(cur_price <= bb_lower or (lows and lows[-1] <= bb_lower))
+    touch_bb_up = bool(cur_price >= bb_upper or (highs and highs[-1] >= bb_upper))
+
     bias_pct = ((cur_price - ema21) / ema21 * 100.0) if ema21 > 0 else 0.0
     return {
         "price": cur_price,
@@ -103,7 +111,52 @@ def compute_structural_indicators_from_ohlc(
         "swing_low_48": swing_low_48,
         "in_bull_golden_pocket": in_bull_gp,
         "in_bear_golden_pocket": in_bear_gp,
+        "bb_mid": bb_mid,
+        "bb_lower": bb_lower,
+        "bb_upper": bb_upper,
+        "touch_bb_low": touch_bb_low,
+        "touch_bb_up": touch_bb_up,
     }
+
+
+def compute_risk_based_position_size(
+    capital: float,
+    risk_pct: float,
+    cur_price: float,
+    atr_val: float,
+    atr_multiplier: float = 2.0,
+    leverage: float = 3.0,
+    max_margin_ratio: float = 0.75,
+    available_cash: Optional[float] = None,
+) -> Tuple[float, float, float]:
+    """Compute notional size, trade margin, and asset quantity using Fixed Fractional Risk.
+
+    Formula:
+      Dollar Risk = Capital * Risk Pct (e.g. $1000 * 0.02 = $20)
+      Stop Distance Pct = (atr_multiplier * atr_val) / cur_price
+      Target Notional = Dollar Risk / Stop Distance Pct
+      Margin Required = Target Notional / Leverage
+    Bounded by capital allocation ratio and available cash.
+    """
+    if cur_price <= 0:
+        return 0.0, 0.0, 0.0
+
+    dollar_risk = max(1.0, capital * risk_pct)
+    effective_atr = max(atr_val, cur_price * 0.005)
+    sl_dist = atr_multiplier * effective_atr
+    sl_dist_pct = sl_dist / cur_price
+
+    target_notional = dollar_risk / max(sl_dist_pct, 1e-4)
+
+    cash_limit = (available_cash * 0.90) if available_cash is not None else (capital * max_margin_ratio)
+    max_allowed_margin = min(capital * max_margin_ratio, cash_limit)
+    max_allowed_notional = max(10.0, max_allowed_margin * leverage)
+
+    actual_notional = min(target_notional, max_allowed_notional)
+    trade_margin = actual_notional / max(leverage, 1.0)
+    qty = actual_notional / cur_price
+
+    return actual_notional, trade_margin, qty
 
 
 def _parse_utc_timestamp(ts_str: str) -> Optional[datetime]:
@@ -165,6 +218,10 @@ def evaluate_structural_entry(
     prev_close = float(signals.get("prev_close", cur_price - 1.0))
     in_bull_gp = bool(signals.get("in_bull_golden_pocket", False))
     in_bear_gp = bool(signals.get("in_bear_golden_pocket", False))
+    is_4h_bull = signals.get("is_4h_bull", None)
+    is_4h_bear = signals.get("is_4h_bear", None)
+    touch_bb_low = bool(signals.get("touch_bb_low", False))
+    touch_bb_up = bool(signals.get("touch_bb_up", False))
 
     ema21_bias_pct = ((cur_price - ema21) / ema21 * 100.0) if ema21 > 0 else 0.0
     is_bull_macro = ema21 >= (ema50 * 0.999)
@@ -172,6 +229,14 @@ def evaluate_structural_entry(
     is_candle_rebound = cur_price > prev_close
 
     if "SWAP" in mode.upper():
+        # 0. 4H Trend-Aligned Volatility Dip Reversal (Strategy 2: High-Win-Rate Dip Hunter)
+        if (is_4h_bull is True or (is_4h_bull is None and is_bull_macro)):
+            if (touch_bb_low or rsi <= 35.0) and is_candle_rebound:
+                return "LONG", f"4H趨勢超賣均值修復確認 (RSI={rsi:.1f}<=35或觸碰布林下軌，止跌收陽)"
+        if (is_4h_bear is True or (is_4h_bear is None and is_bear_macro)):
+            if (touch_bb_up or rsi >= 65.0) and (not is_candle_rebound):
+                return "SHORT", f"4H趨勢超賣均值修復確認 (RSI={rsi:.1f}>=65或觸碰布林上軌，滯漲收陰)"
+
         # 1. Bullish Fibonacci Golden Pocket (0.50 ~ 0.65) Structural Support
         if in_bull_gp and is_bull_macro and is_candle_rebound and 35.0 <= rsi <= 58.0:
             if ema21_bias_pct > max_ema21_bias_pct:
@@ -427,6 +492,10 @@ class UnifiedAutopilotEngine:
         event_bus: Optional[Any] = None,
         capital_allocation_ratio: Optional[float] = None,
         max_loss_pct: Optional[float] = None,
+        risk_per_trade_pct: Optional[float] = None,
+        use_risk_based_sizing: Optional[bool] = None,
+        atr_sl_multiplier: Optional[float] = None,
+        atr_tp_multiplier: Optional[float] = None,
     ):
         self.symbol = symbol
         self.capital = capital
@@ -444,6 +513,13 @@ class UnifiedAutopilotEngine:
         self.circuit_breaker_triggered = False
         self.circuit_breaker_reason = ""
         self._circuit_breaker_alert_sent = False
+
+        # Risk-Based Position Sizing (Fixed 2% Total Capital Risk)
+        raw_risk = risk_per_trade_pct if risk_per_trade_pct is not None else float(os.getenv("RISK_PER_TRADE_PCT", "0.02"))
+        self.risk_per_trade_pct = max(0.005, min(float(raw_risk), 0.10))
+        self.use_risk_based_sizing = use_risk_based_sizing if use_risk_based_sizing is not None else (os.getenv("USE_RISK_BASED_SIZING", "false").lower() in ("true", "1"))
+        self.atr_sl_multiplier = atr_sl_multiplier if atr_sl_multiplier is not None else float(os.getenv("ATR_SL_MULTIPLIER", "2.0"))
+        self.atr_tp_multiplier = atr_tp_multiplier if atr_tp_multiplier is not None else float(os.getenv("ATR_TP_MULTIPLIER", "1.5"))
 
         # Auto-derive mode & leverage
         if mode:
@@ -1014,20 +1090,46 @@ class UnifiedAutopilotEngine:
                 step_result["message"] = f"AI 風控守門員否決開倉：{ai_eval['reason']}"
                 return step_result
 
-        # D. Execute Order (70% ~ 80% allocation, reserving 10% cash buffer for fees)
-        trade_margin = min(max(10.0, self.capital * self.capital_allocation_ratio), self.cash * 0.90)
-        if trade_margin < 10.0:
-            step_result["message"] = f"可用資金不足 (${self.cash:.2f} < 10 U)，放棄開倉"
-            return step_result
+        # D. Execute Order (Supports Risk-Based Position Sizing or Fixed Allocation)
+        atr_val = float(signals.get("atr", 0.0))
+        if atr_val <= 0:
+            atr_val = cur_price * (self.price_sl_pct / 100.0)
 
-        notional = trade_margin * self.leverage
-        qty_to_buy = notional / max(cur_price, 1e-4)
+        if self.use_risk_based_sizing and "SWAP" in self.mode and atr_val > 0:
+            sl_dist = self.atr_sl_multiplier * atr_val
+            if candidate_signal == "LONG":
+                native_sl_price = cur_price - sl_dist
+            else:
+                native_sl_price = cur_price + sl_dist
 
-        # Calculate Native Hard Stop-Loss price to attach atomically upon entry
-        if candidate_signal == "LONG":
-            native_sl_price = cur_price * (1.0 - (self.price_sl_pct / 100.0))
+            notional, trade_margin, qty_to_buy = compute_risk_based_position_size(
+                capital=self.capital,
+                risk_pct=self.risk_per_trade_pct,
+                cur_price=cur_price,
+                atr_val=atr_val,
+                atr_multiplier=self.atr_sl_multiplier,
+                leverage=self.leverage,
+                max_margin_ratio=self.capital_allocation_ratio,
+                available_cash=self.cash,
+            )
         else:
-            native_sl_price = cur_price * (1.0 + (self.price_sl_pct / 100.0))
+            trade_margin = min(max(10.0, self.capital * self.capital_allocation_ratio), self.cash * 0.90)
+            if trade_margin < 10.0:
+                step_result["message"] = f"可用資金不足 (${self.cash:.2f} < 10 U)，放棄開倉"
+                return step_result
+
+            notional = trade_margin * self.leverage
+            qty_to_buy = notional / max(cur_price, 1e-4)
+
+            # Calculate Native Hard Stop-Loss price to attach atomically upon entry
+            if candidate_signal == "LONG":
+                native_sl_price = cur_price * (1.0 - (self.price_sl_pct / 100.0))
+            else:
+                native_sl_price = cur_price * (1.0 + (self.price_sl_pct / 100.0))
+
+        if trade_margin < 5.0:
+            step_result["message"] = f"可用資金不足 (${self.cash:.2f} < 5 U)，放棄開倉"
+            return step_result
 
         # Gateway order with Atomic Native SL attachment. A unique clientOrderId lets the
         # exchange reject an accidental resend and makes the order traceable.

@@ -454,6 +454,21 @@ class BingXClient:
             is_private=True,
         )
 
+    def get_swap_open_orders(self, symbol: Optional[str] = None) -> Dict[str, Any]:
+        """Query current perpetual swap open orders.
+
+        GET /openApi/swap/v2/trade/openOrders
+        """
+        params: Dict[str, Any] = {}
+        if symbol:
+            params["symbol"] = symbol
+        return self.request(
+            method="GET",
+            path="/openApi/swap/v2/trade/openOrders",
+            params=params,
+            is_private=True,
+        )
+
     def create_swap_order(
         self,
         symbol: str,

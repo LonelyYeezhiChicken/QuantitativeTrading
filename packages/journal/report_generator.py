@@ -8,11 +8,15 @@ Follows an Inverted-Pyramid structure:
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import json
 import logging
+import os
 from pathlib import Path
 import shutil
 import subprocess
 from typing import Any, Callable, Dict, List, Optional
+import urllib.error
+import urllib.request
 
 from packages.journal.manager import TradeJournalManager
 from packages.journal.models import TradeJournalEntry
@@ -45,23 +49,58 @@ class QuantReportGenerator:
 
     @staticmethod
     def _default_gh_issue_publisher(title: str, body_file: Path, labels: List[str]) -> Optional[str]:
-        """Publish a Markdown report file as a GitHub Issue via `gh issue create`.
+        """Publish a Markdown report file as a GitHub Issue via `gh issue create` or GitHub REST API.
 
-        Safely handles environments without GitHub CLI installed.
+        Safely handles environments with or without GitHub CLI, including headless Docker containers
+        with GITHUB_TOKEN configured.
         """
-        if not shutil.which("gh"):
-            logger.info("未檢測到 gh CLI 工具，跳過 GitHub Issue 自動發布。")
-            return None
-        cmd = ["gh", "issue", "create", "--title", title, "--body-file", str(body_file)]
-        try:
-            res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", check=False)
-            if res.returncode == 0 and res.stdout.strip():
-                return res.stdout.strip().splitlines()[-1].strip()
-            else:
-                logger.info(f"gh issue create 未成功 (代碼 {res.returncode})，不影響報表落盤。")
-        except Exception as exc:
-            logger.warning(f"調用 gh 指令失敗: {exc}")
-            return None
+        # 1. Try gh CLI if installed
+        if shutil.which("gh"):
+            cmd = ["gh", "issue", "create", "--title", title, "--body-file", str(body_file)]
+            if labels:
+                for lb in labels:
+                    cmd.extend(["--label", lb])
+            try:
+                res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", check=False)
+                if res.returncode == 0 and res.stdout.strip():
+                    return res.stdout.strip().splitlines()[-1].strip()
+                else:
+                    logger.info(f"gh issue create 未成功 (代碼 {res.returncode})，嘗試 GitHub REST API 備援。")
+            except Exception as exc:
+                logger.warning(f"調用 gh 指令失敗: {exc}，嘗試 GitHub REST API 備援。")
+
+        # 2. REST API fallback (for Docker container or headless environment)
+        token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
+        if token:
+            repo = os.getenv("GITHUB_REPOSITORY", "LonelyYeezhiChicken/QuantitativeTrading")
+            url = f"https://api.github.com/repos/{repo}/issues"
+            try:
+                body_content = body_file.read_text(encoding="utf-8")
+                payload: Dict[str, Any] = {"title": title, "body": body_content}
+                if labels:
+                    payload["labels"] = labels
+                data = json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(
+                    url,
+                    data=data,
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github+json",
+                        "User-Agent": "Quant-Report-Publisher/1.0",
+                        "Content-Type": "application/json",
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    resp_data = json.loads(resp.read().decode("utf-8"))
+                    issue_url = resp_data.get("html_url")
+                    if issue_url:
+                        logger.info(f"[GitHub REST API] 成功發布 Issue 報表: {issue_url}")
+                        return issue_url
+            except Exception as exc:
+                logger.warning(f"[GitHub REST API] 發布 Issue 失敗: {exc}")
+
+        logger.info("未檢測到可用的 gh CLI 或 GITHUB_TOKEN，跳過 GitHub Issue 自動發布。")
         return None
 
     @staticmethod

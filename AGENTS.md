@@ -135,6 +135,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 | `tests/bdd/execution_safety_and_precision.feature` | `test_execution_safety_scenarios.py` | 下單執行安全（現貨 `position_side=None` 不崩潰、無效/零報價 `PRICE_UNAVAILABLE` 防護、下單 POST 僅於確定未送出時切換備援網域 `BingXAmbiguousRequestError`、開倉唯一 `clientOrderId`、依交易所 `pricePrecision`/`quantityPrecision` 取整、保本同步失敗不誤標、先掛新停損再撤舊單、以及交易所回傳巢狀 order 物件與精度取整正確確認成交避免誤判為 PENDING） |
 | `tests/bdd/daily_and_weekly_reports.feature` | `test_report_scenarios.py` | 量化操盤日報（每日 08:00/18:00）與週報（每週一）前重後輕倒金字塔結構、週一雙報獨立落盤、GitHub Issue 自動發布、四單績效賽馬榜與數學對帳 |
 | `tests/bdd/circuit_breaker_and_margin_allocation.feature` | `test_circuit_breaker_scenarios.py` | 提高單筆資金動用比率至 75% 與本金 50% 全域風控熔斷保護（75% 保證金比率、10% 現金手續費防呆、總淨值跌破 50% 緊急平倉與待機鎖定、Web 熔斷警報橫幅） |
+| `tests/bdd/risk_based_position_sizing_and_trend_dip_reversal.feature` | `test_risk_based_sizing_scenarios.py` | 固定每筆虧損總資金 2% 反推開倉大小 (Risk-Based Position Sizing)、無拘束 2.0 ATR 動態呼吸停損與 4H 趨勢超賣均值修復信號生成 |
 
 > [!IMPORTANT]
 > **日誌單一真實來源 (Single Source of Truth) 與真實 BDD 驗證準則**：
@@ -145,7 +146,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 ```bash
 just test
 ```
-**當前基準**：全套 150 項規格測試 **100% PASS** (149 passed, 1 xfailed)。
+**當前基準**：全套 167 項規格測試 **100% PASS** (166 passed, 1 xfailed)。
 
 ---
 

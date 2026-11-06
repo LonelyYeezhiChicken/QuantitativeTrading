@@ -53,3 +53,5 @@ data/bingx_swap_*.json
 data/autopilot_*.json
 data/*_stop.flag
 data/raw/*.parquet
+data/archive_*/
+data/.heartbeat_*.json

@@ -149,7 +149,10 @@ def main():
             try:
                 swap_balance_resp = client.get_swap_balance()
                 s_bal_data = swap_balance_resp.get("data", {})
-                bal_obj = s_bal_data.get("balance", s_bal_data) if isinstance(s_bal_data, dict) else {}
+                if isinstance(s_bal_data, list):
+                    bal_obj = next((b for b in s_bal_data if b.get("asset") == "USDT"), s_bal_data[0] if s_bal_data else {})
+                else:
+                    bal_obj = s_bal_data.get("balance", s_bal_data) if isinstance(s_bal_data, dict) else {}
                 equity = float(bal_obj.get("equity", bal_obj.get("balance", 0.0)))
                 avail_margin = float(bal_obj.get("availableMargin", 0.0))
                 unrealized_pnl = float(bal_obj.get("unrealizedProfit", 0.0))
@@ -173,6 +176,18 @@ def main():
                     print("     * (目前合約帳戶無活躍在倉部位)")
             except Exception as e:
                 print(f"  -> 合約持倉查詢失敗: {e}")
+
+            print(f"\n[SWAP-4.1] 正在向 BingX 查詢真實當前未成交掛單/條件單 (HMAC 簽章認證)...")
+            try:
+                open_orders_resp = client.get_swap_open_orders(symbol=bx_symbol)
+                orders_list = open_orders_resp.get("data", {}).get("orders", [])
+                print(f"  -> 未成交訂單查詢成功！當前在掛訂單數: {len(orders_list)}")
+                for od in orders_list:
+                    print(f"     * 單號: {od.get('orderId')} | 類型: {od.get('type')} | 觸發價: {od.get('stopPrice')} | 數量: {od.get('origQty')}")
+                if not orders_list:
+                    print("     * (目前合約帳戶無任何在掛條件單或限價單)")
+            except Exception as e:
+                print(f"  -> 未成交訂單查詢失敗: {e}")
         else:
             print(f"\n[SWAP-3] 目前為模擬模式，模擬可用合約保證金: ${gateway.get_balance('USDT', market_type=MarketType.SWAP.value):,.2f}")
 

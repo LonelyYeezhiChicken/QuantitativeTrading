@@ -71,8 +71,10 @@ def main():
     parser.add_argument("--no-ai", action="store_true", help="Disable local Ollama AI veto guard")
     parser.add_argument("--vst", action="store_true", help="Route orders to BingX official VST simulation server (appears on BingX App)")
     parser.add_argument("--live", action="store_true", help="Execute real orders on live exchange with REAL MONEY")
-    parser.add_argument("--margin-ratio", type=float, default=0.75, help="Capital allocation ratio per trade (e.g. 0.75 for 75%)")
+    parser.add_argument("--margin-ratio", type=float, default=0.75, help="Capital allocation ratio per trade (e.g. 0.75 for 75%%)")
     parser.add_argument("--max-loss-pct", type=float, default=50.0, help="Circuit breaker threshold: stop if loss exceeds this pct of capital (e.g. 50.0)")
+    parser.add_argument("--risk-pct", type=float, default=0.02, help="Fixed fractional risk per trade (e.g. 0.02 for 2.0%% total capital risk)")
+    parser.add_argument("--fixed-margin-sizing", action="store_true", help="Use legacy fixed margin ratio sizing instead of ATR risk-based sizing")
     parser.add_argument("--bot-id", type=str, default="", help="Custom identifier for container healthcheck probe (e.g. swap_3x)")
     args = parser.parse_args()
 
@@ -88,6 +90,8 @@ def main():
         use_vst=args.vst if not args.live else False,
         capital_allocation_ratio=args.margin_ratio,
         max_loss_pct=args.max_loss_pct,
+        risk_per_trade_pct=args.risk_pct,
+        use_risk_based_sizing=not args.fixed_margin_sizing,
     )
 
     if args.status:
