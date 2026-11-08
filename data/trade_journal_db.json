@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-06 06:20:48 UTC",
-  "total_entries": 15,
+  "updated_at": "2026-11-08 17:27:52 UTC",
+  "total_entries": 22,
   "entries": [
     {
       "journal_id": "SWAP_20261104_224826_LONG",
@@ -721,18 +721,18 @@
       "symbol": "BTC/USDT",
       "market_type": "SWAP",
       "side": "LONG",
-      "status": "OPEN",
+      "status": "CLOSED",
       "entry_time": "2026-11-06 05:00:51 UTC",
-      "exit_time": "",
+      "exit_time": "2026-11-06 12:50:07 UTC",
       "entry_price": 75732.7,
-      "exit_price": 0.0,
+      "exit_price": 76013.1,
       "amount_btc": 0.0073,
       "margin_used": 184.28290333333334,
       "leverage": 3,
       "notional_value": 552.84871,
-      "pnl_usdt": 0.0,
-      "pnl_pct": 0.0,
-      "realized_r_multiple": 0.0,
+      "pnl_usdt": 2.0469200000000636,
+      "pnl_pct": 1.1107487254515238,
+      "realized_r_multiple": 1.0,
       "liquidation_price": 53012.88999999999,
       "snapshot": {
         "price": 75732.7,
@@ -744,25 +744,382 @@
         "bias_pct": -1.569216848670317
       },
       "risk_plan": {
-        "stop_loss_price": 74596.7095,
+        "stop_loss_price": 75858.9,
+        "stop_loss_pct": 0.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 0.99,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 0.0
+      },
+      "trajectory": {
+        "highest_price": 76347.2,
+        "lowest_price": 75259.1,
+        "mfe_pct": 2.4342193002494295,
+        "mae_pct": -1.876072027010755,
+        "duration_seconds": 28156,
+        "updates_count": 5452
+      },
+      "review": {
+        "thesis": "BTC/USDT LONG：短線超賣止跌勾頭反彈確認 (RSI=30.2<35, 現價高於前收)",
+        "exit_reason": "平倉原因：保本動態階梯鎖利觸發 (最高浮盈曾達 +2.43%，回落守住 +1.20% 鎖利底線) ｜ 盈虧：$+2.05 (+1.11%)",
+        "strategy_evaluation": "Ollama EXECUTE: [雲端 AI 響應逾時 (20.03s > 20.0s)，立即切換為高階數學風控規則] 指標處於健康順勢區間 (RSI=30.2, 乖離=-1.5%)，核准開多",
+        "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
+        "quality_score": 4
+      }
+    },
+    {
+      "journal_id": "SWAP_3X_20261106_132956_SHORT",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "SHORT",
+      "status": "CLOSED",
+      "entry_time": "2026-11-06 13:29:56 UTC",
+      "exit_time": "2026-11-06 13:30:44 UTC",
+      "entry_price": 76008.0,
+      "exit_price": 75888.5,
+      "amount_btc": 0.0083,
+      "margin_used": 210.2888,
+      "leverage": 3,
+      "notional_value": 630.8664,
+      "pnl_usdt": 0.99185,
+      "pnl_pct": 0.4716608778023366,
+      "realized_r_multiple": 1.0,
+      "liquidation_price": 98810.40000000001,
+      "snapshot": {
+        "price": 76008.0,
+        "rsi": 38.15889659643997,
+        "ema21": 76415.6941201099,
+        "atr": 1140.12,
+        "bid": 76008.0,
+        "ask": 76008.0,
+        "bias_pct": -0.5335214510635526
+      },
+      "risk_plan": {
+        "stop_loss_price": 75881.3,
+        "stop_loss_pct": 0.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 0.99,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 0.0
+      },
+      "trajectory": {
+        "highest_price": 76040.0,
+        "lowest_price": 75581.3,
+        "mfe_pct": 1.6841648247552774,
+        "mae_pct": -0.12630249447426586,
+        "duration_seconds": 48,
+        "updates_count": 11
+      },
+      "review": {
+        "thesis": "BTC/USDT SHORT：雙均線空頭排列破位順勢開空 (RSI=38.2, 跌破EMA21<EMA50)",
+        "exit_reason": "平倉原因：保本推移鎖利觸發 (最高浮盈曾達 +1.68%，回落守住 +0.47% 鎖利底線) ｜ 盈虧：$+0.99 (+0.47%)",
+        "strategy_evaluation": "Ollama EXECUTE: [雲端 AI 響應逾時 (20.03s > 20.0s)，立即切換為高階數學風控規則] 指標處於健康順勢區間 (RSI=38.2, 乖離=-0.5%)，核准開空",
+        "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
+        "quality_score": 4
+      }
+    },
+    {
+      "journal_id": "SWAP_3X_20261106_144631_SHORT",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "SHORT",
+      "status": "CLOSED",
+      "entry_time": "2026-11-06 14:46:31 UTC",
+      "exit_time": "2026-11-06 15:06:31 UTC",
+      "entry_price": 75912.0,
+      "exit_price": 75095.0,
+      "amount_btc": 0.0078,
+      "margin_used": 197.37120000000002,
+      "leverage": 3,
+      "notional_value": 592.1136,
+      "pnl_usdt": 6.372599999999999,
+      "pnl_pct": 3.2287385393613652,
+      "realized_r_multiple": 1.0,
+      "liquidation_price": 98685.6,
+      "snapshot": {
+        "price": 75912.0,
+        "rsi": 38.55859079793788,
+        "ema21": 76366.81636505606,
+        "atr": 1138.68,
+        "bid": 75912.0,
+        "ask": 75912.0,
+        "bias_pct": -0.5955680578353597
+      },
+      "risk_plan": {
+        "stop_loss_price": 75785.5,
+        "stop_loss_pct": 0.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 0.99,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 0.0
+      },
+      "trajectory": {
+        "highest_price": 76123.0,
+        "lowest_price": 74836.5,
+        "mfe_pct": 4.25031615554853,
+        "mae_pct": -0.8338602592475497,
+        "duration_seconds": 1200,
+        "updates_count": 234
+      },
+      "review": {
+        "thesis": "BTC/USDT SHORT：雙均線空頭排列破位順勢開空 (RSI=38.6, 跌破EMA21<EMA50)",
+        "exit_reason": "平倉原因：動態移動停利 (最高獲利 +4.25% 回撤 1.00%, 鎖定 +3.25%) ｜ 盈虧：$+6.37 (+3.23%)",
+        "strategy_evaluation": "Ollama EXECUTE: [雲端 AI 響應逾時 (20.01s > 20.0s)，立即切換為高階數學風控規則] 指標處於健康順勢區間 (RSI=38.6, 乖離=-0.5%)，核准開空",
+        "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
+        "quality_score": 4
+      }
+    },
+    {
+      "journal_id": "SWAP_3X_20261106_152147_LONG",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "LONG",
+      "status": "CLOSED",
+      "entry_time": "2026-11-06 15:21:47 UTC",
+      "exit_time": "2026-11-06 17:35:29 UTC",
+      "entry_price": 75586.6,
+      "exit_price": 75736.8,
+      "amount_btc": 0.0072,
+      "margin_used": 181.40784,
+      "leverage": 3,
+      "notional_value": 544.22352,
+      "pnl_usdt": 1.081439999999979,
+      "pnl_pct": 0.5961374105992217,
+      "realized_r_multiple": 1.0,
+      "liquidation_price": 52910.62,
+      "snapshot": {
+        "price": 75586.6,
+        "rsi": 34.39169314144763,
+        "ema21": 76262.33401356611,
+        "atr": 1133.799,
+        "bid": 75586.6,
+        "ask": 75586.6,
+        "bias_pct": -0.8860652146391198
+      },
+      "risk_plan": {
+        "stop_loss_price": 75712.6,
+        "stop_loss_pct": 0.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 0.99,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 0.0
+      },
+      "trajectory": {
+        "highest_price": 76114.1,
+        "lowest_price": 75250.9,
+        "mfe_pct": 2.093625060526601,
+        "mae_pct": -1.3323790195617145,
+        "duration_seconds": 8022,
+        "updates_count": 1558
+      },
+      "review": {
+        "thesis": "BTC/USDT LONG：短線超賣止跌勾頭反彈確認 (RSI=34.4<35, 現價高於前收)",
+        "exit_reason": "平倉原因：保本動態階梯鎖利觸發 (最高浮盈曾達 +2.09%，回落守住 +0.60% 鎖利底線) ｜ 盈虧：$+1.08 (+0.60%)",
+        "strategy_evaluation": "Ollama EXECUTE: 短線超賣止跌勾頭反彈確認，指標正常，無追高接刀極端風險。",
+        "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
+        "quality_score": 4
+      }
+    },
+    {
+      "journal_id": "SWAP_3X_20261106_175853_SHORT",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "SHORT",
+      "status": "CLOSED",
+      "entry_time": "2026-11-06 17:58:53 UTC",
+      "exit_time": "2026-11-07 16:23:11 UTC",
+      "entry_price": 75738.4,
+      "exit_price": 75765.8,
+      "amount_btc": 0.007,
+      "margin_used": 176.72293333333332,
+      "leverage": 3,
+      "notional_value": 530.1687999999999,
+      "pnl_usdt": -0.19180000000006112,
+      "pnl_pct": -0.10853147148609714,
+      "realized_r_multiple": -0.024118104774688256,
+      "liquidation_price": 98459.92,
+      "snapshot": {
+        "price": 75738.4,
+        "rsi": 38.677910170865104,
+        "ema21": 76214.3001981983,
+        "atr": 1136.0759999999998,
+        "bid": 75738.4,
+        "ask": 75738.4,
+        "bias_pct": -0.6244237590067805
+      },
+      "risk_plan": {
+        "stop_loss_price": 76874.47599999998,
         "stop_loss_pct": 4.5,
         "take_profit_type": "TRAILING",
         "trailing_pullback_pct": 0.99,
         "planned_rr_ratio": 2.0,
-        "max_loss_usdt": 8.29273065
+        "max_loss_usdt": 7.952531999999999
       },
       "trajectory": {
-        "highest_price": 75742.1,
-        "lowest_price": 75326.4,
-        "mfe_pct": 0.03723622688749535,
-        "mae_pct": -1.6094764876995127,
-        "duration_seconds": 4797,
-        "updates_count": 931
+        "highest_price": 76211.7,
+        "lowest_price": 75574.9,
+        "mfe_pct": 0.6476239265682929,
+        "mae_pct": -1.8747425348304279,
+        "duration_seconds": 80658,
+        "updates_count": 15621
       },
       "review": {
-        "thesis": "短線 RSI 達 30.2，進入超賣極值區，具備高性價比的均值回歸反彈條件。\n【系統觸發信號】：短線超賣止跌勾頭反彈確認 (RSI=30.2<35, 現價高於前收)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,135.99) 預留正常價格呼吸空間。",
+        "thesis": "BTC/USDT SHORT：雙均線空頭排列破位順勢開空 (RSI=38.7, 跌破EMA21<EMA50)",
+        "exit_reason": "平倉原因：交易所原生硬停損觸發平倉 (斷網保底生效) ｜ 盈虧：$-0.19 (-0.11%)",
+        "strategy_evaluation": "Ollama EXECUTE: [雲端 AI 響應逾時 (20.02s > 20.0s)，立即切換為高階數學風控規則] 指標處於健康順勢區間 (RSI=38.7, 乖離=-0.6%)，核准開空",
+        "pedagogical_takeaway": "1. **【停損是做生意的必要成本】**：金融交易沒有百分之百勝率。嚴格接受一筆小虧損，是為了保留本金參與下一筆具備統計優勢的交易。\n2. **【避免凹單與報復性交易】**：量化系統在止損觸發後即刻冷靜進入觀望，絕不情緒化立即追空或反向重倉。這是一般人工主觀交易者最常虧損的盲點，值得深切借鑑。\n3. **【進場過濾機制精進】**：可檢視進場當下的成交量能是否背離，未來可加入多週期共振確認以進一步提升過濾假突破之能力。",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_3X_20261107_180544_SHORT",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "SHORT",
+      "status": "CLOSED",
+      "entry_time": "2026-11-07 18:05:44 UTC",
+      "exit_time": "2026-11-08 06:00:59 UTC",
+      "entry_price": 75815.1,
+      "exit_price": 75786.6,
+      "amount_btc": 0.0105,
+      "margin_used": 265.35285000000005,
+      "leverage": 3,
+      "notional_value": 796.0585500000002,
+      "pnl_usdt": 0.29925,
+      "pnl_pct": 0.1127743681667636,
+      "realized_r_multiple": 0.025060970703725247,
+      "liquidation_price": 98559.63,
+      "snapshot": {
+        "price": 75815.1,
+        "rsi": 42.085432055151486,
+        "ema21": 75944.50246774357,
+        "atr": 1137.2265,
+        "bid": 75815.1,
+        "ask": 75815.1,
+        "bias_pct": -0.17039082953835713
+      },
+      "risk_plan": {
+        "stop_loss_price": 76952.3265,
+        "stop_loss_pct": 4.5,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 0.99,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 11.94087825
+      },
+      "trajectory": {
+        "highest_price": 75946.0,
+        "lowest_price": 75535.3,
+        "mfe_pct": 1.107167305721431,
+        "mae_pct": -0.5179706944922351,
+        "duration_seconds": 42915,
+        "updates_count": 8307
+      },
+      "review": {
+        "thesis": "BTC/USDT SHORT：斐波那契空方黃金口袋壓力受阻 (RSI=42.1, 48h 0.5~0.65 反彈受壓)",
+        "exit_reason": "平倉原因：交易所原生硬停損觸發平倉 (斷網保底生效) ｜ 盈虧：$+0.30 (+0.11%)",
+        "strategy_evaluation": "Ollama EXECUTE: [雲端 AI 響應逾時 (20.02s > 20.0s)，立即切換為高階數學風控規則] 指標處於健康順勢區間 (RSI=42.1, 乖離=-0.2%)，核准開空",
+        "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_3X_20261108_061620_SHORT",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "SHORT",
+      "status": "CLOSED",
+      "entry_time": "2026-11-08 06:16:20 UTC",
+      "exit_time": "2026-11-08 13:13:21 UTC",
+      "entry_price": 75777.4,
+      "exit_price": 76088.5,
+      "amount_btc": 0.0105,
+      "margin_used": 265.2209,
+      "leverage": 3,
+      "notional_value": 795.6626999999999,
+      "pnl_usdt": -3.2665500000000613,
+      "pnl_pct": -1.2316337060918132,
+      "realized_r_multiple": -0.27369637913151407,
+      "liquidation_price": 98510.62,
+      "snapshot": {
+        "price": 75777.4,
+        "rsi": 43.93998051055586,
+        "ema21": 75850.82828081443,
+        "atr": 1136.6609999999998,
+        "bid": 75777.4,
+        "ask": 75777.4,
+        "bias_pct": -0.09680616873765532
+      },
+      "risk_plan": {
+        "stop_loss_price": 76914.06099999999,
+        "stop_loss_pct": 4.5,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 0.99,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 11.934940499999998
+      },
+      "trajectory": {
+        "highest_price": 76088.5,
+        "lowest_price": 75744.9,
+        "mfe_pct": 0.12866633059461002,
+        "mae_pct": -1.231633706091813,
+        "duration_seconds": 25021,
+        "updates_count": 4845
+      },
+      "review": {
+        "thesis": "BTC/USDT SHORT：斐波那契空方黃金口袋壓力受阻 (RSI=43.9, 48h 0.5~0.65 反彈受壓)",
+        "exit_reason": "平倉原因：交易所原生硬停損觸發平倉 (斷網保底生效) ｜ 盈虧：$-3.27 (-1.23%)",
+        "strategy_evaluation": "Ollama EXECUTE: [雲端 AI 響應逾時 (20.02s > 20.0s)，立即切換為高階數學風控規則] 指標處於健康順勢區間 (RSI=43.9, 乖離=-0.1%)，核准開空",
+        "pedagogical_takeaway": "1. **【停損是做生意的必要成本】**：金融交易沒有百分之百勝率。嚴格接受一筆小虧損，是為了保留本金參與下一筆具備統計優勢的交易。\n2. **【避免凹單與報復性交易】**：量化系統在止損觸發後即刻冷靜進入觀望，絕不情緒化立即追空或反向重倉。這是一般人工主觀交易者最常虧損的盲點，值得深切借鑑。\n3. **【進場過濾機制精進】**：可檢視進場當下的成交量能是否背離，未來可加入多週期共振確認以進一步提升過濾假突破之能力。",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_3X_20261108_133355_SHORT",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "SHORT",
+      "status": "OPEN",
+      "entry_time": "2026-11-08 13:33:55 UTC",
+      "exit_time": "",
+      "entry_price": 75997.0,
+      "exit_price": 0.0,
+      "amount_btc": 0.0105,
+      "margin_used": 265.9895,
+      "leverage": 3,
+      "notional_value": 797.9685000000001,
+      "pnl_usdt": 0.0,
+      "pnl_pct": 0.0,
+      "realized_r_multiple": 0.0,
+      "liquidation_price": 98796.1,
+      "snapshot": {
+        "price": 75997.0,
+        "rsi": 53.58143131599963,
+        "ema21": 75905.56163046676,
+        "atr": 1139.955,
+        "bid": 75997.0,
+        "ask": 75997.0,
+        "bias_pct": 0.12046333308010856
+      },
+      "risk_plan": {
+        "stop_loss_price": 77136.95499999999,
+        "stop_loss_pct": 4.5,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 0.99,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 11.9695275
+      },
+      "trajectory": {
+        "highest_price": 76069.0,
+        "lowest_price": 75635.3,
+        "mfe_pct": 1.4278195191915355,
+        "mae_pct": -0.28422174559522084,
+        "duration_seconds": 14037,
+        "updates_count": 2713
+      },
+      "review": {
+        "thesis": "價格呈現空頭防守態勢，策略偵測到下行破位信號。\n【系統觸發信號】：4H趨勢超賣均值修復確認 (RSI=53.6>=65或觸碰布林上軌，滯漲收陰)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,139.95) 預留正常價格呼吸空間。",
         "exit_reason": "持倉中，持續依據風控計畫動態監控中",
-        "strategy_evaluation": "Ollama EXECUTE: [雲端 AI 響應逾時 (20.03s > 20.0s)，立即切換為高階數學風控規則] 指標處於健康順勢區間 (RSI=30.2, 乖離=-1.5%)，核准開多",
+        "strategy_evaluation": "Ollama EXECUTE: [雲端 AI 響應逾時 (20.02s > 20.0s)，立即切換為高階數學風控規則] 指標處於健康順勢區間 (RSI=53.6, 乖離=+0.1%)，核准開空",
         "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
         "quality_score": 3
       }
