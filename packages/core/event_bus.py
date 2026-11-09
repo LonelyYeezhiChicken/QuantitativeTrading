@@ -131,6 +131,11 @@ class InMemoryKlineRollingCache:
         lows = list(fetched.get("lows", closes))
 
         with self._lock:
+            # 防抹除防禦 (Cache Wipeout Protection): 若網絡中斷或限流回傳空資料，保留既有快取
+            if not closes and entry is not None and entry.get("closes"):
+                entry["fetched_at"] = now - self._refresh_interval_sec + 10.0
+                return entry
+
             entry = {
                 "closes": closes,
                 "highs": highs if len(highs) == len(closes) else list(closes),

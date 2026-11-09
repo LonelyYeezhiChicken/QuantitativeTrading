@@ -1,6 +1,7 @@
 """BingX Broker Gateway: High-level exchange gateway conforming to BaseBrokerGateway."""
 
 import os
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -66,6 +67,14 @@ class BingXGateway(BaseBrokerGateway):
         self._leverage_map: Dict[str, int] = {}
         # (bx_symbol, market_type) -> (price_decimals, qty_decimals); None = unknown
         self._precision_cache: Dict[tuple, tuple] = {}
+
+        # Precision pre-warming: pre-cache BTC/USDT so first orders never face latency or fallback
+        if not self._dry_run and self.api_key:
+            try:
+                self.get_precision("BTC/USDT", MarketType.SWAP.value)
+                self.get_precision("BTC/USDT", MarketType.SPOT.value)
+            except Exception:
+                pass
 
     # ----------------- Exchange precision -----------------
 
@@ -319,6 +328,69 @@ class BingXGateway(BaseBrokerGateway):
             except Exception:
                 return False
         return True
+
+    def fetch_klines(
+        self,
+        symbol: str,
+        timeframe: str = "1h",
+        limit: int = 100,
+        market_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Fetch historical candlestick / K-line bars in ascending chronological order."""
+        m_type = (market_type or self.default_market_type).upper()
+        bx_symbol = self.to_bingx_symbol(symbol)
+
+        if self.is_dry_run:
+            ticker = self.fetch_ticker(symbol, market_type=m_type)
+            p = float(ticker.get("price", 75000.0) or 75000.0)
+            now_ts = int(time.time() * 1000)
+            return [
+                {
+                    "timestamp": now_ts - (limit - i) * 3600 * 1000,
+                    "open": p,
+                    "high": p * 1.002,
+                    "low": p * 0.998,
+                    "close": p,
+                    "volume": 100.0,
+                }
+                for i in range(limit)
+            ]
+
+        try:
+            if m_type == MarketType.SWAP.value:
+                resp = self.client.fetch_swap_klines(bx_symbol, interval=timeframe, limit=limit)
+                raw_data = resp.get("data", []) if isinstance(resp, dict) else []
+                items = raw_data[::-1]
+                return [
+                    {
+                        "timestamp": int(x.get("time", 0)),
+                        "open": float(x.get("open", 0.0)),
+                        "high": float(x.get("high", 0.0)),
+                        "low": float(x.get("low", 0.0)),
+                        "close": float(x.get("close", 0.0)),
+                        "volume": float(x.get("volume", 0.0)),
+                    }
+                    for x in items
+                    if isinstance(x, dict)
+                ]
+            else:
+                resp = self.client.fetch_klines(bx_symbol, interval=timeframe, limit=limit)
+                raw_data = resp.get("data", []) if isinstance(resp, dict) else []
+                items = raw_data[::-1]
+                return [
+                    {
+                        "timestamp": int(x[0]),
+                        "open": float(x[1]),
+                        "high": float(x[2]),
+                        "low": float(x[3]),
+                        "close": float(x[4]),
+                        "volume": float(x[5]),
+                    }
+                    for x in items
+                    if isinstance(x, (list, tuple)) and len(x) >= 6
+                ]
+        except Exception:
+            return []
 
     def get_positions(self, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
         """Retrieve open perpetual swap contract positions."""

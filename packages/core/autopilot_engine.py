@@ -61,8 +61,13 @@ def compute_structural_indicators_from_ohlc(
         diff = s_close.diff()
         gain = diff.clip(lower=0).ewm(alpha=1.0 / 14.0, adjust=False).mean()
         loss = (-diff.clip(upper=0)).ewm(alpha=1.0 / 14.0, adjust=False).mean()
-        rs = gain / (loss + 1e-9)
-        rsi = float((100.0 - (100.0 / (1.0 + rs))).iloc[-1])
+        last_gain = float(gain.iloc[-1])
+        last_loss = float(loss.iloc[-1])
+        if abs(last_gain) < 1e-9 and abs(last_loss) < 1e-9:
+            rsi = 50.0  # 平線無波動，標準定義為中性 50.0，嚴禁算為 0.0 誤觸超賣
+        else:
+            rs = last_gain / (last_loss + 1e-9)
+            rsi = float(100.0 - (100.0 / (1.0 + rs)))
 
     atr = cur_price * 0.015
     if len(closes) >= 15:
@@ -1640,16 +1645,28 @@ class UnifiedAutopilotEngine:
                     highs = [float(x) for x in df["high"].tolist()] if "high" in df.columns else closes
                     lows = [float(x) for x in df["low"].tolist()] if "low" in df.columns else closes
                     return {"closes": closes, "highs": highs, "lows": lows}
-            elif hasattr(self.gw, "client") and hasattr(self.gw.client, "fetch_klines"):
+            elif hasattr(self.gw, "client"):
                 bx_sym = self.gw.to_bingx_symbol(symbol) if hasattr(self.gw, "to_bingx_symbol") else symbol
-                resp = self.gw.client.fetch_klines(bx_sym, interval="1h", limit=100)
-                k_data = resp.get("data", []) if isinstance(resp, dict) else []
-                if k_data:
-                    return {
-                        "closes": [float(x[4]) for x in k_data][::-1],
-                        "highs": [float(x[2]) for x in k_data][::-1],
-                        "lows": [float(x[3]) for x in k_data][::-1],
-                    }
+                if market_type == "SWAP" and hasattr(self.gw.client, "fetch_swap_klines"):
+                    resp = self.gw.client.fetch_swap_klines(bx_sym, interval="1h", limit=100)
+                    k_data = resp.get("data", []) if isinstance(resp, dict) else []
+                    if k_data:
+                        items = k_data[::-1]
+                        return {
+                            "closes": [float(x.get("close", 0.0)) for x in items if isinstance(x, dict)],
+                            "highs": [float(x.get("high", 0.0)) for x in items if isinstance(x, dict)],
+                            "lows": [float(x.get("low", 0.0)) for x in items if isinstance(x, dict)],
+                        }
+                elif hasattr(self.gw.client, "fetch_klines"):
+                    resp = self.gw.client.fetch_klines(bx_sym, interval="1h", limit=100)
+                    k_data = resp.get("data", []) if isinstance(resp, dict) else []
+                    if k_data:
+                        items = k_data[::-1]
+                        return {
+                            "closes": [float(x[4]) for x in items if isinstance(x, (list, tuple)) and len(x) > 4],
+                            "highs": [float(x[2]) for x in items if isinstance(x, (list, tuple)) and len(x) > 2],
+                            "lows": [float(x[3]) for x in items if isinstance(x, (list, tuple)) and len(x) > 3],
+                        }
         except Exception:
             pass
         return {}

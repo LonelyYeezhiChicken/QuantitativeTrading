@@ -3,11 +3,14 @@
 import hashlib
 import hmac
 import json
+import logging
 import re
 import time
 from typing import Any, Dict, List, Optional
 import requests
 from urllib3.exceptions import ConnectTimeoutError, NewConnectionError
+
+logger = logging.getLogger("BingXClient")
 
 
 class BingXAmbiguousRequestError(RuntimeError):
@@ -186,7 +189,16 @@ class BingXClient:
 
                 # BingX success code is 0
                 if isinstance(data, dict) and data.get("code") not in (0, None):
-                    raise RuntimeError(f"BingX API Error {data.get('code')}: {data.get('msg')}")
+                    err_code = data.get("code")
+                    err_msg = data.get("msg", "")
+                    # Rate limit failover (100410 IP frequency limit exceeded) on safe GET queries
+                    if err_code == 100410 and method == "GET" and not is_last:
+                        logger.warning(
+                            f"BingX GET {path} hit rate limit 100410 on domain {base}. Failing over to next domain..."
+                        )
+                        time.sleep(0.1)
+                        continue
+                    raise RuntimeError(f"BingX API Error {err_code}: {err_msg}")
 
                 return data
 
