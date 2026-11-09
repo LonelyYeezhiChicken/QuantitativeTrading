@@ -172,3 +172,70 @@ class TestCircuitBreakerAndMarginAllocationBDDScenarios:
         total_equity = sum(b.get("equity", 200.0) for b in bots)
         is_circuit_breaker_active = any(b.get("circuit_breaker_triggered") for b in bots) or (total_equity <= total_capital * 0.5)
         assert is_circuit_breaker_active is True
+
+    def test_scenario_hot_config_update_without_disrupting_active_position(self, tmp_path):
+        """Scenario: 支援運行中零重啟熱更新資金配置比率至 75% 且不干擾現有持倉."""
+        state_file = tmp_path / "autopilot_state.json"
+        engine = UnifiedAutopilotEngine(
+            symbol="BTC/USDT",
+            leverage=3,
+            capital=400.0,
+            capital_allocation_ratio=0.50,
+            dry_run=True,
+            state_file=state_file,
+        )
+        engine.arm()
+        assert engine.status == AutopilotState.ARMED
+        assert engine.capital_allocation_ratio == 0.50
+
+        # Given 操盤中樞當前持有一筆保證金 100 USDT 之 "SHORT" 倉位且原始配置為 50%
+        engine.cash = 300.0
+        engine.position = {
+            "side": "SHORT",
+            "amount": 0.004,
+            "amount_btc": 0.004,
+            "entry_price": 75000.0,
+            "margin_used": 100.0,
+            "highest_pnl_pct": 1.2,
+            "entry_time": "2026-11-09 00:00:00 UTC",
+            "entry_why": "Test short entry",
+            "ai_decision": "Approved",
+            "native_sl_price": 75500.0,
+            "sl_order_id": "test_sl_12345",
+        }
+        engine.save_state()
+
+        # When 外部控制通道寫入 "UPDATE_CONFIG" 指令並傳入 capital_allocation_ratio 為 0.75
+        external_sender = UnifiedAutopilotEngine(
+            symbol="BTC/USDT",
+            leverage=3,
+            capital=400.0,
+            dry_run=True,
+            state_file=state_file,
+        )
+        external_sender.send_control_command(
+            command="UPDATE_CONFIG",
+            config={"capital_allocation_ratio": 0.75, "capital": 420.0},
+        )
+
+        # Trigger a step heartbeat
+        engine.step(override_price=74800.0)
+
+        # Then 操盤中樞在 step 心跳中應自動熱套用 75% 資金動用比率
+        assert engine.capital_allocation_ratio == 0.75
+        assert engine.capital == 420.0
+
+        # And 現有之 "SHORT" 持倉部位與止損均完好無損未受任何干擾
+        assert engine.position["side"] == "SHORT"
+        assert engine.position["amount"] == 0.004
+        assert engine.position["entry_price"] == 75000.0
+        assert engine.position["native_sl_price"] == 75500.0
+        assert engine.position["sl_order_id"] == "test_sl_12345"
+
+        # And 操盤中樞狀態檔案已正確持久化記錄最新 0.75 資金比率
+        with open(state_file, "r", encoding="utf-8") as f:
+            persisted = json.load(f)
+        assert persisted["capital_allocation_ratio"] == 0.75
+        assert persisted["capital"] == 420.0
+        assert persisted["position"]["side"] == "SHORT"
+

@@ -670,18 +670,20 @@ class UnifiedAutopilotEngine:
         except (OSError, ValueError):
             return {}
 
-    def send_control_command(self, command: str) -> int:
-        """Broadcast ARM / STANDBY / EMERGENCY_CLOSE to any running engine sharing this state file."""
+    def send_control_command(self, command: str, config: Optional[Dict[str, Any]] = None) -> int:
+        """Broadcast ARM / STANDBY / EMERGENCY_CLOSE / UPDATE_CONFIG to any running engine sharing this state file."""
         command = command.upper()
-        if command not in ("ARM", "STANDBY", "EMERGENCY_CLOSE"):
+        if command not in ("ARM", "STANDBY", "EMERGENCY_CLOSE", "UPDATE_CONFIG", "CONFIG"):
             raise ValueError(f"Unsupported control command: {command}")
         seq = int(self._read_control().get("seq", 0) or 0) + 1
-        payload = {
+        payload: Dict[str, Any] = {
             "seq": seq,
             "command": command,
             "issued_at": datetime.now(timezone.utc).isoformat(),
             "issuer_pid": os.getpid(),
         }
+        if config:
+            payload["config"] = config
         self.control_file.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = self.control_file.with_name(f"{self.control_file.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
         with open(tmp_path, "w", encoding="utf-8") as f:
@@ -701,6 +703,20 @@ class UnifiedAutopilotEngine:
         if seq <= self._control_seq_seen:
             return None
         self._control_seq_seen = seq
+
+        # Dynamic runtime config injection (supports hot updating capital, allocation ratio, etc.)
+        config_updates = ctl.get("config", {})
+        if isinstance(config_updates, dict) and config_updates:
+            if "capital_allocation_ratio" in config_updates:
+                self.capital_allocation_ratio = max(0.10, min(float(config_updates["capital_allocation_ratio"]), 0.95))
+            if "capital" in config_updates:
+                self.capital = max(10.0, float(config_updates["capital"]))
+            if "risk_per_trade_pct" in config_updates:
+                self.risk_per_trade_pct = max(0.005, min(float(config_updates["risk_per_trade_pct"]), 0.15))
+            if "use_risk_based_sizing" in config_updates:
+                self.use_risk_based_sizing = bool(config_updates["use_risk_based_sizing"])
+            self.save_state()
+
         command = str(ctl.get("command", "")).upper()
         if command == "STANDBY":
             self.status = AutopilotState.STANDBY
@@ -710,9 +726,12 @@ class UnifiedAutopilotEngine:
             self.save_state()
         elif command == "EMERGENCY_CLOSE":
             self._emergency_close_locked(cur_price)
+        elif command in ("UPDATE_CONFIG", "CONFIG"):
+            self.save_state()
         else:
-            return None
-        return command
+            if not config_updates:
+                return None
+        return command or "UPDATE_CONFIG"
 
     def attach_event_bus(self, event_bus: Any) -> None:
         """Subscribe this engine to a MarketEventBus for real-time event-driven execution."""
@@ -1062,6 +1081,15 @@ class UnifiedAutopilotEngine:
             return step_result
 
         # B. Entry Evaluation (Only when flat and ARMED)
+        m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
+        if self.is_exchange_backed:
+            try:
+                exch_bal = self.gw.get_balance("USDT", market_type=m_type)
+                if exch_bal and float(exch_bal) > 0:
+                    self.cash = float(exch_bal)
+            except Exception:
+                pass
+
         signals = self._compute_market_signals(cur_price)
         rsi = signals["rsi"]
 
@@ -1095,6 +1123,8 @@ class UnifiedAutopilotEngine:
         if atr_val <= 0:
             atr_val = cur_price * (self.price_sl_pct / 100.0)
 
+        effective_capital = max(self.capital, self.cash)
+
         if self.use_risk_based_sizing and "SWAP" in self.mode and atr_val > 0:
             sl_dist = self.atr_sl_multiplier * atr_val
             if candidate_signal == "LONG":
@@ -1103,7 +1133,7 @@ class UnifiedAutopilotEngine:
                 native_sl_price = cur_price + sl_dist
 
             notional, trade_margin, qty_to_buy = compute_risk_based_position_size(
-                capital=self.capital,
+                capital=effective_capital,
                 risk_pct=self.risk_per_trade_pct,
                 cur_price=cur_price,
                 atr_val=atr_val,
@@ -1113,7 +1143,7 @@ class UnifiedAutopilotEngine:
                 available_cash=self.cash,
             )
         else:
-            trade_margin = min(max(10.0, self.capital * self.capital_allocation_ratio), self.cash * 0.90)
+            trade_margin = min(max(10.0, effective_capital * self.capital_allocation_ratio), self.cash * 0.90)
             if trade_margin < 10.0:
                 step_result["message"] = f"可用資金不足 (${self.cash:.2f} < 10 U)，放棄開倉"
                 return step_result
@@ -1122,7 +1152,10 @@ class UnifiedAutopilotEngine:
             qty_to_buy = notional / max(cur_price, 1e-4)
 
             # Calculate Native Hard Stop-Loss price to attach atomically upon entry
-            if candidate_signal == "LONG":
+            if atr_val > 0:
+                sl_dist = self.atr_sl_multiplier * atr_val
+                native_sl_price = (cur_price - sl_dist) if candidate_signal == "LONG" else (cur_price + sl_dist)
+            elif candidate_signal == "LONG":
                 native_sl_price = cur_price * (1.0 - (self.price_sl_pct / 100.0))
             else:
                 native_sl_price = cur_price * (1.0 + (self.price_sl_pct / 100.0))

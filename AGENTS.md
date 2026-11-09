@@ -146,7 +146,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 ```bash
 just test
 ```
-**當前基準**：全套 167 項規格測試 **100% PASS** (166 passed, 1 xfailed)。
+**當前基準**：全套 168 項規格測試 **100% PASS** (167 passed, 1 xfailed)。
 
 ---
 
