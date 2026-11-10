@@ -363,3 +363,44 @@ class TestStructuralEntryAndBreakevenBDDScenarios:
         # Then 系統應解除冷卻限制並核准發出 "LONG" 開倉訊號
         assert sig_after_cooldown == "LONG"
         assert "順勢" in reason_after
+
+    def test_scenario_3x_breakeven_raised_and_bearish_breakdown_rsi_42_guard(self):
+        """Verify 3x breakeven trigger (+2.1% ROE) / floor (+0.8% ROE) and RSI >= 42 bearish breakdown guard."""
+        from packages.core.autopilot_engine import (
+            get_laddered_cloud_stop_tier,
+            get_tier_locked_margin_pct,
+        )
+
+        # 1. Bearish breakdown short blocks RSI < 42 (e.g. RSI=38.6 near oversold floor)
+        low_rsi_bear_signals = {
+            "price": 74280.0,
+            "rsi": 38.6,
+            "ema21": 74800.0,
+            "ema50": 75200.0,
+            "prev_close": 74350.0,
+            "in_bull_golden_pocket": False,
+            "in_bear_golden_pocket": False,
+        }
+        sig_low_rsi, _ = evaluate_structural_entry("SWAP", 74280.0, low_rsi_bear_signals)
+        assert sig_low_rsi is None
+
+        # And approves when 42.0 <= RSI <= 48.0
+        healthy_bear_signals = dict(low_rsi_bear_signals, rsi=43.5)
+        sig_ok_bear, reason_bear = evaluate_structural_entry("SWAP", 74280.0, healthy_bear_signals)
+        assert sig_ok_bear == "SHORT"
+        assert "空頭排列破位" in reason_bear
+
+        # 2. 3x (tp_threshold = 3.0% ROE): breakeven does NOT trigger at +1.6% ROE, triggers at >= +2.1% ROE, locks +0.8% ROE
+        act_early, _ = evaluate_three_stage_exit(
+            pnl_pct=0.6, peak_pct=1.7, sl_threshold=4.5, tp_threshold=3.0, pullback_threshold=0.99, side="SHORT"
+        )
+        assert act_early is None
+        assert get_laddered_cloud_stop_tier(peak_pct=1.7, tp_threshold=3.0) == 0
+
+        act_be, reason_be = evaluate_three_stage_exit(
+            pnl_pct=0.75, peak_pct=2.2, sl_threshold=4.5, tp_threshold=3.0, pullback_threshold=0.99, side="SHORT"
+        )
+        assert act_be == "BREAKEVEN_STOP"
+        assert "保本" in reason_be
+        assert get_laddered_cloud_stop_tier(peak_pct=2.2, tp_threshold=3.0) == 1
+        assert get_tier_locked_margin_pct(1, tp_threshold=3.0) == 0.8

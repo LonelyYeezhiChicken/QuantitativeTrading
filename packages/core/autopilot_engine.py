@@ -264,7 +264,7 @@ def evaluate_structural_entry(
         if in_bear_gp and is_bear_macro and (cur_price < prev_close) and 42.0 <= rsi <= 62.0:
             return "SHORT", f"斐波那契空方黃金口袋壓力受阻 (RSI={rsi:.1f}, 48h 0.5~0.65 反彈受壓)"
         # 6. Bearish Breakdown Short (strictly requires EMA21 < EMA50 macro bearish structure & not over-extended crash)
-        if cur_price < ema21 * 0.995 and is_bear_macro and 38.0 <= rsi <= 48.0:
+        if cur_price < ema21 * 0.995 and is_bear_macro and 42.0 <= rsi <= 48.0:
             if ema21_bias_pct < -1.20:
                 return None, f"均線負乖離過大禁止追空 (Bias={ema21_bias_pct:.2f}% < -1.20%，等待反彈靠近EMA21)"
             return "SHORT", f"雙均線空頭排列破位順勢開空 (RSI={rsi:.1f}, 跌破EMA21<EMA50)"
@@ -301,12 +301,13 @@ def evaluate_three_stage_exit(
     - Stage 3: Trailing Take-Profit (once peak_pct >= tp_threshold and pullback >= pullback_threshold)
     """
     pullback = peak_pct - pnl_pct
-    be_trigger = breakeven_trigger_pct if breakeven_trigger_pct is not None else (tp_threshold * 0.5)
+    default_be_trigger = round(tp_threshold * 0.7, 4) if (3.0 <= tp_threshold < 10.0) else (tp_threshold * 0.5)
+    be_trigger = breakeven_trigger_pct if breakeven_trigger_pct is not None else default_be_trigger
     if breakeven_floor_pct is None:
         if tp_threshold >= 10.0:
             be_floor = 1.5
         elif tp_threshold >= 3.0:
-            be_floor = 0.5
+            be_floor = 0.8
         else:
             be_floor = 0.25
     else:
@@ -349,18 +350,19 @@ def evaluate_three_stage_exit(
 def get_laddered_cloud_stop_tier(peak_pct: float, tp_threshold: float) -> int:
     """Determine highest qualified cloud stop-loss tier based on peak ROE.
     Tiers are spaced widely ('慢慢推，不用頻繁推'):
-    - Tier 1 (保本): peak >= tp_threshold * 0.5 (例如 50x: +12.5%, 10x: +10%)
+    - Tier 1 (保本): peak >= tp_threshold * 0.7 (3x: +2.1%) or tp_threshold * 0.5 (10x+: +10%~+12.5%)
     - Tier 2 (大鎖利 1): peak >= tp_threshold * 1.5 (例如 50x: +37.5%, 10x: +30%)
     - Tier 3 (翻倍鎖利 2): peak >= tp_threshold * 3.0 (例如 50x: +75.0%, 10x: +60%)
     - Tier 4 (破百大鎖利 3): peak >= tp_threshold * 5.0 (例如 50x: +125.0%, 10x: +100%)
     """
+    tier1_trigger = round(tp_threshold * 0.7, 4) if (3.0 <= tp_threshold < 10.0) else (tp_threshold * 0.5)
     if peak_pct >= tp_threshold * 5.0:
         return 4
     if peak_pct >= tp_threshold * 3.0:
         return 3
     if peak_pct >= tp_threshold * 1.5:
         return 2
-    if peak_pct >= tp_threshold * 0.5:
+    if peak_pct >= tier1_trigger:
         return 1
     return 0
 
@@ -371,7 +373,7 @@ def get_tier_locked_margin_pct(tier: int, tp_threshold: float) -> float:
         if tp_threshold >= 10.0:
             return 1.5
         elif tp_threshold >= 3.0:
-            return 0.5
+            return 0.8
         else:
             return 0.25
     elif tier == 2:
