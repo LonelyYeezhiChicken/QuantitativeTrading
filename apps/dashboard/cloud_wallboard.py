@@ -7,10 +7,15 @@ Designed specifically for 24/7 Cloud VPS Deployment:
 - Multi-device responsive: Renders cleanly on iPhone, iPad, Android, and Desktop browsers.
 """
 
+from collections import deque
 from datetime import datetime, timezone, timedelta
 import json
+import os
 from pathlib import Path
 import sys
+import threading
+import time
+import uuid
 import streamlit as st
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
@@ -22,6 +27,161 @@ from packages.execution import BingXGateway, MarketType
 from packages.journal import TradeJournalManager
 
 TZ_TAIPEI = timezone(timedelta(hours=8))
+
+
+class WallboardTrafficGuard:
+    """Thread-safe connection limiter, per-session rate limiter, and DDoS flood circuit breaker.
+
+    Protects the passwordless Cloud Wallboard without requiring manual login:
+    1. Caps concurrent active WebSocket sessions (default: 15 tabs).
+    2. Detects sudden new-session connection floods (default: >8 new sessions / 10s) and trips
+       a 60-second circuit breaker for NEW sessions while allowing existing sessions to continue.
+    3. Rate-limits rapid manual refreshes per session (default: min 1.5s interval).
+    """
+
+    def __init__(
+        self,
+        max_concurrent_sessions: int = 15,
+        session_ttl_sec: float = 15.0,
+        max_new_sessions_per_window: int = 8,
+        flood_window_sec: float = 10.0,
+        circuit_cooldown_sec: float = 60.0,
+        min_session_interval_sec: float = 1.5,
+    ):
+        self.max_concurrent_sessions = max(1, int(max_concurrent_sessions))
+        self.session_ttl_sec = float(session_ttl_sec)
+        self.max_new_sessions_per_window = max(1, int(max_new_sessions_per_window))
+        self.flood_window_sec = float(flood_window_sec)
+        self.circuit_cooldown_sec = float(circuit_cooldown_sec)
+        self.min_session_interval_sec = float(min_session_interval_sec)
+
+        self._lock = threading.RLock()
+        self._active_sessions: dict[str, float] = {}
+        self._new_session_timestamps: deque[float] = deque()
+        self._circuit_open_until: float = 0.0
+
+    def _prune_expired(self, now: float) -> None:
+        expired = [
+            sid for sid, last_ts in self._active_sessions.items()
+            if (now - last_ts) > self.session_ttl_sec
+        ]
+        for sid in expired:
+            self._active_sessions.pop(sid, None)
+
+        while self._new_session_timestamps and (now - self._new_session_timestamps[0]) > self.flood_window_sec:
+            self._new_session_timestamps.popleft()
+
+    def check_access(self, session_id: str, now: float | None = None) -> tuple[bool, str, dict]:
+        """Evaluate whether a session is allowed to render or refresh the wallboard."""
+        ts = time.monotonic() if now is None else float(now)
+        with self._lock:
+            self._prune_expired(ts)
+            is_existing = session_id in self._active_sessions
+
+            # 1. Existing session: allow through even during flood circuit-breaker, but enforce min refresh interval
+            if is_existing:
+                last_seen = self._active_sessions[session_id]
+                elapsed = ts - last_seen
+                if elapsed < self.min_session_interval_sec:
+                    return (
+                        False,
+                        f"單一連線刷新過於頻繁 ({elapsed:.2f}s < {self.min_session_interval_sec:.1f}s)，請稍候再試。",
+                        {
+                            "reason_code": "RATE_LIMITED",
+                            "active_sessions": len(self._active_sessions),
+                            "circuit_open": ts < self._circuit_open_until,
+                        },
+                    )
+                self._active_sessions[session_id] = ts
+                return (
+                    True,
+                    "OK",
+                    {
+                        "reason_code": "OK",
+                        "active_sessions": len(self._active_sessions),
+                        "circuit_open": ts < self._circuit_open_until,
+                    },
+                )
+
+            # 2. Brand-new session: check if flood circuit breaker is currently open
+            if ts < self._circuit_open_until:
+                rem = int(self._circuit_open_until - ts) + 1
+                return (
+                    False,
+                    f"系統偵測到異常連線洪水，已啟動 UI 流量熔斷保護（剩餘冷卻 {rem} 秒）。既有連線不受影響。",
+                    {
+                        "reason_code": "CIRCUIT_BREAKER_OPEN",
+                        "active_sessions": len(self._active_sessions),
+                        "circuit_open": True,
+                        "cooldown_remaining": rem,
+                    },
+                )
+
+            # 3. Check if new session arrival rate exceeds flood threshold
+            self._new_session_timestamps.append(ts)
+            if len(self._new_session_timestamps) > self.max_new_sessions_per_window:
+                self._circuit_open_until = ts + self.circuit_cooldown_sec
+                return (
+                    False,
+                    f"偵測到瞬間大量新連線請求（10 秒內超過 {self.max_new_sessions_per_window} 次），已觸發 {int(self.circuit_cooldown_sec)} 秒流量熔斷保護！",
+                    {
+                        "reason_code": "CIRCUIT_BREAKER_TRIPPED",
+                        "active_sessions": len(self._active_sessions),
+                        "circuit_open": True,
+                        "cooldown_remaining": int(self.circuit_cooldown_sec),
+                    },
+                )
+
+            # 4. Check concurrent session cap
+            if len(self._active_sessions) >= self.max_concurrent_sessions:
+                return (
+                    False,
+                    f"目前同時在線監控人數已達上限 ({self.max_concurrent_sessions} 個連線)，為保護交易中樞資源，暫時拒絕新連線。",
+                    {
+                        "reason_code": "MAX_SESSIONS_REACHED",
+                        "active_sessions": len(self._active_sessions),
+                        "circuit_open": False,
+                    },
+                )
+
+            # 5. Admit new session
+            self._active_sessions[session_id] = ts
+            return (
+                True,
+                "OK",
+                {
+                    "reason_code": "OK",
+                    "active_sessions": len(self._active_sessions),
+                    "circuit_open": False,
+                },
+            )
+
+
+@st.cache_resource
+def get_traffic_guard() -> WallboardTrafficGuard:
+    """Process-wide singleton traffic guard across all Streamlit sessions."""
+    return WallboardTrafficGuard(
+        max_concurrent_sessions=int(os.getenv("WALLBOARD_MAX_SESSIONS", "15")),
+        session_ttl_sec=float(os.getenv("WALLBOARD_SESSION_TTL_SEC", "15.0")),
+        max_new_sessions_per_window=int(os.getenv("WALLBOARD_MAX_NEW_PER_10S", "8")),
+        flood_window_sec=10.0,
+        circuit_cooldown_sec=float(os.getenv("WALLBOARD_CIRCUIT_COOLDOWN_SEC", "60.0")),
+        min_session_interval_sec=0.8,
+    )
+
+
+def get_current_session_id() -> str:
+    """Retrieve Streamlit's internal WebSocket session ID or assign a stable fallback."""
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+        ctx = get_script_run_ctx()
+        if ctx and getattr(ctx, "session_id", None):
+            return str(ctx.session_id)
+    except Exception:
+        pass
+    if "_wallboard_sid" not in st.session_state:
+        st.session_state["_wallboard_sid"] = uuid.uuid4().hex
+    return str(st.session_state["_wallboard_sid"])
 
 # 1. Page Configuration (Wide layout, Trading Terminal Title)
 st.set_page_config(
@@ -209,20 +369,59 @@ st.markdown(
 )
 
 
-@st.cache_data(ttl=3)
-def fetch_live_market_data() -> tuple[float, dict]:
-    """Fetch real-time BTC ticker and 1h technical indicators without blocking."""
+@st.cache_resource
+def get_shared_gateway() -> BingXGateway:
+    """Singleton read-only gateway shared across all sessions to avoid socket exhaustion."""
+    return BingXGateway(dry_run=True, enable_ws=False)
+
+
+def _read_local_heartbeat_price() -> float:
+    """Read latest BTC price recorded by local trading daemon heartbeats (zero API cost)."""
+    data_dir = ROOT_DIR / "data"
+    if not data_dir.exists():
+        return 0.0
+    now_ts = time.time()
+    for hb_file in sorted(data_dir.glob(".heartbeat_*.json")):
+        try:
+            with open(hb_file, "r", encoding="utf-8") as fp:
+                hb = json.load(fp)
+            ts = float(hb.get("timestamp") or 0.0)
+            price = float((hb.get("metadata") or {}).get("price") or 0.0)
+            if price > 0 and (now_ts - ts) <= 60.0:
+                return price
+        except Exception:
+            continue
+    return 0.0
+
+
+@st.cache_data(ttl=30)
+def fetch_cached_1h_klines() -> list:
+    """Fetch 1h K-lines at most once every 30 seconds across all viewers to protect BingX IP quota."""
     try:
-        gw = BingXGateway(dry_run=True, enable_ws=False)
-        ticker = gw.fetch_ticker("BTC/USDT", market_type=MarketType.SWAP.value)
-        cur_p = float(ticker.get("price") or 80000.0)
+        gw = get_shared_gateway()
+        resp = gw.client.fetch_klines("BTC-USDT", interval="1h", limit=50)
+        return resp.get("data", []) or []
     except Exception:
-        cur_p = 80000.0
+        return []
+
+
+@st.cache_data(ttl=5)
+def fetch_live_market_data() -> tuple[float, dict]:
+    """Fetch real-time BTC ticker (5s shared cache + local heartbeat fallback) and 1h indicators (30s cache)."""
+    cur_p = 0.0
+    try:
+        gw = get_shared_gateway()
+        ticker = gw.fetch_ticker("BTC/USDT", market_type=MarketType.SWAP.value)
+        cur_p = float(ticker.get("price") or 0.0)
+    except Exception:
+        cur_p = 0.0
+
+    if cur_p <= 0:
+        cur_p = _read_local_heartbeat_price() or 80000.0
 
     sig = {"rsi": 50.0, "ema21": cur_p, "bias_pct": 0.0}
     try:
-        resp = gw.client.fetch_klines("BTC-USDT", interval="1h", limit=50)
-        k_data = resp.get("data", [])
+        k_data = fetch_cached_1h_klines()
         if k_data and len(k_data) >= 21:
             closes = [float(x[4]) for x in k_data][::-1]
             from packages.core.autopilot_engine import compute_structural_indicators_from_ohlc
@@ -237,6 +436,42 @@ def fetch_live_market_data() -> tuple[float, dict]:
         pass
 
     return cur_p, sig
+
+
+@st.cache_data(ttl=5)
+def fetch_cached_active_bots(cur_p: float) -> list[dict]:
+    """Discover active bots from disk at most once every 5s across all connected sessions."""
+    return BotStateRepository.discover_active_bots(cur_p, root_dir=ROOT_DIR)
+
+
+@st.cache_data(ttl=5)
+def fetch_cached_closed_trades(limit: int = 5) -> list[dict]:
+    """Read and sort recent closed trade journals at most once every 5s across all sessions."""
+    jm = TradeJournalManager(
+        db_path=str(ROOT_DIR / "data" / "trade_journal_db.json"),
+        journals_dir=str(ROOT_DIR / "journals"),
+    )
+    jm._load_db(merge=True)
+    all_entries = jm.get_entries()
+    closed_trades = [e for e in all_entries if e.status == "CLOSED"]
+    closed_trades.sort(key=lambda x: str(x.exit_time or ""), reverse=True)
+
+    rows = []
+    for e in closed_trades[:limit]:
+        reason_str = e.review.exit_reason if hasattr(e, "review") and hasattr(e.review, "exit_reason") else "移動停利"
+        clean_reason = reason_str.replace("平倉原因：", "").split(" | ")[0]
+        rows.append({
+            "exit_time": e.exit_time,
+            "symbol": e.symbol,
+            "leverage": e.leverage,
+            "side": e.side,
+            "entry_price": e.entry_price,
+            "exit_price": e.exit_price,
+            "pnl_usdt": e.pnl_usdt,
+            "pnl_pct": e.pnl_pct,
+            "clean_reason": clean_reason,
+        })
+    return rows
 
 
 def format_to_taipei_time(utc_time_str: str | None) -> str:
@@ -256,11 +491,29 @@ def format_to_taipei_time(utc_time_str: str | None) -> str:
 
 @st.fragment(run_every=5)
 def render_live_wallboard():
+    guard = get_traffic_guard()
+    sid = get_current_session_id()
+    # Keep admitted session heartbeat alive on every 5s fragment tick
+    with guard._lock:
+        now_mono = time.monotonic()
+        guard._prune_expired(now_mono)
+        if sid in guard._active_sessions:
+            guard._active_sessions[sid] = now_mono
+            active_count = len(guard._active_sessions)
+            circuit_open = now_mono < guard._circuit_open_until
+        else:
+            allowed, block_msg, meta = guard.check_access(sid, now=now_mono)
+            if not allowed:
+                st.warning(f"🛡️ {block_msg}")
+                return
+            active_count = meta.get("active_sessions", 1)
+            circuit_open = meta.get("circuit_open", False)
+
     now_tp = datetime.now(TZ_TAIPEI)
     cur_p, sig = fetch_live_market_data()
 
-    # Discover the 3 bots dynamically from disk state
-    bots = BotStateRepository.discover_active_bots(cur_p, root_dir=ROOT_DIR)
+    # Discover the bots from shared 5s memory cache
+    bots = fetch_cached_active_bots(cur_p)
 
     # Calculate Totals
     total_capital = sum(b.get("init_cap", 200.0) for b in bots) or 600.0
@@ -543,36 +796,27 @@ def render_live_wallboard():
     # ================= Recent 5 Trade Journals =================
     st.markdown("### 📋 最近 5 筆戰果覆盤與出入場歸因")
 
-    jm = TradeJournalManager(
-        db_path=str(ROOT_DIR / "data" / "trade_journal_db.json"),
-        journals_dir=str(ROOT_DIR / "journals"),
-    )
-    jm._load_db(merge=True)
-    all_entries = jm.get_entries()
-
-    # Filter closed trades sorted by exit_time reverse
-    closed_trades = [e for e in all_entries if e.status == "CLOSED"]
-    closed_trades.sort(key=lambda x: str(x.exit_time or ""), reverse=True)
+    closed_trades = fetch_cached_closed_trades(limit=5)
 
     if not closed_trades:
         st.info("目前尚無平倉歷史紀錄。")
     else:
         table_rows = []
-        for e in closed_trades[:5]:
-            exit_t = format_to_taipei_time(e.exit_time)
-            side_badge = "🟢 LONG" if e.side == "LONG" else "🔴 SHORT"
-            pnl_c = "text-green" if e.pnl_usdt >= 0 else "text-red"
-            pnl_str = f"{e.pnl_usdt:+,.2f} U ({e.pnl_pct:+.2f}%)"
-            reason_str = e.review.exit_reason if hasattr(e, "review") and hasattr(e.review, "exit_reason") else "移動停利"
-            # Strip prefix
-            clean_reason = reason_str.replace("平倉原因：", "").split(" | ")[0]
+        for e in closed_trades:
+            exit_t = format_to_taipei_time(e.get("exit_time"))
+            side_badge = "🟢 LONG" if e.get("side") == "LONG" else "🔴 SHORT"
+            pnl_usdt = float(e.get("pnl_usdt") or 0.0)
+            pnl_pct = float(e.get("pnl_pct") or 0.0)
+            pnl_c = "text-green" if pnl_usdt >= 0 else "text-red"
+            pnl_str = f"{pnl_usdt:+,.2f} U ({pnl_pct:+.2f}%)"
+            clean_reason = e.get("clean_reason", "移動停利")
 
             table_rows.append(
                 f'<tr style="border-bottom: 1px solid #21262d; font-size: 0.9rem;">'
                 f'<td style="padding: 10px 8px; color: #8b949e;">{exit_t}</td>'
-                f'<td style="padding: 10px 8px; font-weight: 700; color: #58a6ff;">{e.symbol} ({e.leverage}x)</td>'
+                f'<td style="padding: 10px 8px; font-weight: 700; color: #58a6ff;">{e.get("symbol")} ({e.get("leverage")}x)</td>'
                 f'<td style="padding: 10px 8px; font-weight: 700;">{side_badge}</td>'
-                f'<td style="padding: 10px 8px; color: #c9d1d9;">${e.entry_price:,.1f} ➔ ${e.exit_price:,.1f}</td>'
+                f'<td style="padding: 10px 8px; color: #c9d1d9;">${float(e.get("entry_price") or 0.0):,.1f} ➔ ${float(e.get("exit_price") or 0.0):,.1f}</td>'
                 f'<td style="padding: 10px 8px; font-weight: 800;" class="{pnl_c}">{pnl_str}</td>'
                 f'<td style="padding: 10px 8px; color: #8b949e;">{clean_reason}</td>'
                 f'</tr>'
@@ -598,10 +842,15 @@ def render_live_wallboard():
         st.html(table_html)
 
     # Footer
+    traffic_status_txt = (
+        f"連線保護: 流量熔斷防護中 ({active_count}/{guard.max_concurrent_sessions})"
+        if circuit_open
+        else f"連線保護: 正常 ({active_count}/{guard.max_concurrent_sessions} 活躍分頁)"
+    )
     st.markdown(
-        """
+        f"""
         <div style="text-align: center; color: #484f58; font-size: 0.8rem; margin-top: 30px; padding: 10px;">
-            Crypto AI Quantitative Trading Platform ｜ 雲端純讀取高頻儀表板 ｜ 零按鈕物理防護
+            Crypto AI Quantitative Trading Platform ｜ 雲端純讀取高頻儀表板 ｜ 零按鈕物理防護 ｜ {traffic_status_txt}
         </div>
         """,
         unsafe_allow_html=True,
@@ -609,6 +858,20 @@ def render_live_wallboard():
 
 
 def main():
+    guard = get_traffic_guard()
+    sid = get_current_session_id()
+    allowed, block_msg, meta = guard.check_access(sid)
+    if not allowed and meta.get("reason_code") != "RATE_LIMITED":
+        st.markdown(
+            f"""
+            <div style="background-color: rgba(218, 54, 51, 0.18); border: 2px solid #f85149; border-radius: 8px; padding: 20px; margin-top: 24px;">
+                <div style="font-size: 1.25rem; font-weight: 800; color: #f85149;">🛡️ 雲端看板流量防禦與熔斷保護已啟動</div>
+                <div style="font-size: 0.95rem; color: #f0f6fc; margin-top: 8px;">{block_msg}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        return
     render_live_wallboard()
 
 

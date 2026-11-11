@@ -9,6 +9,8 @@ Monitors Asia/Taipei timezone and executes:
 
 from datetime import datetime, timezone, timedelta
 import logging
+import os
+import shutil
 import subprocess
 import sys
 import time
@@ -27,6 +29,127 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger("CronRunner")
+
+
+def _mask_secret(text: str, secret: str) -> str:
+    if not text or not secret:
+        return text or ""
+    return text.replace(secret, "***")
+
+
+def sync_journals_to_git(session_label: str, root_dir: Path = ROOT_DIR) -> bool:
+    """Automatically commit and push `data/trade_journal_db.json` and `journals/` to GitHub.
+
+    Safely handles headless VPS / Docker environments using GITHUB_TOKEN without exposing secrets.
+    """
+    if not shutil.which("git"):
+        logger.warning("[Git Auto-Backup] git executable not found, skipping backup.")
+        return False
+
+    git_dir = root_dir / ".git"
+    if not git_dir.exists():
+        logger.info("[Git Auto-Backup] .git directory not present in container/workspace, skipping backup.")
+        return False
+
+    target_paths = ["data/trade_journal_db.json", "journals"]
+    token = (os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN") or "").strip()
+    repo = (os.getenv("GITHUB_REPOSITORY") or "LonelyYeezhiChicken/QuantitativeTrading").strip()
+    branch = (os.getenv("GIT_BACKUP_BRANCH") or "main").strip()
+
+    try:
+        # 1. Ensure safe.directory for container UID compatibility
+        subprocess.run(
+            ["git", "config", "--global", "--add", "safe.directory", str(root_dir)],
+            cwd=str(root_dir),
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+
+        # 2. Check if there are any changes in trade_journal_db.json or journals/
+        status_res = subprocess.run(
+            ["git", "status", "--porcelain", "--"] + target_paths,
+            cwd=str(root_dir),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=15,
+            check=False,
+        )
+        if status_res.returncode != 0:
+            logger.warning(f"[Git Auto-Backup] git status failed: {_mask_secret(status_res.stderr, token)}")
+            return False
+
+        if not status_res.stdout.strip():
+            logger.info("[Git Auto-Backup] No changes in journals or trade_journal_db.json, nothing to commit.")
+            return True
+
+        # 3. Stage only journal files
+        add_res = subprocess.run(
+            ["git", "add", "--"] + target_paths,
+            cwd=str(root_dir),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=15,
+            check=False,
+        )
+        if add_res.returncode != 0:
+            logger.warning(f"[Git Auto-Backup] git add failed: {_mask_secret(add_res.stderr, token)}")
+            return False
+
+        # 4. Commit with explicit bot author identity
+        commit_msg = f"chore(journal): auto-backup trade journals and reports ({session_label})"
+        commit_res = subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=Quant Reporter Bot",
+                "-c",
+                "user.email=quant-bot@users.noreply.github.com",
+                "commit",
+                "-m",
+                commit_msg,
+                "--",
+            ]
+            + target_paths,
+            cwd=str(root_dir),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=15,
+            check=False,
+        )
+        if commit_res.returncode != 0 and "nothing to commit" not in (commit_res.stdout + commit_res.stderr).lower():
+            logger.warning(f"[Git Auto-Backup] git commit failed: {_mask_secret(commit_res.stderr, token)}")
+            return False
+
+        # 5. Push to remote (use token URL if available for headless VPS compatibility)
+        if token and repo:
+            remote_url = f"https://x-access-token:{token}@github.com/{repo}.git"
+            push_cmd = ["git", "push", remote_url, f"HEAD:{branch}"]
+        else:
+            push_cmd = ["git", "push", "origin", f"HEAD:{branch}"]
+
+        push_res = subprocess.run(
+            push_cmd,
+            cwd=str(root_dir),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=30,
+            check=False,
+        )
+        if push_res.returncode == 0:
+            logger.info(f"[Git Auto-Backup] Successfully backed up journals to GitHub ({repo}@{branch}).")
+            return True
+        else:
+            logger.error(f"[Git Auto-Backup] git push failed: {_mask_secret(push_res.stderr, token)}")
+            return False
+    except Exception as exc:
+        logger.error(f"[Git Auto-Backup] Unexpected error: {_mask_secret(str(exc), token)}")
+        return False
 
 
 def run_report(args: list[str]) -> bool:
@@ -73,6 +196,8 @@ def main():
                         run_report(["--type", "weekly"])
                         last_triggered_weekly = date_str
 
+                    sync_journals_to_git(f"{date_str}_AM")
+
             # 2. 18:00 PM Evening Report
             elif hour == 18 and minute == 0:
                 if last_triggered_date != date_str or last_triggered_session != "PM":
@@ -80,6 +205,7 @@ def main():
                     run_report(["--type", "daily", "--session", "PM"])
                     last_triggered_date = date_str
                     last_triggered_session = "PM"
+                    sync_journals_to_git(f"{date_str}_PM")
 
             # Record healthcheck heartbeat for container probe
             record_heartbeat("reporter", metadata={"now_tp": str(now)})

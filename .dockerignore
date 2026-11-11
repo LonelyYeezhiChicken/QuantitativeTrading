@@ -1,17 +1,39 @@
-.venv/
-venv/
-env/
-__pycache__/
+# Git & Version Control
+.git
+.gitignore
+.github
+
+# Virtual Environments & Python Bytecode
+.venv
+venv
+env
+__pycache__
 *.py[cod]
 *$py.class
-.git/
-.pytest_cache/
+*.egg-info
+.pytest_cache
+.ruff_cache
+.mypy_cache
 .coverage
-htmlcov/
-*.parquet
+htmlcov
+
+# Secrets (injected via runtime env_file, never baked into image)
+.env
+.env.*
+!.env.example
+
+# Heavy Local Data & Archives (mounted via runtime volumes)
+data/raw/*.parquet
 data/archive_*/
-logs/*.log
-.idea/
+data/*.json
+data/*_stop.flag
+logs/
+*.log
+
+# Knowledge Graph & IDE
+graphify-out/
+.agents/
 .vscode/
+.idea/
 .DS_Store
 Thumbs.db

@@ -51,6 +51,14 @@ services:
     <<: *bot-defaults
     container_name: quant_reporter
     command: python -u scripts/cron_runner.py
+    volumes:
+      - ./.git:/app/.git
+      - ./data:/app/data
+      - ./journals:/app/journals
+      - ./logs:/app/logs
+      - ./packages:/app/packages
+      - ./apps:/app/apps
+      - ./scripts:/app/scripts
     healthcheck:
       test: ["CMD", "python", "scripts/healthcheck.py", "--target", "reporter", "--max-stale", "90"]
       interval: 60s
@@ -59,11 +67,33 @@ services:
       start_period: 30s
 
   dashboard:
-    <<: *bot-defaults
+    build: .
+    restart: unless-stopped
     container_name: quant_dashboard
-    command: python -m streamlit run apps/dashboard/cloud_wallboard.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
+    command: python -m streamlit run apps/dashboard/cloud_wallboard.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.maxUploadSize=1 --browser.gatherUsageStats=false
+    environment:
+      - TZ=Asia/Taipei
+      - WALLBOARD_MAX_SESSIONS=15
+      - WALLBOARD_MAX_NEW_PER_10S=8
+      - WALLBOARD_CIRCUIT_COOLDOWN_SEC=60
+    volumes:
+      - ./data:/app/data:ro
+      - ./journals:/app/journals:ro
+      - ./packages:/app/packages:ro
+      - ./apps:/app/apps:ro
+      - ./scripts:/app/scripts:ro
     ports:
       - "8501:8501"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
     healthcheck:
       test: ["CMD", "python", "scripts/healthcheck.py", "--target", "dashboard"]
       interval: 30s
