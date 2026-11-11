@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-11-11 02:46:26 UTC",
+  "updated_at": "2026-11-11 10:00:08 UTC",
   "total_entries": 36,
   "entries": [
     {
@@ -1823,12 +1823,12 @@
         "max_loss_usdt": 15.452052
       },
       "trajectory": {
-        "highest_price": 74000.1,
+        "highest_price": 74148.0,
         "lowest_price": 73189.7,
         "mfe_pct": 1.596195767397107,
-        "mae_pct": -1.7079090854729553,
-        "duration_seconds": 13510,
-        "updates_count": 2617
+        "mae_pct": -2.3109163753785054,
+        "duration_seconds": 39532,
+        "updates_count": 7649
       },
       "review": {
         "thesis": "市價 ($73,581.20) 跌破 EMA21 ($73,957.57) (乖離率 -0.51%)，且 RSI 偏弱，顯示空方趨勢加劇。\n【系統觸發信號】：雙均線空頭排列破位順勢開空 (RSI=42.6, 跌破EMA21<EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,103.72) 預留正常價格呼吸空間。",
