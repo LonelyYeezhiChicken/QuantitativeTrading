@@ -8,6 +8,7 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 import threading
 import time
@@ -80,14 +81,18 @@ def main():
 
     bot_id = args.bot_id.strip() if args.bot_id else (f"swap_{args.leverage}x" if args.leverage > 1 else "spot_1x")
 
+    env_vst = os.getenv("BINGX_USE_VST", "false").lower() in ("true", "1") or os.getenv("VPS_BURN_IN_MODE", "false").lower() in ("true", "1")
+    use_vst_mode = bool(args.vst or env_vst)
+    is_real_live = bool(args.live and not use_vst_mode)
+
     engine = UnifiedAutopilotEngine(
         symbol=args.symbol,
         leverage=args.leverage,
         capital=args.capital,
         mode=args.mode,
         enable_ai_veto=not args.no_ai,
-        dry_run=not args.live,
-        use_vst=args.vst if not args.live else False,
+        dry_run=not (is_real_live or use_vst_mode),
+        use_vst=use_vst_mode,
         capital_allocation_ratio=args.margin_ratio,
         max_loss_pct=args.max_loss_pct,
         risk_per_trade_pct=args.risk_pct,
@@ -108,7 +113,7 @@ def main():
     print("=" * 70)
     print("  全自動量化操盤中樞 (Unified Autopilot)")
     print(f"  標的: {args.symbol} | 槓桿: {engine.leverage}x ({engine.mode}) | 本金: ${args.capital:.2f} USDT")
-    print(f"  環境: {'【⚠️ 實盤真金 (REAL MONEY)】' if args.live else ('【VST 模擬盤】' if args.vst else '【本地模擬】')}")
+    print(f"  環境: {'【⚠️ 實盤真金 (REAL MONEY)】' if is_real_live else ('【🔥 VST 燒機模擬盤 (本金鎖定)】' if use_vst_mode else '【本地模擬】')}")
     print(f"  策略: {engine.strategy.__class__.__name__} | 風控: 價格停損 -{engine.price_sl_pct:.2f}% (保證金 -{engine.margin_sl_threshold:.1f}%)")
     print("=" * 70)
 

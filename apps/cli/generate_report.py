@@ -1,6 +1,7 @@
 """CLI Entrypoint for Quantitative Daily (08:00 / 18:00) and Weekly (Monday) Reports."""
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -42,7 +43,10 @@ def main():
 
     cur_p, sig = fetch_live_btc_context()
     gen = QuantReportGenerator(root_dir=ROOT_DIR)
-    publish_issue = not args.no_issue
+    is_burn_in_vst = os.getenv("BINGX_USE_VST", "false").lower() in ("true", "1") or os.getenv("VPS_BURN_IN_MODE", "false").lower() in ("true", "1")
+    publish_issue = (not args.no_issue) and (not is_burn_in_vst)
+    if is_burn_in_vst:
+        print("[🔥 VST 燒機模式] 照常執行本地報表生成與 I/O 壓測，自動靜音 GitHub Issue 發布與 LINE 推播（避免干擾實盤）。")
 
     if args.type in ("daily", "both"):
         d_res = gen.generate_daily_report(
@@ -66,18 +70,19 @@ def main():
         if w_res.get("issue_url"):
             print(f"[GitHub Issue 已發布] {w_res['issue_url']}")
 
-    try:
-        from packages.notifications import send_notification
-        if args.type in ("daily", "both") and "d_res" in locals():
-            push_msg = (
-                f"📊 量化操盤日報 ({d_res['date']} {d_res['session']})\n"
-                f"💰 總淨值: ${d_res['total_equity']:,.2f} U ({d_res['total_net_pct']:+.2f}%)\n"
-                f"🎯 期間戰況: {d_res['window_trades_count']} 筆 ({d_res['window_pnl_usdt']:+,.2f} U) | 勝率: {d_res['window_win_rate_pct']:.1f}%\n"
-                f"📈 BTC 現價: ${cur_p:,.2f}"
-            )
-            send_notification(push_msg, title="量化日報戰況")
-    except Exception as exc:
-        print(f"[推播通知] 略過: {exc}")
+    if not is_burn_in_vst:
+        try:
+            from packages.notifications import send_notification
+            if args.type in ("daily", "both") and "d_res" in locals():
+                push_msg = (
+                    f"📊 量化操盤日報 ({d_res['date']} {d_res['session']})\n"
+                    f"💰 總淨值: ${d_res['total_equity']:,.2f} U ({d_res['total_net_pct']:+.2f}%)\n"
+                    f"🎯 期間戰況: {d_res['window_trades_count']} 筆 ({d_res['window_pnl_usdt']:+,.2f} U) | 勝率: {d_res['window_win_rate_pct']:.1f}%\n"
+                    f"📈 BTC 現價: ${cur_p:,.2f}"
+                )
+                send_notification(push_msg, title="量化日報戰況")
+        except Exception as exc:
+            print(f"[推播通知] 略過: {exc}")
 
 
 if __name__ == "__main__":

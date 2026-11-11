@@ -234,9 +234,9 @@
     "semantic_hash": ""
   },
   "data/trade_journal_db.json": {
-    "mtime": 1794364902.6956139,
-    "seen": 1794364904.1754189,
-    "ast_hash": "7e1260d9032036223dab94de117159f4",
+    "mtime": 1794368932.064486,
+    "seen": 1794368936.5735881,
+    "ast_hash": "bde42327ccf70b503eeefc8061818a7f",
     "semantic_hash": ""
   },
   "interactive_menu.py": {
@@ -984,15 +984,15 @@
     "semantic_hash": ""
   },
   "apps/cli/autopilot.py": {
-    "mtime": 1793936870.8590994,
-    "seen": 1793937065.9159234,
-    "ast_hash": "b94054f4332db4c68f6e3f80462b60d1",
+    "mtime": 1794368771.6371968,
+    "seen": 1794368880.5031633,
+    "ast_hash": "11991634d0a821a2ada807e5471d900f",
     "semantic_hash": ""
   },
   "packages/core/autopilot_engine.py": {
-    "mtime": 1794277667.3035786,
-    "seen": 1794277836.0031269,
-    "ast_hash": "24c0b8a4d99b36b4a158586e70694219",
+    "mtime": 1794368773.7181754,
+    "seen": 1794368880.5033152,
+    "ast_hash": "f863bf765a0211e6281e0599f783e68d",
     "semantic_hash": ""
   },
   "packages/models/ollama_agent.py": {
@@ -1146,9 +1146,9 @@
     "semantic_hash": ""
   },
   "apps/cli/generate_report.py": {
-    "mtime": 1793874182.0998893,
-    "seen": 1793874617.7605474,
-    "ast_hash": "9ca866f430b875e8d2698c71fb0913af",
+    "mtime": 1794368801.2038484,
+    "seen": 1794368880.50317,
+    "ast_hash": "355a6167dde6df228483771c3a1a1844",
     "semantic_hash": ""
   },
   "packages/journal/report_generator.py": {
@@ -1386,9 +1386,9 @@
     "semantic_hash": ""
   },
   "scripts/cron_runner.py": {
-    "mtime": 1794364808.4372978,
-    "seen": 1794364904.1755693,
-    "ast_hash": "b2dd6b48d44061da242650a19d77409f",
+    "mtime": 1794368803.0029888,
+    "seen": 1794368880.5033867,
+    "ast_hash": "9bb8e550edd11c60b9ef20bf358204ff",
     "semantic_hash": ""
   },
   "tests/test_cloud_ai_agent.py": {
@@ -1788,9 +1788,9 @@
     "semantic_hash": ""
   },
   "journals/entries/SWAP_3X_20261110_230116_SHORT.md": {
-    "mtime": 1794364902.7030525,
-    "seen": 1794364904.1760366,
-    "ast_hash": "d922e9eaa7204a53ddb080695fa8ce2c",
+    "mtime": 1794368932.072764,
+    "seen": 1794368936.5739694,
+    "ast_hash": "f499ca4fbda6fbbd2e51ab7f51d27f38",
     "semantic_hash": ""
   },
   "journals/reports/daily/2026-11-10_PM.md": {
@@ -1803,6 +1803,12 @@
     "mtime": 1794355213.4592257,
     "seen": 1794364904.1760843,
     "ast_hash": "1b5c1ef9aa6711bda07f40ae826692d5",
+    "semantic_hash": ""
+  },
+  "scripts/vps_preflight.py": {
+    "mtime": 1794368916.8767695,
+    "seen": 1794368936.57369,
+    "ast_hash": "d3e05a0ee713deac521a79f559cceb25",
     "semantic_hash": ""
   }
 }

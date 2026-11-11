@@ -41,7 +41,17 @@ def sync_journals_to_git(session_label: str, root_dir: Path = ROOT_DIR) -> bool:
     """Automatically commit and push `data/trade_journal_db.json` and `journals/` to GitHub.
 
     Safely handles headless VPS / Docker environments using GITHUB_TOKEN without exposing secrets.
+    Automatically skips git push when running in VST / Burn-In Simulation mode to protect real-money journals.
     """
+    is_burn_in_vst = (
+        os.getenv("BINGX_USE_VST", "false").lower() in ("true", "1")
+        or os.getenv("VPS_BURN_IN_MODE", "false").lower() in ("true", "1")
+        or os.getenv("DISABLE_GIT_BACKUP", "false").lower() in ("true", "1")
+    )
+    if is_burn_in_vst:
+        logger.info("[Git Auto-Backup] VST Burn-In mode active: skipping Git push to protect real-money trade journals.")
+        return True
+
     if not shutil.which("git"):
         logger.warning("[Git Auto-Backup] git executable not found, skipping backup.")
         return False

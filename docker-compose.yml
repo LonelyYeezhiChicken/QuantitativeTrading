@@ -70,7 +70,7 @@ services:
     build: .
     restart: unless-stopped
     container_name: quant_dashboard
-    command: python -m streamlit run apps/dashboard/cloud_wallboard.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.maxUploadSize=1 --browser.gatherUsageStats=false
+    command: python -m streamlit run apps/dashboard/cloud_wallboard.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.fileWatcherType=none --server.maxUploadSize=1 --browser.gatherUsageStats=false
     environment:
       - TZ=Asia/Taipei
       - WALLBOARD_MAX_SESSIONS=15
@@ -92,11 +92,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.50"
+          cpus: "0.80"
           memory: 512M
     healthcheck:
       test: ["CMD", "python", "scripts/healthcheck.py", "--target", "dashboard"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
       start_period: 30s

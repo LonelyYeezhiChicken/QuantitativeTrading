@@ -1089,7 +1089,7 @@ class UnifiedAutopilotEngine:
 
         # B. Entry Evaluation (Only when flat and ARMED)
         m_type = "SWAP" if "SWAP" in self.mode else "SPOT"
-        if self.is_exchange_backed:
+        if self.is_exchange_backed and not self.use_vst:
             try:
                 exch_bal = self.gw.get_balance("USDT", market_type=m_type)
                 if exch_bal and float(exch_bal) > 0:
