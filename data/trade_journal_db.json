@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-11 10:00:08 UTC",
-  "total_entries": 36,
+  "updated_at": "2026-11-11 23:17:51 UTC",
+  "total_entries": 37,
   "entries": [
     {
       "journal_id": "SWAP_20261104_224826_LONG",
@@ -1792,18 +1792,18 @@
       "symbol": "BTC/USDT",
       "market_type": "SWAP",
       "side": "SHORT",
-      "status": "OPEN",
+      "status": "CLOSED",
       "entry_time": "2026-11-10 23:01:16 UTC",
-      "exit_time": "",
+      "exit_time": "2026-11-11 17:18:44 UTC",
       "entry_price": 73581.2,
-      "exit_price": 0.0,
+      "exit_price": 74638.8,
       "amount_btc": 0.014,
       "margin_used": 343.37893333333335,
       "leverage": 3,
       "notional_value": 1030.1368,
-      "pnl_usdt": 0.0,
-      "pnl_pct": 0.0,
-      "realized_r_multiple": 0.0,
+      "pnl_usdt": -14.806400000000082,
+      "pnl_pct": -4.311970992590522,
+      "realized_r_multiple": -0.9582157761312272,
       "liquidation_price": 95655.56,
       "snapshot": {
         "price": 73581.2,
@@ -1823,19 +1823,70 @@
         "max_loss_usdt": 15.452052
       },
       "trajectory": {
-        "highest_price": 74148.0,
+        "highest_price": 74548.1,
         "lowest_price": 73189.7,
         "mfe_pct": 1.596195767397107,
-        "mae_pct": -2.3109163753785054,
-        "duration_seconds": 39532,
-        "updates_count": 7649
+        "mae_pct": -3.9421754469892125,
+        "duration_seconds": 65848,
+        "updates_count": 12746
       },
       "review": {
-        "thesis": "市價 ($73,581.20) 跌破 EMA21 ($73,957.57) (乖離率 -0.51%)，且 RSI 偏弱，顯示空方趨勢加劇。\n【系統觸發信號】：雙均線空頭排列破位順勢開空 (RSI=42.6, 跌破EMA21<EMA50)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,103.72) 預留正常價格呼吸空間。",
-        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
+        "thesis": "BTC/USDT SHORT：雙均線空頭排列破位順勢開空 (RSI=42.6, 跌破EMA21<EMA50)",
+        "exit_reason": "平倉原因：交易所原生硬停損觸發平倉 (斷網保底生效) ｜ 盈虧：$-14.81 (-4.31%)",
         "strategy_evaluation": "Ollama EXECUTE: 指標處於健康順勢區間 (RSI=42.6, 乖離=-0.5%)，核准開空",
-        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
+        "pedagogical_takeaway": "1. **【停損是做生意的必要成本】**：金融交易沒有百分之百勝率。嚴格接受一筆小虧損，是為了保留本金參與下一筆具備統計優勢的交易。\n2. **【避免凹單與報復性交易】**：量化系統在止損觸發後即刻冷靜進入觀望，絕不情緒化立即追空或反向重倉。這是一般人工主觀交易者最常虧損的盲點，值得深切借鑑。\n3. **【進場過濾機制精進】**：可檢視進場當下的成交量能是否背離，未來可加入多週期共振確認以進一步提升過濾假突破之能力。",
         "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_3X_20261111_180104_SHORT",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "SHORT",
+      "status": "CLOSED",
+      "entry_time": "2026-11-11 18:01:04 UTC",
+      "exit_time": "2026-11-11 23:17:51 UTC",
+      "entry_price": 74480.7,
+      "exit_price": 73702.6,
+      "amount_btc": 0.0133,
+      "margin_used": 330.19776999999993,
+      "leverage": 3,
+      "notional_value": 990.5933099999997,
+      "pnl_usdt": 10.348729999999883,
+      "pnl_pct": 3.13410051194467,
+      "realized_r_multiple": 1.0,
+      "liquidation_price": 96824.91,
+      "snapshot": {
+        "price": 74480.7,
+        "rsi": 59.018475988984164,
+        "ema21": 73974.9823499275,
+        "atr": 1117.2105,
+        "bid": 74480.7,
+        "ask": 74480.7,
+        "bias_pct": 0.6836333500970403
+      },
+      "risk_plan": {
+        "stop_loss_price": 74282.1,
+        "stop_loss_pct": 0.0,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 0.99,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 0.0
+      },
+      "trajectory": {
+        "highest_price": 74769.7,
+        "lowest_price": 73450.0,
+        "mfe_pct": 4.151545299654798,
+        "mae_pct": -1.1640599511014265,
+        "duration_seconds": 19007,
+        "updates_count": 3685
+      },
+      "review": {
+        "thesis": "BTC/USDT SHORT：4H趨勢超賣均值修復確認 (RSI=59.0>=65或觸碰布林上軌，滯漲收陰)",
+        "exit_reason": "平倉原因：動態移動停利 (最高獲利 +4.15% 回撤 1.01%, 鎖定 +3.14%) ｜ 盈虧：$+10.35 (+3.13%)",
+        "strategy_evaluation": "Ollama EXECUTE: 指標處於健康順勢區間 (RSI=59.0, 乖離=+0.7%)，核准開空",
+        "pedagogical_takeaway": "1. **【順勢與時機】**：本筆交易在指標未過度超買前確認趨勢進場，驗證了「順應主要均線方向、不預測逆勢摸頂摸底」的勝率優勢。\n2. **【鎖定利潤與回撤容忍】**：在真實人工交易中，面對浮盈時常有「過早平倉怕獲利溜走」或「捨不得走結果抱上去又抱下來」的心理。量化追蹤停利透過明確的回撤趴數（例如 1.2%）解決了這個人性弱點。\n3. **【複利累積要訣】**：獲利的關鍵不在於單筆暴利，而是每一筆正 R 值的穩定積累。保持這類高盈虧比機會的執行一致性。",
+        "quality_score": 4
       }
     }
   ]
