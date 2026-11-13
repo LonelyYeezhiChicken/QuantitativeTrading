@@ -233,3 +233,57 @@ class TestCounterTrendTightStopLossBDDScenarios:
         assert closed_entry is not None
         assert closed_entry.status == "CLOSED"
         assert closed_entry.pnl_pct == pytest.approx(-3.05, abs=0.1)
+
+
+def test_scenario_anti_hourly_open_noise_falling_knife_and_45m_cooldown():
+    """Verify counter-trend oversold rebound rejects <0.20% noise after a red 1H bar and enforces 45m cooldown after CT loss."""
+    from datetime import datetime, timezone
+
+    # Given 市場處於空頭排列 (EMA21 低於 EMA50) 且 RSI 跌至 17.2 超賣區
+    # 而且 上一根已收盤之 1 小時 K 線為陰線 (prev_bar_is_green=False, prev_close=70212.0)
+    bear_signals = {
+        "price": 70260.0,
+        "rsi": 17.2,
+        "ema21": 71773.3,
+        "ema50": 72650.0,
+        "prev_close": 70212.0,
+        "prev_prev_close": 70919.0,
+        "prev_bar_is_green": False,
+        "in_bull_golden_pocket": False,
+        "in_bear_golden_pocket": False,
+        "is_4h_bull": False,
+        "is_4h_bear": True,
+        "touch_bb_low": True,
+        "touch_bb_up": False,
+    }
+
+    # When 整點剛換線市價僅微幅跳高至 70260.0 (+0.07%) 試圖觸發超賣反彈時
+    sig_noise, _ = evaluate_structural_entry("SWAP", 70260.0, bear_signals)
+    # Then 系統必須拒絕開倉以防止整點雜訊接刀
+    assert sig_noise is None
+
+    # When 實質反彈達 +0.21% (70360.0) 或上一根 1H 確定收紅陽線時才允許進場
+    sig_real, reason_real = evaluate_structural_entry("SWAP", 70360.0, bear_signals)
+    assert sig_real == "LONG"
+    assert "[逆勢窄損保護]" in reason_real
+
+    green_bar_signals = dict(bear_signals, prev_bar_is_green=True)
+    sig_green, _ = evaluate_structural_entry("SWAP", 70260.0, green_bar_signals)
+    assert sig_green == "LONG"
+
+    # And 若剛經歷一筆逆勢停損出場，距離平倉 20 分鐘內再次出現反彈訊號時必須受 45 分鐘冷卻鎖定攔截
+    history = [
+        {
+            "closed_at": "2026-11-13 03:15:42 UTC",
+            "pnl_usd": -9.46,
+            "why_enter": "短線超賣止跌勾頭反彈確認 [逆勢窄損保護]",
+        }
+    ]
+    now_20m = datetime(2026, 11, 13, 3, 35, 42, tzinfo=timezone.utc)
+    sig_cd, reason_cd = evaluate_structural_entry("SWAP", 70360.0, bear_signals, history=history, now_utc=now_20m)
+    assert sig_cd is None
+    assert "45 分鐘" in reason_cd
+
+    now_46m = datetime(2026, 11, 13, 4, 1, 42, tzinfo=timezone.utc)
+    sig_after, _ = evaluate_structural_entry("SWAP", 70360.0, bear_signals, history=history, now_utc=now_46m)
+    assert sig_after == "LONG"

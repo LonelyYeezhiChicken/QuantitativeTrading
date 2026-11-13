@@ -55,6 +55,8 @@ def compute_structural_indicators_from_ohlc(
     ema21 = float(s_close.ewm(span=21, adjust=False).mean().iloc[-1])
     ema50 = float(s_close.ewm(span=50, adjust=False).mean().iloc[-1]) if len(closes) >= 25 else ema21
     prev_close = float(closes[-2]) if len(closes) >= 2 else cur_price
+    prev_prev_close = float(closes[-3]) if len(closes) >= 3 else prev_close
+    prev_bar_is_green = bool(prev_close > prev_prev_close)
 
     rsi = 50.0
     if len(closes) >= 15:
@@ -112,6 +114,8 @@ def compute_structural_indicators_from_ohlc(
         "atr": atr,
         "bias_pct": round(bias_pct, 4),
         "prev_close": prev_close,
+        "prev_prev_close": prev_prev_close,
+        "prev_bar_is_green": prev_bar_is_green,
         "swing_high_48": swing_high_48,
         "swing_low_48": swing_low_48,
         "in_bull_golden_pocket": in_bull_gp,
@@ -233,19 +237,35 @@ def evaluate_structural_entry(
     if history and cooldown_minutes > 0:
         ref_now = now_utc if now_utc is not None else datetime.now(timezone.utc)
         latest_closed_dt: Optional[datetime] = None
+        latest_item: Optional[Dict[str, Any]] = None
         for item in (history[-1], history[0]):
             if isinstance(item, dict):
                 ts_str = str(item.get("closed_at") or item.get("exit_time") or item.get("time") or "")
                 parsed = _parse_utc_timestamp(ts_str)
                 if parsed is not None and (latest_closed_dt is None or parsed > latest_closed_dt):
                     latest_closed_dt = parsed
+                    latest_item = item
         if latest_closed_dt is not None:
+            effective_cooldown = cooldown_minutes
+            if latest_item is not None:
+                try:
+                    pnl_val = float(latest_item.get("pnl_usd", latest_item.get("pnl", 0.0)) or 0.0)
+                except (TypeError, ValueError):
+                    pnl_val = 0.0
+                reason_str = str(
+                    latest_item.get("why_enter")
+                    or latest_item.get("reason")
+                    or latest_item.get("exit_reason")
+                    or ""
+                )
+                if pnl_val < 0 and ("逆勢" in reason_str or "窄損" in reason_str):
+                    effective_cooldown = max(cooldown_minutes, 45)
             elapsed_sec = (ref_now - latest_closed_dt).total_seconds()
-            if 0.0 <= elapsed_sec < (cooldown_minutes * 60.0):
+            if 0.0 <= elapsed_sec < (effective_cooldown * 60.0):
                 elapsed_min = elapsed_sec / 60.0
                 return (
                     None,
-                    f"平倉後冷卻保護中 (距上次出場 {elapsed_min:.1f} 分鐘 < {cooldown_minutes} 分鐘，禁止原地追單)",
+                    f"平倉後冷卻保護中 (距上次出場 {elapsed_min:.1f} 分鐘 < {effective_cooldown} 分鐘，禁止原地追單)",
                 )
 
     rsi = float(signals.get("rsi", 50.0))
@@ -263,6 +283,12 @@ def evaluate_structural_entry(
     is_bull_macro = ema21 >= (ema50 * 0.999)
     is_bear_macro = ema21 < (ema50 * 0.9995)
     is_candle_rebound = cur_price > prev_close
+    prev_bar_is_green = bool(signals.get("prev_bar_is_green", False))
+    rebound_pct = ((cur_price - prev_close) / prev_close * 100.0) if prev_close > 0 else 0.0
+    # 逆勢空頭接刀防禦：避免整點換線剛開盤跳動幾十點就進場，要求「前根 1H 收紅」或「實質反彈 >= +0.20%」
+    ct_rebound_confirmed = is_candle_rebound and (
+        (not is_bear_macro) or prev_bar_is_green or rebound_pct >= 0.20
+    )
 
     if "SWAP" in mode.upper():
         # 0. 4H Trend-Aligned Volatility Dip Reversal (Strategy 2: High-Win-Rate Dip Hunter)
@@ -288,8 +314,8 @@ def evaluate_structural_entry(
             if ema21_bias_pct > max_ema21_bias_pct:
                 return None, f"均線正乖離過大禁止追高 (Bias=+{ema21_bias_pct:.2f}% > +{max_ema21_bias_pct:.2f}%，等待回踩貼近EMA21)"
             return "LONG", f"雙均線多頭排列強勢動能突破 (RSI={rsi:.1f}, Bias={ema21_bias_pct:+.2f}%, 站上EMA21/EMA50)"
-        # 4. Confirmed Oversold Reversal (requires cur_price > prev_close to avoid catching a falling knife)
-        if rsi < 35.0 and is_candle_rebound:
+        # 4. Confirmed Oversold Reversal (requires cur_price > prev_close & anti-hourly-open-noise confirmation in bear macro)
+        if rsi < 35.0 and ct_rebound_confirmed:
             ct_tag = " [逆勢窄損保護]" if is_bear_macro else ""
             return "LONG", f"短線超賣止跌勾頭反彈確認{ct_tag} (RSI={rsi:.1f}<35, 現價高於前收)"
         # 5. Bearish Fibonacci Golden Pocket Rejection
@@ -310,7 +336,7 @@ def evaluate_structural_entry(
             if ema21_bias_pct > max_ema21_bias_pct:
                 return None, f"均線正乖離過大禁止追高 (Bias=+{ema21_bias_pct:.2f}% > +{max_ema21_bias_pct:.2f}%，等待回踩貼近EMA21)"
             return "LONG", f"現貨順勢均線支撐回踩確認 (RSI={rsi:.1f}, Bias={ema21_bias_pct:+.2f}%, 貼近EMA21>=EMA50)"
-        if rsi < 38.0 and is_candle_rebound:
+        if rsi < 38.0 and ct_rebound_confirmed:
             ct_tag = " [逆勢窄損保護]" if is_bear_macro else ""
             return "LONG", f"現貨短線超賣止跌勾頭低接{ct_tag} (RSI={rsi:.1f}<38, 現價高於前收)"
 
