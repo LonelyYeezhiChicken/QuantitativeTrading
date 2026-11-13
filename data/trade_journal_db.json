@@ -1,6 +1,6 @@
 {
-  "updated_at": "2026-11-13 00:00:22 UTC",
-  "total_entries": 41,
+  "updated_at": "2026-11-13 02:18:52 UTC",
+  "total_entries": 42,
   "entries": [
     {
       "journal_id": "SWAP_20261104_224826_LONG",
@@ -2047,18 +2047,18 @@
       "symbol": "BTC/USDT",
       "market_type": "SWAP",
       "side": "LONG",
-      "status": "OPEN",
+      "status": "CLOSED",
       "entry_time": "2026-11-12 16:32:35 UTC",
-      "exit_time": "",
+      "exit_time": "2026-11-13 00:36:36 UTC",
       "entry_price": 71695.8,
-      "exit_price": 0.0,
+      "exit_price": 70742.1,
       "amount_btc": 0.014,
       "margin_used": 334.5804,
       "leverage": 3,
       "notional_value": 1003.7411999999999,
-      "pnl_usdt": 0.0,
-      "pnl_pct": 0.0,
-      "realized_r_multiple": 0.0,
+      "pnl_usdt": -13.35179999999996,
+      "pnl_pct": -3.990610328638486,
+      "realized_r_multiple": -0.8868022952529968,
       "liquidation_price": 50187.06,
       "snapshot": {
         "price": 71695.8,
@@ -2079,17 +2079,68 @@
       },
       "trajectory": {
         "highest_price": 72051.6,
-        "lowest_price": 71097.1,
+        "lowest_price": 70709.1,
         "mfe_pct": 1.488790138334475,
-        "mae_pct": -2.505167666725235,
-        "duration_seconds": 26867,
-        "updates_count": 5208
+        "mae_pct": -4.12869373101352,
+        "duration_seconds": 29041,
+        "updates_count": 5627
       },
       "review": {
-        "thesis": "短線 RSI 達 21.6，進入超賣極值區，具備高性價比的均值回歸反彈條件。\n【系統觸發信號】：短線超賣止跌勾頭反彈確認 (RSI=21.6<35, 現價高於前收)\n【交易架構】：SWAP 市場，採取嚴格預設止損保護，依據 ATR 波動度 ($1,075.44) 預留正常價格呼吸空間。",
-        "exit_reason": "持倉中，持續依據風控計畫動態監控中",
+        "thesis": "BTC/USDT LONG：短線超賣止跌勾頭反彈確認 (RSI=21.6<35, 現價高於前收)",
+        "exit_reason": "平倉原因：交易所原生硬停損觸發平倉 (斷網保底生效) ｜ 盈虧：$-13.35 (-3.99%)",
         "strategy_evaluation": "Ollama EXECUTE: 指標處於健康順勢區間 (RSI=21.6, 乖離=-1.9%)，核准開多",
-        "pedagogical_takeaway": "耐心持有，嚴格遵守預設止損與追蹤停利邏輯，不受短線雜訊干擾情緒",
+        "pedagogical_takeaway": "1. **【停損是做生意的必要成本】**：金融交易沒有百分之百勝率。嚴格接受一筆小虧損，是為了保留本金參與下一筆具備統計優勢的交易。\n2. **【避免凹單與報復性交易】**：量化系統在止損觸發後即刻冷靜進入觀望，絕不情緒化立即追空或反向重倉。這是一般人工主觀交易者最常虧損的盲點，值得深切借鑑。\n3. **【進場過濾機制精進】**：可檢視進場當下的成交量能是否背離，未來可加入多週期共振確認以進一步提升過濾假突破之能力。",
+        "quality_score": 3
+      }
+    },
+    {
+      "journal_id": "SWAP_3X_20261113_012705_LONG",
+      "symbol": "BTC/USDT",
+      "market_type": "SWAP",
+      "side": "LONG",
+      "status": "CLOSED",
+      "entry_time": "2026-11-13 01:27:05 UTC",
+      "exit_time": "2026-11-13 02:18:52 UTC",
+      "entry_price": 71102.3,
+      "exit_price": 70357.6,
+      "amount_btc": 0.0137,
+      "margin_used": 324.70050333333336,
+      "leverage": 3,
+      "notional_value": 974.1015100000001,
+      "pnl_usdt": -10.20238999999996,
+      "pnl_pct": -3.142092449892607,
+      "realized_r_multiple": -0.6982427666428016,
+      "liquidation_price": 49771.61,
+      "snapshot": {
+        "price": 71102.3,
+        "rsi": 22.267069515912468,
+        "ema21": 72112.38054356581,
+        "atr": 1066.5345,
+        "bid": 71102.3,
+        "ask": 71102.3,
+        "bias_pct": -1.4007033687586883
+      },
+      "risk_plan": {
+        "stop_loss_price": 70035.76550000001,
+        "stop_loss_pct": 4.5,
+        "take_profit_type": "TRAILING",
+        "trailing_pullback_pct": 0.99,
+        "planned_rr_ratio": 2.0,
+        "max_loss_usdt": 14.611522650000001
+      },
+      "trajectory": {
+        "highest_price": 71206.7,
+        "lowest_price": 70372.2,
+        "mfe_pct": 0.44049207972172844,
+        "mae_pct": -3.080491067096307,
+        "duration_seconds": 3107,
+        "updates_count": 603
+      },
+      "review": {
+        "thesis": "BTC/USDT LONG：短線超賣止跌勾頭反彈確認 (RSI=22.3<35, 現價高於前收)",
+        "exit_reason": "平倉原因：交易所原生硬停損觸發平倉 (斷網保底生效) ｜ 盈虧：$-10.20 (-3.14%)",
+        "strategy_evaluation": "Ollama EXECUTE: 指標處於健康順勢區間 (RSI=22.3, 乖離=-1.4%)，核准開多",
+        "pedagogical_takeaway": "1. **【停損是做生意的必要成本】**：金融交易沒有百分之百勝率。嚴格接受一筆小虧損，是為了保留本金參與下一筆具備統計優勢的交易。\n2. **【避免凹單與報復性交易】**：量化系統在止損觸發後即刻冷靜進入觀望，絕不情緒化立即追空或反向重倉。這是一般人工主觀交易者最常虧損的盲點，值得深切借鑑。\n3. **【進場過濾機制精進】**：可檢視進場當下的成交量能是否背離，未來可加入多週期共振確認以進一步提升過濾假突破之能力。",
         "quality_score": 3
       }
     }

@@ -136,6 +136,7 @@ TYPESAFE_API_KEY=your_typesafe_key_here
 | `tests/bdd/daily_and_weekly_reports.feature` | `test_report_scenarios.py` | 量化操盤日報（每日 08:00/18:00）與週報（每週一）前重後輕倒金字塔結構、週一雙報獨立落盤、GitHub Issue 自動發布、四單績效賽馬榜與數學對帳 |
 | `tests/bdd/circuit_breaker_and_margin_allocation.feature` | `test_circuit_breaker_scenarios.py` | 提高單筆資金動用比率至 75% 與本金 50% 全域風控熔斷保護（75% 保證金比率、10% 現金手續費防呆、總淨值跌破 50% 緊急平倉與待機鎖定、Web 熔斷警報橫幅） |
 | `tests/bdd/risk_based_position_sizing_and_trend_dip_reversal.feature` | `test_risk_based_sizing_scenarios.py` | 固定每筆虧損總資金 2% 反推開倉大小 (Risk-Based Position Sizing)、無拘束 2.0 ATR 動態呼吸停損與 4H 趨勢超賣均值修復信號生成 |
+| `tests/bdd/counter_trend_tight_stop_loss.feature` | `test_counter_trend_tight_stop_scenarios.py` | 逆勢單適度窄損與順逆勢雙軌風控護盾（空頭超賣反彈自動套用 1.0% / -3.0% ROE 適度窄損、順勢維持 1.5% / -4.5% ROE、熱重啟無縫接管既有持倉） |
 
 > [!IMPORTANT]
 > **日誌單一真實來源 (Single Source of Truth) 與真實 BDD 驗證準則**：

@@ -123,6 +123,7 @@ class TradeJournalManager:
         trailing_pullback_pct: float = 1.2,
         entry_time_str: Optional[str] = None,
         custom_id: Optional[str] = None,
+        stop_loss_price: Optional[float] = None,
     ) -> TradeJournalEntry:
         """Record the initiation of a trade with market snapshot, risk rules, and thesis."""
         self._load_db(merge=True)
@@ -168,6 +169,12 @@ class TradeJournalManager:
         )
 
         # Risk Plan
+        effective_sl_price = (
+            float(stop_loss_price)
+            if (stop_loss_price is not None and float(stop_loss_price) > 0)
+            else None
+        )
+        max_loss = margin_used * (stop_loss_pct / 100.0)
         notional = margin_used * leverage
         if side.upper() == "LONG":
             sl_price = entry_price * (1.0 - (stop_loss_pct / 100.0 / leverage))
@@ -176,7 +183,7 @@ class TradeJournalManager:
         max_loss = margin_used * (stop_loss_pct / 100.0)
 
         risk_plan = RiskPlan(
-            stop_loss_price=sl_price,
+            stop_loss_price=effective_sl_price if effective_sl_price is not None else sl_price,
             stop_loss_pct=stop_loss_pct,
             take_profit_type="TRAILING",
             trailing_pullback_pct=trailing_pullback_pct,

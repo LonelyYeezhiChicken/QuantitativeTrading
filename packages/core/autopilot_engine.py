@@ -185,6 +185,37 @@ def _parse_utc_timestamp(ts_str: str) -> Optional[datetime]:
         return None
 
 
+def is_counter_trend_trade(
+    side: str,
+    signals: Optional[Dict[str, Any]] = None,
+    reason: str = "",
+) -> bool:
+    """Identify whether a trade goes against the prevailing macro trend (EMA21 vs EMA50 / 4H regime)."""
+    sig_side = str(side or "").upper()
+    if sig_side not in ("LONG", "SHORT"):
+        return False
+    if "逆勢" in str(reason or ""):
+        return True
+    if not isinstance(signals, dict):
+        return False
+    ema21 = float(signals.get("ema21", 0.0) or 0.0)
+    ema50 = float(signals.get("ema50", 0.0) or 0.0)
+    is_4h_bull = signals.get("is_4h_bull")
+    is_4h_bear = signals.get("is_4h_bear")
+
+    if sig_side == "LONG":
+        if is_4h_bear is True:
+            return True
+        if ema21 > 0 and ema50 > 0 and ema21 < (ema50 * 0.9995):
+            return True
+    elif sig_side == "SHORT":
+        if is_4h_bull is True:
+            return True
+        if ema21 > 0 and ema50 > 0 and ema21 >= (ema50 * 0.999):
+            return True
+    return False
+
+
 def evaluate_structural_entry(
     mode: str,
     cur_price: float,
@@ -259,7 +290,8 @@ def evaluate_structural_entry(
             return "LONG", f"雙均線多頭排列強勢動能突破 (RSI={rsi:.1f}, Bias={ema21_bias_pct:+.2f}%, 站上EMA21/EMA50)"
         # 4. Confirmed Oversold Reversal (requires cur_price > prev_close to avoid catching a falling knife)
         if rsi < 35.0 and is_candle_rebound:
-            return "LONG", f"短線超賣止跌勾頭反彈確認 (RSI={rsi:.1f}<35, 現價高於前收)"
+            ct_tag = " [逆勢窄損保護]" if is_bear_macro else ""
+            return "LONG", f"短線超賣止跌勾頭反彈確認{ct_tag} (RSI={rsi:.1f}<35, 現價高於前收)"
         # 5. Bearish Fibonacci Golden Pocket Rejection
         if in_bear_gp and is_bear_macro and (cur_price < prev_close) and 42.0 <= rsi <= 62.0:
             return "SHORT", f"斐波那契空方黃金口袋壓力受阻 (RSI={rsi:.1f}, 48h 0.5~0.65 反彈受壓)"
@@ -279,7 +311,8 @@ def evaluate_structural_entry(
                 return None, f"均線正乖離過大禁止追高 (Bias=+{ema21_bias_pct:.2f}% > +{max_ema21_bias_pct:.2f}%，等待回踩貼近EMA21)"
             return "LONG", f"現貨順勢均線支撐回踩確認 (RSI={rsi:.1f}, Bias={ema21_bias_pct:+.2f}%, 貼近EMA21>=EMA50)"
         if rsi < 38.0 and is_candle_rebound:
-            return "LONG", f"現貨短線超賣止跌勾頭低接 (RSI={rsi:.1f}<38, 現價高於前收)"
+            ct_tag = " [逆勢窄損保護]" if is_bear_macro else ""
+            return "LONG", f"現貨短線超賣止跌勾頭低接{ct_tag} (RSI={rsi:.1f}<38, 現價高於前收)"
 
     return None, ""
 
@@ -503,6 +536,7 @@ class UnifiedAutopilotEngine:
         use_risk_based_sizing: Optional[bool] = None,
         atr_sl_multiplier: Optional[float] = None,
         atr_tp_multiplier: Optional[float] = None,
+        counter_trend_price_sl_pct: Optional[float] = None,
     ):
         self.symbol = symbol
         self.capital = capital
@@ -596,17 +630,29 @@ class UnifiedAutopilotEngine:
                 default_tp = 2.0 if self.leverage >= 10 else 1.0
                 default_pb = 0.5 if self.leverage >= 10 else 0.33
             self.price_sl_pct = price_sl_pct if price_sl_pct is not None else default_sl
+            self.counter_trend_price_sl_pct = (
+                float(counter_trend_price_sl_pct)
+                if counter_trend_price_sl_pct is not None
+                else round(self.price_sl_pct * (2.0 / 3.0), 4)
+            )
             self.price_tp_pct = price_tp_pct if price_tp_pct is not None else default_tp
             self.price_pullback_pct = price_pullback_pct if price_pullback_pct is not None else default_pb
             self.margin_sl_threshold = self.price_sl_pct * self.leverage
+            self.counter_trend_margin_sl_threshold = round(self.counter_trend_price_sl_pct * self.leverage, 4)
             self.margin_tp_threshold = self.price_tp_pct * self.leverage
             self.margin_pullback_threshold = self.price_pullback_pct * self.leverage
         else:
             self.strategy = strategy or SpotMomentumPullbackModel(ema_span=21)
             self.price_sl_pct = price_sl_pct if price_sl_pct is not None else 2.0
+            self.counter_trend_price_sl_pct = (
+                float(counter_trend_price_sl_pct)
+                if counter_trend_price_sl_pct is not None
+                else round(self.price_sl_pct * (2.0 / 3.0), 4)
+            )
             self.price_tp_pct = price_tp_pct if price_tp_pct is not None else 1.5
             self.price_pullback_pct = price_pullback_pct if price_pullback_pct is not None else 0.4
             self.margin_sl_threshold = self.price_sl_pct
+            self.counter_trend_margin_sl_threshold = self.counter_trend_price_sl_pct
             self.margin_tp_threshold = self.price_tp_pct
             self.margin_pullback_threshold = self.price_pullback_pct
 
@@ -1023,10 +1069,17 @@ class UnifiedAutopilotEngine:
         # A. Position Management (3-Stage Exit Shield: Hard SL / Break-Even Ratchet / Trailing TP)
         if side != "NONE":
             peak_pct = self.position.get("highest_pnl_pct", 0.0)
+            pos_sl_pct = self.position.get("sl_threshold_pct")
+            if pos_sl_pct is not None and float(pos_sl_pct) > 0:
+                active_sl_threshold = float(pos_sl_pct)
+            elif self.position.get("is_counter_trend"):
+                active_sl_threshold = self.counter_trend_margin_sl_threshold
+            else:
+                active_sl_threshold = self.margin_sl_threshold
             exit_action, exit_reason = evaluate_three_stage_exit(
                 pnl_pct=pnl_pct,
                 peak_pct=peak_pct,
-                sl_threshold=self.margin_sl_threshold,
+                sl_threshold=active_sl_threshold,
                 tp_threshold=self.margin_tp_threshold,
                 pullback_threshold=self.margin_pullback_threshold,
                 side=side,
@@ -1125,15 +1178,22 @@ class UnifiedAutopilotEngine:
                 step_result["message"] = f"AI 風控守門員否決開倉：{ai_eval['reason']}"
                 return step_result
 
-        # D. Execute Order (Supports Risk-Based Position Sizing or Fixed Allocation)
+        # D. Execute Order (Supports Risk-Based Position Sizing or Fixed Allocation, with Counter-Trend Tight Stop)
+        is_ct = is_counter_trend_trade(candidate_signal, signals, candidate_reason)
+        active_price_sl_pct = self.counter_trend_price_sl_pct if is_ct else self.price_sl_pct
+
         atr_val = float(signals.get("atr", 0.0))
         if atr_val <= 0:
-            atr_val = cur_price * (self.price_sl_pct / 100.0)
+            atr_val = cur_price * (active_price_sl_pct / 100.0)
 
         effective_capital = max(self.capital, self.cash)
 
         if self.use_risk_based_sizing and "SWAP" in self.mode and atr_val > 0:
-            sl_dist = self.atr_sl_multiplier * atr_val
+            sl_dist = (
+                cur_price * (active_price_sl_pct / 100.0)
+                if is_ct
+                else (self.atr_sl_multiplier * atr_val)
+            )
             if candidate_signal == "LONG":
                 native_sl_price = cur_price - sl_dist
             else:
@@ -1143,8 +1203,8 @@ class UnifiedAutopilotEngine:
                 capital=effective_capital,
                 risk_pct=self.risk_per_trade_pct,
                 cur_price=cur_price,
-                atr_val=atr_val,
-                atr_multiplier=self.atr_sl_multiplier,
+                atr_val=sl_dist if is_ct else atr_val,
+                atr_multiplier=1.0 if is_ct else self.atr_sl_multiplier,
                 leverage=self.leverage,
                 max_margin_ratio=self.capital_allocation_ratio,
                 available_cash=self.cash,
@@ -1159,13 +1219,16 @@ class UnifiedAutopilotEngine:
             qty_to_buy = notional / max(cur_price, 1e-4)
 
             # Calculate Native Hard Stop-Loss price to attach atomically upon entry
-            if atr_val > 0:
+            if is_ct:
+                sl_dist = cur_price * (active_price_sl_pct / 100.0)
+                native_sl_price = (cur_price - sl_dist) if candidate_signal == "LONG" else (cur_price + sl_dist)
+            elif atr_val > 0:
                 sl_dist = self.atr_sl_multiplier * atr_val
                 native_sl_price = (cur_price - sl_dist) if candidate_signal == "LONG" else (cur_price + sl_dist)
             elif candidate_signal == "LONG":
-                native_sl_price = cur_price * (1.0 - (self.price_sl_pct / 100.0))
+                native_sl_price = cur_price * (1.0 - (active_price_sl_pct / 100.0))
             else:
-                native_sl_price = cur_price * (1.0 + (self.price_sl_pct / 100.0))
+                native_sl_price = cur_price * (1.0 + (active_price_sl_pct / 100.0))
 
         if trade_margin < 5.0:
             step_result["message"] = f"可用資金不足 (${self.cash:.2f} < 5 U)，放棄開倉"
@@ -1424,6 +1487,9 @@ class UnifiedAutopilotEngine:
     def _record_open_position(self, side, quantity, price, margin, reason, decision, native_sl_price, signals):
         """Persist a confirmed opening fill and its authoritative journal entry."""
         actual_margin = quantity * price / (self.leverage if "SWAP" in self.mode else 1)
+        is_ct = is_counter_trend_trade(side, signals, reason)
+        active_price_sl_pct = self.counter_trend_price_sl_pct if is_ct else self.price_sl_pct
+        active_margin_sl_pct = self.counter_trend_margin_sl_threshold if is_ct else self.margin_sl_threshold
         raw_ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         custom_jid = f"{self.mode.upper()}_{raw_ts}_{side.upper()}"
         j_entry = self.journal_mgr.on_trade_open(
@@ -1442,9 +1508,10 @@ class UnifiedAutopilotEngine:
                 "ema50": signals.get("ema50", price),
                 "atr": price * 0.015,
             },
-            stop_loss_pct=self.margin_sl_threshold,
+            stop_loss_pct=active_margin_sl_pct,
             trailing_pullback_pct=self.margin_pullback_threshold,
             custom_id=custom_jid,
+            stop_loss_price=native_sl_price,
         )
         if j_entry and hasattr(j_entry, "review"):
             j_entry.review.strategy_evaluation = decision
@@ -1469,6 +1536,9 @@ class UnifiedAutopilotEngine:
             "ai_decision": decision,
             "journal_id": j_entry.journal_id if j_entry else "",
             "native_sl_price": native_sl_price,
+            "is_counter_trend": is_ct,
+            "price_sl_pct": active_price_sl_pct,
+            "sl_threshold_pct": active_margin_sl_pct,
         }
         self.save_state()
 
@@ -1750,6 +1820,22 @@ class UnifiedAutopilotEngine:
                     ) else AutopilotState.STANDBY
                     self.cash = data.get("cash", self.capital)
                     self.position = data.get("position", self.position)
+                    if isinstance(self.position, dict) and self.position.get("side") in ("LONG", "SHORT"):
+                        entry_why = str(self.position.get("entry_why", ""))
+                        entry_p = float(self.position.get("entry_price", 0.0) or 0.0)
+                        native_sl = float(self.position.get("native_sl_price", 0.0) or 0.0)
+                        actual_sl_pct = (abs(entry_p - native_sl) / entry_p * 100.0) if (entry_p > 0 and native_sl > 0) else 0.0
+                        is_legacy_ct = (
+                            "逆勢" in entry_why
+                            or (
+                                "短線超賣止跌勾頭反彈" in entry_why
+                                and (actual_sl_pct == 0.0 or actual_sl_pct <= self.counter_trend_price_sl_pct * 1.15)
+                            )
+                        )
+                        if is_legacy_ct:
+                            self.position.setdefault("is_counter_trend", True)
+                            self.position.setdefault("price_sl_pct", self.counter_trend_price_sl_pct)
+                            self.position.setdefault("sl_threshold_pct", self.counter_trend_margin_sl_threshold)
                     self.pending_order = data.get("pending_order")
                     self.circuit_breaker_triggered = data.get("circuit_breaker_triggered", False)
                     self.circuit_breaker_reason = data.get("circuit_breaker_reason", "")
