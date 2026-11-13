@@ -220,6 +220,30 @@ def is_counter_trend_trade(
     return False
 
 
+def _extract_trade_pnl(item: Dict[str, Any]) -> float:
+    """Read realized PnL uniformly across journal schemas (pnl_usdt, pnl_usd, pnl)."""
+    for key in ("pnl_usdt", "pnl_usd", "pnl"):
+        if item.get(key) is not None:
+            try:
+                return float(item[key])
+            except (TypeError, ValueError):
+                return 0.0
+    return 0.0
+
+
+def _is_counter_trend_loss_record(item: Dict[str, Any]) -> bool:
+    """Return True when a closed trade record represents a losing counter-trend trade."""
+    if _extract_trade_pnl(item) >= 0.0:
+        return False
+    reason_str = str(
+        item.get("why_enter")
+        or item.get("reason")
+        or item.get("exit_reason")
+        or ""
+    )
+    return ("逆勢" in reason_str) or ("窄損" in reason_str)
+
+
 def evaluate_structural_entry(
     mode: str,
     cur_price: float,
@@ -231,35 +255,32 @@ def evaluate_structural_entry(
 ) -> Tuple[Optional[str], str]:
     """Evaluate entry signal using macro trend alignment (EMA21 vs EMA50),
     48h Fibonacci Golden Pocket (0.50~0.65), anti-falling-knife confirmation,
-    Max EMA21 Bias anti-chasing filter (<= +0.45%), and Post-Exit Cooldown (15 min).
+    Max EMA21 Bias anti-chasing filter (<= +0.45%), and Post-Exit Cooldown (15m / 45m / 120m).
     """
     # 0. Post-Exit Cooldown Guard (prevent immediate emotional/spike rechasing right after closing a trade)
     if history and cooldown_minutes > 0:
         ref_now = now_utc if now_utc is not None else datetime.now(timezone.utc)
-        latest_closed_dt: Optional[datetime] = None
-        latest_item: Optional[Dict[str, Any]] = None
-        for item in (history[-1], history[0]):
+        timestamped: list[Tuple[datetime, Dict[str, Any]]] = []
+        for item in history:
             if isinstance(item, dict):
                 ts_str = str(item.get("closed_at") or item.get("exit_time") or item.get("time") or "")
                 parsed = _parse_utc_timestamp(ts_str)
-                if parsed is not None and (latest_closed_dt is None or parsed > latest_closed_dt):
-                    latest_closed_dt = parsed
-                    latest_item = item
-        if latest_closed_dt is not None:
+                if parsed is not None:
+                    timestamped.append((parsed, item))
+        if timestamped:
+            timestamped.sort(key=lambda pair: pair[0], reverse=True)
+            latest_closed_dt = timestamped[0][0]
+            consec_ct_losses = 0
+            for _, rec in timestamped:
+                if _is_counter_trend_loss_record(rec):
+                    consec_ct_losses += 1
+                else:
+                    break
             effective_cooldown = cooldown_minutes
-            if latest_item is not None:
-                try:
-                    pnl_val = float(latest_item.get("pnl_usd", latest_item.get("pnl", 0.0)) or 0.0)
-                except (TypeError, ValueError):
-                    pnl_val = 0.0
-                reason_str = str(
-                    latest_item.get("why_enter")
-                    or latest_item.get("reason")
-                    or latest_item.get("exit_reason")
-                    or ""
-                )
-                if pnl_val < 0 and ("逆勢" in reason_str or "窄損" in reason_str):
-                    effective_cooldown = max(cooldown_minutes, 45)
+            if consec_ct_losses >= 2:
+                effective_cooldown = max(cooldown_minutes, 120)
+            elif consec_ct_losses == 1:
+                effective_cooldown = max(cooldown_minutes, 45)
             elapsed_sec = (ref_now - latest_closed_dt).total_seconds()
             if 0.0 <= elapsed_sec < (effective_cooldown * 60.0):
                 elapsed_min = elapsed_sec / 60.0

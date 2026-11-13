@@ -234,9 +234,9 @@
     "semantic_hash": ""
   },
   "data/trade_journal_db.json": {
-    "mtime": 1794539742.157501,
-    "seen": 1794540913.5744815,
-    "ast_hash": "3552a79da3db142acf39594a181cece4",
+    "mtime": 1794546021.6006541,
+    "seen": 1794548294.7037396,
+    "ast_hash": "064df25babcde6e1b7fce80ca9964ff8",
     "semantic_hash": ""
   },
   "interactive_menu.py": {
@@ -966,9 +966,9 @@
     "semantic_hash": ""
   },
   "journals/INDEX.md": {
-    "mtime": 1794539742.1778536,
-    "seen": 1794540913.5749562,
-    "ast_hash": "d97f7bf4d0c00d96b26c7de6f857f4aa",
+    "mtime": 1794546021.62057,
+    "seen": 1794548294.7041337,
+    "ast_hash": "73709a274c47bcfa3ef180d068b349dd",
     "semantic_hash": ""
   },
   "reports/btc_5year_convergence_report.md": {
@@ -990,9 +990,9 @@
     "semantic_hash": ""
   },
   "packages/core/autopilot_engine.py": {
-    "mtime": 1794540854.3737803,
-    "seen": 1794540913.5745082,
-    "ast_hash": "401f4d55961529796769171a529051f0",
+    "mtime": 1794548255.5829566,
+    "seen": 1794548294.7037704,
+    "ast_hash": "22a06e42e525c816a1cd414d635daa9f",
     "semantic_hash": ""
   },
   "packages/models/ollama_agent.py": {
@@ -1812,9 +1812,9 @@
     "semantic_hash": ""
   },
   "tests/bdd/test_counter_trend_tight_stop_scenarios.py": {
-    "mtime": 1794540871.3024678,
-    "seen": 1794540913.5746756,
-    "ast_hash": "563a7520aff0bb4d050c8de2aab0af63",
+    "mtime": 1794548268.3980908,
+    "seen": 1794548294.7038898,
+    "ast_hash": "71916b798bac4bcad72bb0aa7d256600",
     "semantic_hash": ""
   },
   "journals/entries/SWAP_3X_20261111_180104_SHORT.md": {
@@ -1881,6 +1881,12 @@
     "mtime": 1794539742.1676564,
     "seen": 1794540913.5750315,
     "ast_hash": "31855fa65c042f2efe05024b9841c132",
+    "semantic_hash": ""
+  },
+  "journals/entries/SWAP_3X_20261113_043343_LONG.md": {
+    "mtime": 1794546021.606972,
+    "seen": 1794548294.7042089,
+    "ast_hash": "f58fce977429588a511c5e43314c42bc",
     "semantic_hash": ""
   }
 }

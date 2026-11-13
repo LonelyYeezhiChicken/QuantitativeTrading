@@ -271,19 +271,40 @@ def test_scenario_anti_hourly_open_noise_falling_knife_and_45m_cooldown():
     sig_green, _ = evaluate_structural_entry("SWAP", 70260.0, green_bar_signals)
     assert sig_green == "LONG"
 
-    # And 若剛經歷一筆逆勢停損出場，距離平倉 20 分鐘內再次出現反彈訊號時必須受 45 分鐘冷卻鎖定攔截
-    history = [
+    # And 若剛經歷 1 筆逆勢停損 (pnl_usdt < 0) 出場，20 分鐘內受 45 分鐘冷卻攔截；若連虧 2 筆逆勢停損則必須延長鎖定至 120 分鐘
+    history_one = [
         {
             "closed_at": "2026-11-13 03:15:42 UTC",
-            "pnl_usd": -9.46,
+            "pnl_usdt": -9.46,
             "why_enter": "短線超賣止跌勾頭反彈確認 [逆勢窄損保護]",
         }
     ]
     now_20m = datetime(2026, 11, 13, 3, 35, 42, tzinfo=timezone.utc)
-    sig_cd, reason_cd = evaluate_structural_entry("SWAP", 70360.0, bear_signals, history=history, now_utc=now_20m)
+    sig_cd, reason_cd = evaluate_structural_entry("SWAP", 70360.0, bear_signals, history=history_one, now_utc=now_20m)
     assert sig_cd is None
     assert "45 分鐘" in reason_cd
 
     now_46m = datetime(2026, 11, 13, 4, 1, 42, tzinfo=timezone.utc)
-    sig_after, _ = evaluate_structural_entry("SWAP", 70360.0, bear_signals, history=history, now_utc=now_46m)
+    sig_after, _ = evaluate_structural_entry("SWAP", 70360.0, bear_signals, history=history_one, now_utc=now_46m)
     assert sig_after == "LONG"
+
+    history_two = [
+        {
+            "closed_at": "2026-11-13 05:00:21 UTC",
+            "pnl_usdt": -9.64,
+            "why_enter": "短線超賣止跌勾頭反彈確認 [逆勢窄損保護]",
+        },
+        {
+            "closed_at": "2026-11-13 03:15:42 UTC",
+            "pnl_usdt": -9.46,
+            "why_enter": "短線超賣止跌勾頭反彈確認 [逆勢窄損保護]",
+        },
+    ]
+    now_90m = datetime(2026, 11, 13, 6, 30, 21, tzinfo=timezone.utc)
+    sig_cd2, reason_cd2 = evaluate_structural_entry("SWAP", 70360.0, bear_signals, history=history_two, now_utc=now_90m)
+    assert sig_cd2 is None
+    assert "120 分鐘" in reason_cd2
+
+    now_125m = datetime(2026, 11, 13, 7, 5, 21, tzinfo=timezone.utc)
+    sig_after2, _ = evaluate_structural_entry("SWAP", 70360.0, bear_signals, history=history_two, now_utc=now_125m)
+    assert sig_after2 == "LONG"
